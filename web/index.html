@@ -3,17 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Syncronization</title>
-    <meta
-      name="description"
-      content="Use your phone as a wireless browser speaker with Syncronization."
-    />
-    <link rel="stylesheet" href="./styles.css" />
+    <title>Syncronization | High Fidelity Wireless Audio</title>
+    <meta name="description" content="Stream browser audio to your phone with ultra-low latency." />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="./">
-        <span class="brand-mark">S</span>
+        <div class="brand-mark">S</div>
         <span>Syncronization</span>
       </a>
       <nav>
@@ -25,117 +22,65 @@
 
     <main>
       <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Remote browser speaker</p>
-          <h1>Syncronization</h1>
-          <p class="lead">
-            Stream audio from a Chrome tab to one or more phones using WebRTC.
-            Start a session in the extension, connect phones with the QR code,
-            and keep listening even when the phone screen turns off.
-          </p>
-          <div class="actions" id="download">
-            <a class="primary" href="./downloads/syncronization-app.apk" download>
-              Download Android App
-            </a>
-            <a class="secondary" href="./downloads/syncronization-extension.zip" download>
-              Download Extension
-            </a>
-          </div>
-          <p class="small">
-            Replace the files in <code>web/downloads/</code> with your release
-            APK and zipped extension before deploying.
-          </p>
+        <span class="eyebrow">Zero Latency Sync</span>
+        <h1>Wireless Audio,<br>Perfected.</h1>
+        <p class="lead">
+          Turn any mobile device into a high-fidelity wireless speaker for your computer. No lag, no cables, just pure sound.
+        </p>
+        <div class="actions" id="download">
+          <a class="btn btn-primary" href="downloads/syncronization-app.apk" download>
+            Install Android App
+          </a>
+          <a class="btn btn-secondary" href="downloads/syncronization-extension.zip" download>
+            Get Chrome Extension
+          </a>
         </div>
-        <div class="hero-visual" aria-label="Syncronization app preview">
-          <img src="./assets/hero.png" alt="Syncronization visual preview" />
+        <div class="hero-visual">
+          <img src="assets/hero.png" alt="App Preview" />
         </div>
       </section>
 
       <section class="connect-panel" id="connect">
         <div>
-          <p class="eyebrow">Session handoff</p>
-          <h2>Open a session from QR</h2>
+          <h2>Automatic Connect</h2>
           <p>
-            If this page was opened from the extension QR code, it will try to
-            open the mobile app automatically. If the app is not installed yet,
-            install it here and scan the QR code again.
+            If you scanned a QR code from the extension, we'll try to wake up your mobile app automatically.
           </p>
         </div>
         <div class="session-card">
-          <span>Session</span>
-          <strong id="session-id">No session detected</strong>
-          <button id="open-app" type="button">Open App</button>
+          <span>Active Session</span>
+          <strong id="session-id">----</strong>
+          <button id="open-app" class="btn btn-primary" type="button">Open App</button>
         </div>
       </section>
 
       <section class="grid" id="setup">
-        <article>
-          <span class="step">1</span>
-          <h3>Start the signaling server</h3>
-          <p>Run the Node server on your computer.</p>
-          <pre><code>cd signaling-server
-npm install
-npm start</code></pre>
+        <article class="card">
+          <div class="step-num">1</div>
+          <h3>Signaling</h3>
+          <p>Start the signaling bridge on your local network.</p>
+          <pre><code>npm run start:server</code></pre>
         </article>
-        <article>
-          <span class="step">2</span>
-          <h3>Install the extension</h3>
-          <p>Build it, then load <code>extension/dist</code> in Chrome.</p>
-          <pre><code>cd extension
-npm install
-npm run build</code></pre>
+        <article class="card">
+          <div class="step-num">2</div>
+          <h3>Extension</h3>
+          <p>Load the captured audio source from your Chrome tab.</p>
+          <pre><code>npm run build:ext</code></pre>
         </article>
-        <article>
-          <span class="step">3</span>
-          <h3>Connect phones</h3>
-          <p>
-            Start streaming in the extension. On each phone, scan the QR code or
-            enter the session code and your computer IP server URL.
-          </p>
-          <pre><code>http://YOUR_PC_IP:3001</code></pre>
+        <article class="card">
+          <div class="step-num">3</div>
+          <h3>Sync</h3>
+          <p>Scan the code and enjoy perfectly synced audio.</p>
+          <pre><code>IP: 192.168.x.x</code></pre>
         </article>
-      </section>
-
-      <section class="docs" id="docs">
-        <h2>What it does</h2>
-        <div class="docs-grid">
-          <div>
-            <h3>Browser audio capture</h3>
-            <p>
-              The Chrome extension captures the current tab audio and keeps the
-              stream local to your network after WebRTC negotiation.
-            </p>
-          </div>
-          <div>
-            <h3>Multiple mobile speakers</h3>
-            <p>
-              Multiple phones can join the same session code. The sender creates
-              one peer connection per receiver.
-            </p>
-          </div>
-          <div>
-            <h3>QR and deep links</h3>
-            <p>
-              QR codes point to this website with the session data. The website
-              opens the installed app with <code>syncronization://connect</code>.
-            </p>
-          </div>
-          <div>
-            <h3>Screen-off playback</h3>
-            <p>
-              Android uses a foreground media-playback service. iOS declares
-              background audio mode for remote speaker playback.
-            </p>
-          </div>
-        </div>
       </section>
     </main>
 
     <footer>
-      <span>Syncronization</span>
-      <span>WebRTC audio receiver system</span>
+      <span>&copy; 2026 Syncronization Labs</span>
+      <span>Designed for ultra-low latency audio</span>
     </footer>
 
-    <script src="./script.js"></script>
+    <script src="script.js"></script>
   </body>
 </html>
