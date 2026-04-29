@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { Smartphone, Laptop, Speaker, Loader2, CheckCircle2, AlertCircle, Radio, Download, Send } from 'lucide-react';
 
 const SIGNALING_SERVER = 'http://localhost:3001';
-const CONNECT_PAGE_URL = 'https://roshanjt5.github.io/Synchronization/connect';
+const CONNECT_PAGE_URL = 'https://syncronization-roshan.netlify.app/connect'; // REPLACE with your actual Netlify URL
 
 type Mode = 'SEND' | 'RECEIVE';
 type Status = 'IDLE' | 'CONNECTING' | 'CAPTURING' | 'LISTENING' | 'ERROR';
