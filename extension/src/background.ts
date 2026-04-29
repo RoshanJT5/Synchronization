@@ -29,7 +29,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function startOffscreen(mode: 'SEND' | 'RECEIVE', sessionId: string, streamId?: string) {
   const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT]
+    contextTypes: ['OFFSCREEN_DOCUMENT' as chrome.runtime.ContextType]
   });
 
   const initMessage = {
@@ -49,7 +49,7 @@ async function startOffscreen(mode: 'SEND' | 'RECEIVE', sessionId: string, strea
 
   await chrome.offscreen.createDocument({
     url: 'offscreen.html',
-    reasons: [chrome.offscreen.Reason.USER_MEDIA],
+    reasons: ['USER_MEDIA' as chrome.offscreen.Reason],
     justification: 'Capturing or playing audio for remote synchronization.'
   });
 }

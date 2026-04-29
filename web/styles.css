@@ -142,6 +142,17 @@ h1 {
   margin-bottom: 60px;
 }
 
+.download-note {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: -42px 0 42px;
+}
+
+.btn.is-disabled {
+  opacity: 0.62;
+}
+
 .btn {
   border: 0;
   border-radius: 12px;

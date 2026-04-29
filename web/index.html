@@ -25,16 +25,18 @@
         <span class="eyebrow">Zero Latency Sync</span>
         <h1>Wireless Audio,<br>Perfected.</h1>
         <p class="lead">
-          Turn any mobile device into a high-fidelity wireless speaker for your computer. No lag, no cables, just pure sound.
+          Turn any mobile device into a high-fidelity wireless speaker for your computer.
+          The live connection runs over your local Wi-Fi or mobile hotspot, so internet is not required after setup.
         </p>
         <div class="actions" id="download">
-          <a class="btn btn-primary" href="downloads/syncronization-app.apk" download="syncronization.apk">
+          <a id="apk-download" class="btn btn-primary" href="downloads/syncronization-app.apk" download="syncronization.apk">
             Install Android App
           </a>
           <a class="btn btn-secondary" href="downloads/syncronization-extension.zip" download="syncronization-extension.zip">
             Get Chrome Extension
           </a>
         </div>
+        <p id="apk-status" class="download-note"></p>
         <div class="hero-visual">
           <img src="assets/hero.png" alt="App Preview" />
         </div>
@@ -45,6 +47,7 @@
           <h2>Automatic Connect</h2>
           <p>
             If you scanned a QR code from the extension, we'll try to wake up your mobile app automatically.
+            If the app is not installed, use the download button above, then scan again.
           </p>
         </div>
         <div class="session-card">
@@ -58,20 +61,22 @@
         <article class="card">
           <div class="step-num">1</div>
           <h3>Signaling</h3>
-          <p>Start the signaling bridge on your local network.</p>
-          <pre><code>npm run start:server</code></pre>
+          <p>Start the signaling bridge on the computer running Chrome. This works on a hotspot with no internet.</p>
+          <pre><code>cd signaling-server
+npm start</code></pre>
         </article>
         <article class="card">
           <div class="step-num">2</div>
           <h3>Extension</h3>
-          <p>Load the captured audio source from your Chrome tab.</p>
-          <pre><code>npm run build:ext</code></pre>
+          <p>Load the unpacked Chrome extension and set the phone server URL to your computer LAN IP.</p>
+          <pre><code>cd extension
+npm run build</code></pre>
         </article>
         <article class="card">
           <div class="step-num">3</div>
           <h3>Sync</h3>
-          <p>Scan the code and enjoy perfectly synced audio.</p>
-          <pre><code>IP: 192.168.x.x</code></pre>
+          <p>Connect every phone to the same hotspot/Wi-Fi, then scan or enter the session code.</p>
+          <pre><code>http://192.168.x.x:3001</code></pre>
         </article>
       </section>
     </main>
