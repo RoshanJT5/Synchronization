@@ -65,6 +65,11 @@ function normalizeServerUrl(value: string) {
   return `http://${trimmed}`;
 }
 
+function isValidServerUrl(value: string) {
+  const normalized = normalizeServerUrl(value);
+  return normalized.length > 0 && /^https?:\/\//i.test(normalized);
+}
+
 export default function App() {
   const [status, setStatus] = useState<ConnectionStatus>('IDLE');
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER || '');
@@ -160,10 +165,17 @@ export default function App() {
 
   const connectToSession = useCallback(async (rawCode?: string, serverOverride?: string) => {
     const sid = parseSessionCode(rawCode || sessionInput);
-    const url = normalizeServerUrl(serverOverride || serverUrl);
+    const requestedUrl = serverOverride ?? serverUrl;
+    const url = normalizeServerUrl(requestedUrl);
 
     if (!sid) {
       setError('Enter or scan a session code first.');
+      setStatus('ERROR');
+      return;
+    }
+
+    if (!isValidServerUrl(requestedUrl)) {
+      setError('Enter the signaling server address before connecting.');
       setStatus('ERROR');
       return;
     }
@@ -365,7 +377,7 @@ export default function App() {
                   <Keyboard size={18} color="#71717a" />
                   <TextInput
                     value={sessionInput}
-                    onChangeText={text => setSessionInput(parseSessionCode(text))}
+                    onChangeText={(text: string) => setSessionInput(parseSessionCode(text))}
                     placeholder="A1B2C3D4"
                     placeholderTextColor="#52525b"
                     autoCapitalize="characters"
