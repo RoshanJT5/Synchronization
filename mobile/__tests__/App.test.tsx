@@ -6,21 +6,6 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
 
-jest.mock('react-native-vision-camera', () => {
-  const React = require('react');
-  const { View } = require('react-native');
-
-  return {
-    Camera: (props: any) => React.createElement(View, props),
-    VisionCamera: {
-      cameraPermissionStatus: 'authorized',
-      requestCameraPermission: jest.fn(async () => true),
-    },
-    useCameraDevice: jest.fn(() => ({ id: 'back-camera' })),
-    useObjectOutput: jest.fn(() => ({ type: 'object-output' })),
-  };
-});
-
 jest.mock('socket.io-client', () => ({
   io: jest.fn(() => ({
     connect: jest.fn(),

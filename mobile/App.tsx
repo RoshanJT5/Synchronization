@@ -7,6 +7,7 @@ import {
   NativeModules,
   PermissionsAndroid,
   Platform,
+  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,13 +16,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Camera,
-  VisionCamera,
-  useCameraDevice,
-  useObjectOutput,
-} from 'react-native-vision-camera';
 import { io, Socket } from 'socket.io-client';
 import {
   MediaStream,
@@ -75,33 +69,7 @@ function normalizeServerUrl(value: string) {
   return `http://${trimmed}`;
 }
 
-function IosQrScanner({
-  device,
-  onScan,
-}: {
-  device: NonNullable<ReturnType<typeof useCameraDevice>>;
-  onScan: (value: string) => void;
-}) {
-  const objectOutput = useObjectOutput({
-    types: ['qr'],
-    onObjectsScanned: objects => {
-      const value = (objects[0] as any)?.value;
-      if (value) onScan(value);
-    },
-  });
-
-  return (
-    <Camera
-      style={StyleSheet.absoluteFill}
-      device={device}
-      isActive={true}
-      outputs={[objectOutput]}
-    />
-  );
-}
-
 export default function App() {
-  const [cameraPermission, setCameraPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [status, setStatus] = useState<ConnectionStatus>('IDLE');
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER || '');
   const [sessionInput, setSessionInput] = useState('');
@@ -117,7 +85,6 @@ export default function App() {
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectToSessionRef = useRef<((rawCode?: string, serverOverride?: string) => void) | null>(null);
 
-  const cameraDevice = useCameraDevice('back');
   const cleanServerUrl = useMemo(() => normalizeServerUrl(serverUrl), [serverUrl]);
 
   const stopPlaybackService = useCallback(() => {
@@ -156,8 +123,6 @@ export default function App() {
   }, [stopPlaybackService]);
 
   useEffect(() => {
-    setCameraPermission(VisionCamera.cameraPermissionStatus === 'authorized' ? 'granted' : 'unknown');
-
     return resetConnection;
   }, [resetConnection]);
 
@@ -172,24 +137,10 @@ export default function App() {
   }, [startPlaybackService, status]);
 
   const requestCameraAndScan = useCallback(async () => {
-    if (Platform.OS !== 'ios') {
-      Alert.alert(
-        'Use the code for now',
-        'This installed camera package does not support QR object scanning on Android. Enter the extension session code manually.'
-      );
-      return;
-    }
-
-    const permission = await VisionCamera.requestCameraPermission();
-    if (!permission) {
-      setCameraPermission('denied');
-      Alert.alert('Camera permission needed', 'Allow camera access to scan the extension QR code.');
-      return;
-    }
-
-    setCameraPermission('granted');
-    setError('');
-    setStatus('SCANNING');
+    Alert.alert(
+      'Use your phone camera',
+      'Open the normal Camera app or Google Lens, scan the extension QR, and choose Syncronization. You can also type the session code here.'
+    );
   }, []);
 
   const handleScannedValue = useCallback((value: string) => {
@@ -366,9 +317,8 @@ export default function App() {
   }, [resetConnection]);
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#0a0a0c" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a0c" />
 
       <View style={styles.header}>
         <View style={styles.brandMark}>
@@ -385,19 +335,7 @@ export default function App() {
         )}
       </View>
 
-      {status === 'SCANNING' && cameraDevice && cameraPermission === 'granted' && Platform.OS === 'ios' ? (
-        <View style={styles.scannerScreen}>
-          <IosQrScanner device={cameraDevice} onScan={handleScannedValue} />
-          <View style={styles.scannerOverlay}>
-            <View style={styles.scanFrame} />
-            <Text style={styles.scanText}>Scan the extension QR code</Text>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => setStatus('IDLE')}>
-              <Text style={styles.secondaryButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {status === 'IDLE' && (
             <View style={styles.panel}>
               <View style={styles.heroIcon}>
@@ -511,16 +449,14 @@ export default function App() {
               </TouchableOpacity>
             </View>
           )}
-        </ScrollView>
-      )}
+      </ScrollView>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>WebRTC receiver</Text>
         <View style={styles.footerDot} />
         <Text style={styles.footerText}>{peerState}</Text>
       </View>
-      </SafeAreaView>
-    </SafeAreaProvider>
+    </SafeAreaView>
   );
 }
 
@@ -740,36 +676,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     textAlign: 'center',
-  },
-  scannerScreen: {
-    flex: 1,
-    margin: 20,
-    overflow: 'hidden',
-    borderRadius: 18,
-  },
-  scannerOverlay: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    bottom: 0,
-    justifyContent: 'center',
-    gap: 24,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
-  scanFrame: {
-    backgroundColor: 'transparent',
-    borderColor: '#a855f7',
-    borderRadius: 24,
-    borderWidth: 3,
-    height: 250,
-    width: 250,
-  },
-  scanText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
   },
   footer: {
     alignItems: 'center',
