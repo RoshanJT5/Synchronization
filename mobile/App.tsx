@@ -44,18 +44,11 @@ const { SyncronizationPlayback } = NativeModules;
 
 function parseSessionCode(value: string) {
   const trimmed = value.trim();
-
   if (trimmed.startsWith('sync://connect') || trimmed.startsWith('syncronization://connect') || trimmed.includes('/connect')) {
     const match = trimmed.match(/[?&]id=([^&]+)/);
     return decodeURIComponent(match?.[1] || '').toUpperCase();
   }
-
   return trimmed.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-}
-
-function parseServerUrl(value: string) {
-  const match = value.trim().match(/[?&]server=([^&]+)/);
-  return match?.[1] ? decodeURIComponent(match[1]) : '';
 }
 
 function normalizeServerUrl(value: string) {
@@ -65,14 +58,9 @@ function normalizeServerUrl(value: string) {
   return `http://${trimmed}`;
 }
 
-function isValidServerUrl(value: string) {
-  const normalized = normalizeServerUrl(value);
-  return normalized.length > 0 && /^https?:\/\//i.test(normalized);
-}
-
 export default function App() {
   const [status, setStatus] = useState<ConnectionStatus>('IDLE');
-  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER || '');
+  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER);
   const [sessionInput, setSessionInput] = useState('');
   const [activeSessionId, setActiveSessionId] = useState('');
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -84,9 +72,6 @@ export default function App() {
   const targetPeerRef = useRef<string | null>(null);
   const pendingCandidatesRef = useRef<any[]>([]);
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const connectToSessionRef = useRef<((rawCode?: string, serverOverride?: string) => void) | null>(null);
-
-  const cleanServerUrl = useMemo(() => normalizeServerUrl(serverUrl), [serverUrl]);
 
   const stopPlaybackService = useCallback(() => {
     if (Platform.OS === 'android' && SyncronizationPlayback?.stop) {
@@ -108,7 +93,6 @@ export default function App() {
       clearTimeout(connectTimeoutRef.current);
       connectTimeoutRef.current = null;
     }
-
     socketRef.current?.removeAllListeners();
     socketRef.current?.disconnect();
     socketRef.current = null;
@@ -133,336 +117,264 @@ export default function App() {
         startPlaybackService();
       }
     });
-
     return () => sub.remove();
   }, [startPlaybackService, status]);
 
-  const requestCameraAndScan = useCallback(async () => {
-    Alert.alert(
-      'Use your phone camera',
-      'Open the normal Camera app or Google Lens, scan the extension QR, and choose Syncronization. You can also type the session code here.'
-    );
-  }, []);
+  const handleDeepLink = useCallback((url: string) => {
+    const match = url.match(/[?&]id=([^&]+)/);
+    const sid = match?.[1] ? decodeURIComponent(match[1]).toUpperCase() : '';
+    
+    const serverMatch = url.match(/[?&]server=([^&]+)/);
+    const server = serverMatch?.[1] ? decodeURIComponent(serverMatch[1]) : '';
 
-  const handleScannedValue = useCallback((value: string) => {
-    const sid = parseSessionCode(value);
-    if (!sid) return;
-
-    const linkedServerUrl = parseServerUrl(value);
-    if (linkedServerUrl) {
-      setServerUrl(linkedServerUrl);
+    if (sid) {
+      setSessionInput(sid);
+      if (server) setServerUrl(server);
+      // Automatically connect
+      setTimeout(() => connectToSession(sid, server), 500);
     }
-
-    setSessionInput(sid);
-    connectToSessionRef.current?.(sid, linkedServerUrl || undefined);
   }, []);
 
-  const failConnection = useCallback((message: string) => {
-    resetConnection();
-    setError(message);
-    setStatus('ERROR');
-  }, [resetConnection]);
+  useEffect(() => {
+    Linking.getInitialURL().then(url => {
+      if (url) handleDeepLink(url);
+    });
+    const sub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+    return () => sub.remove();
+  }, [handleDeepLink]);
 
-  const connectToSession = useCallback(async (rawCode?: string, serverOverride?: string) => {
+  const connectToSession = useCallback((rawCode?: string, serverOverride?: string) => {
     const sid = parseSessionCode(rawCode || sessionInput);
-    const requestedUrl = serverOverride ?? serverUrl;
-    const url = normalizeServerUrl(requestedUrl);
+    const server = normalizeServerUrl(serverOverride || serverUrl);
 
     if (!sid) {
-      setError('Enter or scan a session code first.');
-      setStatus('ERROR');
+      Alert.alert('Error', 'Please enter a session ID or scan a QR code.');
       return;
     }
 
-    if (!isValidServerUrl(requestedUrl)) {
-      setError('Enter the signaling server address before connecting.');
-      setStatus('ERROR');
+    if (!server || server === 'http://') {
+      Alert.alert('Error', 'Please enter your signaling server address (e.g., 192.168.1.5:3000)');
       return;
     }
 
     resetConnection();
-    setError('');
-    setActiveSessionId(sid);
     setStatus('CONNECTING');
-    setPeerState('Connecting to signaling server');
-
-    const socket = io(url, {
-      autoConnect: false,
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 3,
-      timeout: 10000,
-    });
-
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    });
-
-    socketRef.current = socket;
-    pcRef.current = pc;
-
-    connectTimeoutRef.current = setTimeout(() => {
-      failConnection(`Could not connect to ${url}. Check that the signaling server is running and your phone is on the same network.`);
-    }, 12000);
-
-    pc.addTransceiver('audio', { direction: 'recvonly' });
-
-    (pc as any).addEventListener('icecandidate', (event: any) => {
-      if (!event.candidate) return;
-
-      socket.emit('signal', {
-        sessionId: sid,
-        to: targetPeerRef.current || undefined,
-        signal: { candidate: event.candidate },
-      });
-    });
-
-    (pc as any).addEventListener('connectionstatechange', () => {
-      const state = pc.connectionState || 'connecting';
-      setPeerState(`WebRTC ${state}`);
-
-      if (state === 'failed' || state === 'closed' || state === 'disconnected') {
-        failConnection(`WebRTC connection ${state}. Try reconnecting from both devices.`);
-      }
-    });
-
-    (pc as any).addEventListener('track', (event: any) => {
-      const stream = event.streams?.[0];
-      if (!stream) return;
-
-      stream.getAudioTracks().forEach((track: any) => {
-        track.enabled = true;
-      });
-
-      setRemoteStream(stream);
-      setStatus('CONNECTED');
-      setPeerState('Receiving audio');
-      startPlaybackService();
-    });
-
-    socket.on('connect', () => {
-      if (connectTimeoutRef.current) {
-        clearTimeout(connectTimeoutRef.current);
-        connectTimeoutRef.current = null;
-      }
-
-      setPeerState('Joined signaling room');
-      socket.emit('join-session', sid);
-    });
-
-    socket.on('connect_error', err => {
-      failConnection(err.message || `Could not connect to ${url}`);
-    });
-
-    socket.on('disconnect', reason => {
-      if (status !== 'IDLE') {
-        setPeerState(`Signaling disconnected: ${reason}`);
-      }
-    });
-
-    socket.on('signal', async ({ from, signal }) => {
-      try {
-        targetPeerRef.current = from;
-
-        if (signal.type === 'offer') {
-          setPeerState('Offer received');
-          await pc.setRemoteDescription(new RTCSessionDescription(signal));
-
-          for (const candidate of pendingCandidatesRef.current) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          }
-          pendingCandidatesRef.current = [];
-
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-
-          socket.emit('signal', {
-            sessionId: sid,
-            to: from,
-            signal: answer,
-          });
-
-          setPeerState('Answer sent');
-          return;
-        }
-
-        if (signal.candidate) {
-          if (!pc.remoteDescription) {
-            pendingCandidatesRef.current.push(signal.candidate);
-            return;
-          }
-
-          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-        }
-      } catch (err: any) {
-        failConnection(err?.message || 'Failed during WebRTC negotiation.');
-      }
-    });
-
-    socket.connect();
-  }, [failConnection, resetConnection, serverUrl, sessionInput, startPlaybackService, status]);
-
-  useEffect(() => {
-    connectToSessionRef.current = connectToSession;
-  }, [connectToSession]);
-
-  useEffect(() => {
-    const openFromUrl = (url: string | null) => {
-      if (!url) return;
-      handleScannedValue(url);
-    };
-
-    Linking.getInitialURL().then(openFromUrl);
-    const sub = Linking.addEventListener('url', event => openFromUrl(event.url));
-
-    return () => sub.remove();
-  }, [handleScannedValue]);
-
-  const disconnect = useCallback(() => {
-    resetConnection();
-    setStatus('IDLE');
+    setActiveSessionId(sid);
     setError('');
-    setActiveSessionId('');
-  }, [resetConnection]);
+
+    try {
+      const socket = io(server, {
+        timeout: 10000,
+        transports: ['websocket'],
+      });
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        socket.emit('join-session', { sessionId: sid, role: 'receiver' });
+      });
+
+      socket.on('session-joined', () => {
+        setStatus('CONNECTED');
+        startPlaybackService();
+      });
+
+      socket.on('offer', async ({ offer, from }) => {
+        targetPeerRef.current = from;
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        });
+        pcRef.current = pc;
+
+        pc.onicecandidate = ({ candidate }) => {
+          if (candidate) {
+            socket.emit('ice-candidate', { candidate, to: from });
+          }
+        };
+
+        pc.onconnectionstatechange = () => {
+          setPeerState(pc.connectionState);
+        };
+
+        pc.ontrack = (event) => {
+          if (event.streams && event.streams[0]) {
+            setRemoteStream(event.streams[0]);
+          }
+        };
+
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        socket.emit('answer', { answer, to: from });
+
+        // Add any pending candidates
+        while (pendingCandidatesRef.current.length > 0) {
+          const cand = pendingCandidatesRef.current.shift();
+          await pc.addIceCandidate(new RTCIceCandidate(cand));
+        }
+      });
+
+      socket.on('ice-candidate', async ({ candidate }) => {
+        if (pcRef.current?.remoteDescription) {
+          await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        } else {
+          pendingCandidatesRef.current.push(candidate);
+        }
+      });
+
+      socket.on('connect_error', (err) => {
+        setError(`Connection failed: ${err.message}`);
+        setStatus('ERROR');
+      });
+
+      socket.on('disconnect', () => {
+        if (status === 'CONNECTED') {
+          setStatus('IDLE');
+          resetConnection();
+        }
+      });
+
+    } catch (err: any) {
+      setError(err.message);
+      setStatus('ERROR');
+    }
+  }, [sessionInput, serverUrl, resetConnection, startPlaybackService, status]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0a0a0c" />
-
-      <View style={styles.header}>
-        <View style={styles.brandMark}>
-          <Speaker size={22} color="#ffffff" />
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <Speaker size={32} color="#22d3ee" strokeWidth={2.5} />
+            <Text style={styles.logoText}>Syncronization</Text>
+          </View>
+          <Text style={styles.tagline}>Ultra-low latency remote audio</Text>
         </View>
-        <View style={styles.brandTextWrap}>
-          <Text style={styles.brandTitle}>Syncronization</Text>
-          <Text style={styles.brandSubtitle}>Mobile speaker</Text>
-        </View>
-        {status !== 'IDLE' && (
-          <TouchableOpacity onPress={disconnect} style={styles.iconButton} accessibilityLabel="Disconnect">
-            <X size={20} color="#a1a1aa" />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {status === 'IDLE' && (
-            <View style={styles.panel}>
-              <View style={styles.heroIcon}>
-                <Radio size={38} color="#a855f7" />
+        {/* Status Card */}
+        <View style={[styles.card, styles.glass]}>
+          <View style={styles.statusHeader}>
+            <View style={styles.statusIndicator}>
+              <View style={[styles.dot, { backgroundColor: status === 'CONNECTED' ? '#22c55e' : (status === 'ERROR' ? '#ef4444' : '#64748b') }]} />
+              <Text style={styles.statusLabel}>{status}</Text>
+            </View>
+            {status === 'CONNECTED' && (
+              <View style={styles.peerBadge}>
+                <Wifi size={14} color="#22d3ee" />
+                <Text style={styles.peerText}>{peerState}</Text>
               </View>
+            )}
+          </View>
 
-              <Text style={styles.title}>Connect as Speaker</Text>
-              <Text style={styles.copy}>Scan the QR code from the extension or type the session code.</Text>
-
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Signaling server</Text>
-                <View style={styles.inputRow}>
-                  <Wifi size={18} color="#71717a" />
-                  <TextInput
-                    value={serverUrl}
-                    onChangeText={setServerUrl}
-                    placeholder="http://192.168.1.5:3001"
-                    placeholderTextColor="#52525b"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                    style={styles.input}
-                  />
-                </View>
-                <Text style={styles.hint}>Phone users should enter the computer IP, not localhost.</Text>
-              </View>
-
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Session code</Text>
-                <View style={styles.inputRow}>
-                  <Keyboard size={18} color="#71717a" />
-                  <TextInput
-                    value={sessionInput}
-                    onChangeText={(text: string) => setSessionInput(parseSessionCode(text))}
-                    placeholder="A1B2C3D4"
-                    placeholderTextColor="#52525b"
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    style={[styles.input, styles.codeInput]}
-                    maxLength={16}
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity style={styles.primaryButton} onPress={() => connectToSession()}>
-                <Speaker size={19} color="#0a0a0c" />
-                <Text style={styles.primaryButtonText}>Connect</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.scanButton} onPress={requestCameraAndScan}>
-                <CameraIcon size={19} color="#ffffff" />
-                <Text style={styles.scanButtonText}>Scan QR Code</Text>
-              </TouchableOpacity>
+          {activeSessionId && (
+            <View style={styles.sessionBadge}>
+              <Text style={styles.sessionLabel}>ACTIVE SESSION</Text>
+              <Text style={styles.sessionId}>{activeSessionId}</Text>
             </View>
           )}
 
-          {status === 'CONNECTING' && (
-            <View style={styles.centerPanel}>
-              <ActivityIndicator size="large" color="#a855f7" />
-              <Text style={styles.title}>Negotiating</Text>
-              <Text style={styles.copy}>{peerState}</Text>
-              <View style={styles.sessionBox}>
-                <Text style={styles.sessionLabel}>Session</Text>
-                <Text style={styles.sessionValue}>{activeSessionId}</Text>
-              </View>
-            </View>
-          )}
-
-          {status === 'CONNECTED' && (
-            <View style={styles.centerPanel}>
-              <View style={styles.liveGlow}>
-                <CheckCircle2 size={68} color="#3b82f6" />
-              </View>
-              <Text style={styles.title}>Output Active</Text>
-              <Text style={styles.copy}>Audio keeps playing while the screen is off.</Text>
-
-              {remoteStream && (
-                <RTCView
-                  streamURL={remoteStream.toURL()}
-                  objectFit="cover"
-                  style={styles.hiddenRtcView}
-                />
-              )}
-
-              <View style={styles.waveRow}>
-                {[28, 52, 38, 70, 44, 58, 32].map((height, index) => (
-                  <View key={index} style={[styles.waveBar, { height }]} />
-                ))}
-              </View>
-
-              <View style={styles.sessionBox}>
-                <Text style={styles.sessionLabel}>Live session</Text>
-                <Text style={styles.sessionValue}>{activeSessionId}</Text>
-                <Text style={styles.stateText}>{cleanServerUrl}</Text>
-              </View>
-
-              <TouchableOpacity style={styles.secondaryButton} onPress={disconnect}>
-                <Text style={styles.secondaryButtonText}>Disconnect</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {status === 'ERROR' && (
-            <View style={styles.centerPanel}>
-              <AlertCircle size={58} color="#ef4444" />
-              <Text style={styles.title}>Could not connect</Text>
+          {error ? (
+            <View style={styles.errorBox}>
+              <AlertCircle size={18} color="#ef4444" />
               <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.primaryButton} onPress={() => setStatus('IDLE')}>
-                <RefreshCcw size={19} color="#0a0a0c" />
-                <Text style={styles.primaryButtonText}>Try Again</Text>
-              </TouchableOpacity>
             </View>
-          )}
+          ) : status === 'IDLE' ? (
+            <Text style={styles.hintText}>Enter session code or scan QR to start</Text>
+          ) : null}
+        </View>
+
+        {/* Input Controls */}
+        {status === 'IDLE' || status === 'ERROR' ? (
+          <View style={styles.controls}>
+            <View style={styles.inputGroup}>
+              <View style={styles.inputLabelRow}>
+                <Radio size={16} color="#94a3b8" />
+                <Text style={styles.inputLabel}>Signaling Server</Text>
+              </View>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 192.168.1.5:3000"
+                placeholderTextColor="#475569"
+                value={serverUrl}
+                onChangeText={setServerUrl}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <View style={styles.inputLabelRow}>
+                <Keyboard size={16} color="#94a3b8" />
+                <Text style={styles.inputLabel}>Session Code</Text>
+              </View>
+              <View style={styles.actionRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginRight: 12 }]}
+                  placeholder="EX: ABCD-1234"
+                  placeholderTextColor="#475569"
+                  value={sessionInput}
+                  onChangeText={setSessionInput}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity 
+                  style={styles.scanButton}
+                  onPress={() => Alert.alert('Coming Soon', 'QR Scanning integration is almost ready. Use the session code for now!')}
+                >
+                  <CameraIcon size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.connectButton}
+              onPress={() => connectToSession()}
+            >
+              <Text style={styles.connectButtonText}>Connect to Speaker</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.connectedView}>
+            {status === 'CONNECTING' ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="large" color="#22d3ee" />
+                <Text style={styles.loadingText}>Establishing secure link...</Text>
+              </View>
+            ) : (
+              <View style={styles.activeView}>
+                <View style={styles.pulseContainer}>
+                  <View style={styles.pulseRing} />
+                  <Speaker size={64} color="#22d3ee" />
+                </View>
+                <Text style={styles.activeText}>Audio Link Active</Text>
+                <Text style={styles.activeSubtext}>Your device is now a remote speaker</Text>
+                
+                <TouchableOpacity 
+                  style={styles.disconnectButton}
+                  onPress={resetConnection}
+                >
+                  <X size={20} color="#fff" />
+                  <Text style={styles.disconnectButtonText}>Stop Listening</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Remote Video (Hidden, used for audio only) */}
+        {remoteStream && (
+          <View style={{ height: 0, opacity: 0 }}>
+            <RTCView streamURL={remoteStream.toURL()} style={{ width: 1, height: 1 }} />
+          </View>
+        )}
       </ScrollView>
 
+      {/* Footer Info */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>WebRTC receiver</Text>
-        <View style={styles.footerDot} />
-        <Text style={styles.footerText}>{peerState}</Text>
+        <Text style={styles.footerText}>Version 1.0.0 • Stability Master Build</Text>
       </View>
     </SafeAreaView>
   );
@@ -471,239 +383,236 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0c',
+    backgroundColor: '#0f172a',
+  },
+  scrollContent: {
+    padding: 24,
+    flexGrow: 1,
   },
   header: {
+    marginTop: 20,
+    marginBottom: 40,
     alignItems: 'center',
+  },
+  logoContainer: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  brandMark: {
     alignItems: 'center',
-    backgroundColor: '#7c3aed',
-    borderRadius: 14,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
+    gap: 12,
   },
-  brandTextWrap: {
-    flex: 1,
-  },
-  brandTitle: {
-    color: '#ffffff',
-    fontSize: 20,
+  logoText: {
+    fontSize: 28,
     fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.5,
   },
-  brandSubtitle: {
-    color: '#71717a',
+  tagline: {
+    color: '#94a3b8',
+    marginTop: 8,
+    fontSize: 16,
+  },
+  card: {
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 32,
+  },
+  glass: {
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusLabel: {
+    color: '#fff',
     fontSize: 12,
     fontWeight: '700',
-    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  iconButton: {
-    alignItems: 'center',
-    backgroundColor: '#18181b',
-    borderColor: '#27272a',
-    borderRadius: 12,
-    borderWidth: 1,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-  content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  panel: {
-    gap: 18,
-  },
-  heroIcon: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(168, 85, 247, 0.12)',
-    borderColor: 'rgba(168, 85, 247, 0.25)',
-    borderRadius: 40,
-    borderWidth: 1,
-    height: 80,
-    justifyContent: 'center',
-    width: 80,
-  },
-  title: {
-    color: '#ffffff',
-    fontSize: 24,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  copy: {
-    color: '#a1a1aa',
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  fieldGroup: {
-    gap: 8,
-  },
-  label: {
-    color: '#d4d4d8',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  inputRow: {
-    alignItems: 'center',
-    backgroundColor: '#16161a',
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 12,
-    borderWidth: 1,
+  peerBadge: {
     flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 14,
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 211, 238, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
   },
-  input: {
-    color: '#ffffff',
-    flex: 1,
-    fontSize: 15,
-    minHeight: 52,
+  peerText: {
+    color: '#22d3ee',
+    fontSize: 11,
+    fontWeight: '600',
   },
-  codeInput: {
+  sessionBadge: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  sessionLabel: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  sessionId: {
+    color: '#fff',
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: 2,
-    textAlign: 'center',
   },
-  hint: {
-    color: '#71717a',
-    fontSize: 12,
-  },
-  primaryButton: {
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+  errorBox: {
     flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'center',
-    minHeight: 52,
-  },
-  primaryButtonText: {
-    color: '#0a0a0c',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  scanButton: {
     alignItems: 'center',
-    backgroundColor: '#7c3aed',
-    borderRadius: 12,
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'center',
-    minHeight: 52,
-  },
-  scanButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  centerPanel: {
-    alignItems: 'center',
-    gap: 18,
-  },
-  sessionBox: {
-    alignItems: 'center',
-    backgroundColor: '#16161a',
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 18,
-    width: '100%',
-  },
-  sessionLabel: {
-    color: '#71717a',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  sessionValue: {
-    color: '#c084fc',
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginTop: 4,
-  },
-  stateText: {
-    color: '#71717a',
-    fontSize: 12,
-    marginTop: 8,
-  },
-  liveGlow: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderRadius: 50,
-    height: 100,
-    justifyContent: 'center',
-    width: 100,
-  },
-  hiddenRtcView: {
-    height: 1,
-    opacity: 0,
-    width: 1,
-  },
-  waveRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
     gap: 8,
-    height: 84,
-    justifyContent: 'center',
-  },
-  waveBar: {
-    backgroundColor: '#a855f7',
-    borderRadius: 5,
-    width: 10,
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    backgroundColor: '#18181b',
-    borderColor: '#27272a',
-    borderRadius: 12,
-    borderWidth: 1,
-    minHeight: 48,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  secondaryButtonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
+    marginTop: 12,
   },
   errorText: {
-    color: '#fca5a5',
+    color: '#ef4444',
     fontSize: 14,
-    lineHeight: 21,
+    flex: 1,
+  },
+  hintText: {
+    color: '#64748b',
+    fontSize: 14,
     textAlign: 'center',
   },
-  footer: {
-    alignItems: 'center',
-    borderColor: 'rgba(255,255,255,0.06)',
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'center',
-    padding: 14,
+  controls: {
+    gap: 20,
   },
-  footerDot: {
-    backgroundColor: '#22c55e',
-    borderRadius: 4,
-    height: 7,
-    width: 7,
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 4,
+  },
+  inputLabel: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  input: {
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 16,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  actionRow: {
+    flexDirection: 'row',
+  },
+  scanButton: {
+    width: 56,
+    height: 56,
+    backgroundColor: '#334155',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  connectButton: {
+    backgroundColor: '#22d3ee',
+    padding: 18,
+    borderRadius: 18,
+    alignItems: 'center',
+    marginTop: 12,
+    shadowColor: '#22d3ee',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  connectButtonText: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  connectedView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingBox: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    color: '#94a3b8',
+    fontSize: 15,
+  },
+  activeView: {
+    alignItems: 'center',
+  },
+  pulseContainer: {
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: '#22d3ee',
+    opacity: 0.5,
+  },
+  activeText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  activeSubtext: {
+    color: '#64748b',
+    fontSize: 15,
+    marginBottom: 40,
+  },
+  disconnectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#334155',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 100,
+    gap: 10,
+  },
+  disconnectButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  footer: {
+    padding: 20,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
   },
   footerText: {
-    color: '#52525b',
+    color: '#475569',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
     textTransform: 'uppercase',
-  },
+    letterSpacing: 1,
+  }
 });
