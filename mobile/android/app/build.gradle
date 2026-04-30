@@ -70,7 +70,7 @@ def enableProguardInReleaseBuilds = true
  * give correct results when using with locales other than en-US. Note that
  * this variant is about 6MiB larger per architecture than default.
  */
-def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+def jscFlavor = 'io.github.react-native-community:jsc-android-intl:2026004.+'
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -85,11 +85,7 @@ android {
         versionCode 1
         versionName "1.0"
         manifestPlaceholders = [usesCleartextTraffic: "true"]
-        externalNativeBuild {
-            cmake {
-                arguments "-DANDROID_STL=c++_shared"
-            }
-        }
+        /* Removing potentially broken native build */
     }
     signingConfigs {
         debug {
@@ -123,10 +119,9 @@ android {
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
-    implementation("com.facebook.react:react-android")
-
+    implementation("com.facebook.react:react-android:0.81.0")
     if (hermesEnabled.toBoolean()) {
-        implementation("com.facebook.react:hermes-android")
+        implementation("com.facebook.react:hermes-android:0.81.0")
     } else {
         implementation jscFlavor
     }
