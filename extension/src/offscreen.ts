@@ -230,6 +230,11 @@ function ensureNetworkingReady() {
     Peer = peerModule.default;
     socket = socketModule.io(SIGNALING_SERVER, {
       autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
       transports: ['websocket', 'polling']
     });
   });
