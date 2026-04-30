@@ -12,7 +12,15 @@ class PlaybackService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    startForeground(NOTIFICATION_ID, buildNotification())
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      startForeground(
+          NOTIFICATION_ID,
+          buildNotification(),
+          android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+      )
+    } else {
+      startForeground(NOTIFICATION_ID, buildNotification())
+    }
     return START_STICKY
   }
 
