@@ -17,7 +17,12 @@ class PlaybackService : Service() {
   }
 
   override fun onDestroy() {
-    stopForeground(STOP_FOREGROUND_REMOVE)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      stopForeground(STOP_FOREGROUND_REMOVE)
+    } else {
+      @Suppress("DEPRECATION")
+      stopForeground(true)
+    }
     super.onDestroy()
   }
 

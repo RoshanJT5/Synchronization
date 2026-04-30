@@ -38,11 +38,7 @@ import {
 
 type ConnectionStatus = 'IDLE' | 'SCANNING' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
-const DEFAULT_SERVER = Platform.select({
-  android: 'http://10.0.2.2:3001',
-  ios: 'http://localhost:3001',
-  default: 'http://localhost:3001',
-});
+const DEFAULT_SERVER = '';
 
 const { SyncronizationPlayback } = NativeModules;
 
