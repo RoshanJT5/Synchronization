@@ -1,0 +1,51 @@
+name: syncronization
+description: Use your phone as a wireless speaker for your browser audio.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # WebRTC
+  flutter_webrtc: ^0.12.1
+
+  # State Management
+  provider: ^6.1.2
+
+  # Socket.io signaling
+  socket_io_client: ^3.1.2
+
+  # QR code scanner
+  mobile_scanner: ^5.2.3
+
+  # Deep link handling
+  app_links: ^6.4.1
+
+  # Audio session management (keeps audio alive in background)
+  audio_session: ^0.1.25
+
+  # Wakelock (keep screen on while streaming)
+  wakelock_plus: ^1.5.2
+
+  # URL launcher
+  url_launcher: ^6.3.1
+
+  # Shared preferences (remember last server URL)
+  shared_preferences: ^2.3.3
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
