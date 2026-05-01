@@ -10,8 +10,8 @@ Syncronization is a tool that allows you to use your mobile device (or multiple 
 ## 🛠️ Tech Stack
 - **Protocol**: WebRTC (Peer-to-Peer) for ultra-low latency.
 - **Signaling Server**: Node.js + Socket.io for initial handshake.
-- **Browser Extension**: Manifest V3, Chrome `tabCapture` API.
-- **Mobile App**: React Native with `react-native-webrtc`.
+- **Browser Extension**: Manifest V3, Chrome `tabCapture` API, React, TypeScript.
+- **Mobile App**: Flutter 3.x (Dart) — `flutter_webrtc` for P2P audio, `socket_io_client` for signaling, `mobile_scanner` for QR codes, `app_links` for deep link handling.
 
 ## 📋 Requirements
 ### Functional

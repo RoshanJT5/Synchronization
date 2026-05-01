@@ -1,97 +1,106 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Syncronization — Mobile App
 
-# Getting Started
+Flutter mobile app that receives browser audio streamed from the Syncronization Chrome extension and plays it as a wireless speaker.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
 
-## Step 1: Start Metro
+- **QR Code Scanner** — Scan the QR code shown in the extension popup to connect instantly.
+- **Manual Session ID** — Enter the 8-character session ID manually if QR scanning isn't available.
+- **Deep Link Support** — The website automatically opens the app via `syncronization://connect?id=...&server=...`.
+- **WebRTC Audio** — Receives the P2P audio stream with ultra-low latency over your local Wi-Fi.
+- **Background Audio** — Audio keeps playing when the screen is off or the app is backgrounded.
+- **Premium Dark UI** — Matches the extension and website aesthetic with animated waveform visualizer.
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Tech Stack
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+| Layer | Technology |
+|---|---|
+| Framework | Flutter 3.x (Dart) |
+| WebRTC | `flutter_webrtc` |
+| Signaling | `socket_io_client` |
+| QR Scanner | `mobile_scanner` |
+| Deep Links | `app_links` |
+| Audio Session | `audio_session` |
 
-```sh
-# Using npm
-npm start
+## Getting Started
 
-# OR using Yarn
-yarn start
+### Prerequisites
+
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.0.0
+- Android SDK (API 21+) or Xcode 14+ for iOS
+- The [signaling server](../signaling-server/) running on your computer
+
+### Run on Android
+
+```bash
+cd mobile
+flutter pub get
+flutter run
 ```
 
-## Step 2: Build and run your app
+### Build APK
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+flutter build apk --release
+# Output: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-### iOS
+Copy the APK to `web/downloads/syncronization-app.apk` to make it available on the website.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+### Run on iOS
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```bash
+cd mobile/ios
+pod install
+cd ..
+flutter run
 ```
 
-Then, and every time you update your native dependencies, run:
+## Configuration
 
-```sh
-bundle exec pod install
+The signaling server URL defaults to `http://192.168.1.5:3001`. Update it in the app's server URL field to match your computer's LAN IP address. The app remembers the last used server URL.
+
+## Deep Link Format
+
+The extension QR code encodes a URL like:
+
+```
+https://synchronization.netlify.app/?id=ABC12345&server=http://192.168.1.5:3001
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+The website's `script.js` converts this to a deep link:
 
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+```
+syncronization://connect?id=ABC12345&server=http://192.168.1.5:3001
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+Which opens the app and auto-connects to the session.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## Project Structure
 
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+```
+mobile/
+├── lib/
+│   ├── main.dart                  # Entry point
+│   ├── app.dart                   # MaterialApp setup
+│   ├── theme/
+│   │   └── app_theme.dart         # Colors, typography, component themes
+│   ├── screens/
+│   │   ├── home_screen.dart       # Main screen (idle/connecting/connected/error)
+│   │   └── qr_scanner_screen.dart # Camera QR scanner
+│   ├── services/
+│   │   ├── webrtc_service.dart    # WebRTC + Socket.io connection logic
+│   │   └── deep_link_service.dart # Deep link / URL scheme handling
+│   └── widgets/
+│       ├── waveform_visualizer.dart # Animated audio waveform
+│       ├── status_indicator.dart    # Pulsing live indicator
+│       └── gradient_button.dart     # Purple gradient CTA button
+├── android/
+│   └── app/src/main/
+│       ├── AndroidManifest.xml    # Permissions + deep link intent filters
+│       └── kotlin/.../MainActivity.kt
+├── ios/
+│   ├── Runner/Info.plist          # Permissions + URL scheme
+│   └── Podfile
+└── pubspec.yaml                   # Dependencies
+```

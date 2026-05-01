@@ -4,30 +4,36 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# React Native
+# React Native / Expo
 .expo/
 .expo-shared/
-
-# Metro
 .metro/
 
-# Android
+# Android build artifacts
 android/app/build/
 android/build/
+mobile/build/
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/java_pid*.hprof
+*.hprof
 *.apk
 *.aab
 *.aar
 
-# iOS
+# iOS build artifacts
 ios/build/
+mobile/ios/build/
 *.ipa
 
-# Temporary files
-*.tmp
-*.temp
+# Flutter tool artifacts
+mobile/.dart_tool/
+mobile/ephemeral/
+mobile/.flutter-plugins-dependencies
+mobile/.flutter-plugins
 
-# IDE
-.vscode/
+# IDE / Editor
 .idea/
 *.swp
 *.swo
@@ -47,7 +53,6 @@ logs/
 .env.test.local
 .env.production.local
 
-# Downloads (build artifacts)
+# Downloads and build artifacts
 web/downloads/
-mobile/android/app/build/
-mobile/ios/build/
+extension/dist/

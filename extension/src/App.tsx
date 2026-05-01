@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
-import { Smartphone, Laptop, Speaker, Loader2, CheckCircle2, AlertCircle, Radio, Download, Send } from 'lucide-react';
+import { Smartphone, Laptop, Speaker, Loader2, CheckCircle2, AlertCircle, Radio, Download, Send, Volume2, VolumeX } from 'lucide-react';
 
-const SIGNALING_SERVER = 'http://localhost:3001';
-const CONNECT_PAGE_URL = 'https://synchronization.netlify.app/';
+const SIGNALING_SERVER = 'https://syncronization-server.onrender.com';
+const CONNECT_PAGE_URL = 'https://syncronization.vercel.app/';
 
 type Mode = 'SEND' | 'RECEIVE';
 type Status = 'IDLE' | 'CONNECTING' | 'CAPTURING' | 'LISTENING' | 'ERROR';
@@ -12,9 +12,11 @@ function App() {
   const [mode, setMode] = useState<Mode>('SEND');
   const [sessionId, setSessionId] = useState('');
   const [remoteSessionId, setRemoteSessionId] = useState('');
-  const [mobileServerUrl, setMobileServerUrl] = useState('http://192.168.1.5:3001');
+  const [mobileServerUrl, setMobileServerUrl] = useState('https://syncronization-server.onrender.com');
   const [status, setStatus] = useState<Status>('IDLE');
   const [error, setError] = useState('');
+  // true = laptop speakers are silent, false = laptop keeps playing alongside remotes
+  const [sourceMuted, setSourceMuted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -80,6 +82,12 @@ function App() {
     // We'll update status to LISTENING when connection is confirmed via message from background
   };
 
+  const handleToggleSourceMute = () => {
+    const next = !sourceMuted;
+    setSourceMuted(next);
+    chrome.runtime.sendMessage({ type: 'SET_SOURCE_MUTE', muted: next });
+  };
+
   // Listen for status updates from background/offscreen
   useEffect(() => {
     const listener = (message: any) => {
@@ -139,16 +147,11 @@ function App() {
               Scan with mobile or use ID: <br />
               <span className="text-purple-400 font-mono font-bold">{sessionId}</span>
             </p>
-            <input
-              type="text"
-              aria-label="Phone signaling server URL"
-              value={mobileServerUrl}
-              onChange={(e) => setMobileServerUrl(e.target.value)}
-              className="w-full bg-[#16161a] border border-white/10 rounded-xl px-3 py-2 mb-3 text-center text-xs font-mono focus:border-purple-500 outline-none transition-colors"
-            />
-            <p className="text-gray-500 text-[10px] text-center mb-4">
-              Use your computer LAN IP so phones can reach the server.
-            </p>
+            <div className="w-full bg-[#16161a] border border-purple-500/20 rounded-xl px-3 py-2 mb-4 text-center">
+              <p className="text-purple-400 text-[10px] font-mono">
+                ✓ Connected to Vercel Cloud Relay
+              </p>
+            </div>
             <button
               onClick={handleStartSend}
               className="w-full py-3 bg-white text-black font-bold rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
@@ -200,10 +203,42 @@ function App() {
               )}
             </div>
             <h2 className="text-xl font-bold mb-1">{status === 'CAPTURING' ? 'Live Stream' : 'Output Active'}</h2>
-            <p className="text-gray-500 text-xs mb-8 uppercase tracking-widest font-bold">
+            <p className="text-gray-500 text-xs mb-4 uppercase tracking-widest font-bold">
               {status === 'CAPTURING' ? 'Broadcasting audio' : 'Playing remote audio'}
             </p>
-            
+
+            {/* Source audio toggle — only relevant when this device is the sender */}
+            {status === 'CAPTURING' && (
+              <button
+                onClick={handleToggleSourceMute}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border mb-4 transition-all ${
+                  sourceMuted
+                    ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/15'
+                    : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/15'
+                }`}
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  {sourceMuted
+                    ? <><VolumeX size={16} /> Source muted</>
+                    : <><Volume2 size={16} /> Source playing</>
+                  }
+                </span>
+                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg ${
+                  sourceMuted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
+                }`}>
+                  {sourceMuted ? 'Tap to unmute' : 'Tap to mute'}
+                </span>
+              </button>
+            )}
+
+            {status === 'CAPTURING' && (
+              <p className="text-gray-600 text-[10px] text-center mb-4 px-2">
+                {sourceMuted
+                  ? 'Laptop speakers are silent — audio plays only on connected devices.'
+                  : 'Laptop speakers are active — audio plays here and on all connected devices.'}
+              </p>
+            )}
+
             <div className="w-full bg-[#16161a] p-4 rounded-xl border border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Laptop size={18} className="text-gray-400" />

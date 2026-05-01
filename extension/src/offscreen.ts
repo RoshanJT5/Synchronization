@@ -3,13 +3,21 @@ import { Buffer } from 'buffer';
 (window as any).global = window;
 (window as any).process = (window as any).process || { env: {} };
 
-const SIGNALING_SERVER = 'http://localhost:3001';
+const SIGNALING_SERVER = 'https://syncronization-server.onrender.com';
 let Peer: typeof import('simple-peer').default;
 let socket: import('socket.io-client').Socket | null = null;
 const peers = new Map<string, any>();
 let audioPlayer: HTMLAudioElement | null = null;
 let activeSessionId = '';
 let networkingReady: Promise<void> | null = null;
+
+// ── Source audio passthrough (keeps laptop speakers alive while streaming) ──
+let audioCtx: AudioContext | null = null;
+let sourceNode: MediaStreamAudioSourceNode | null = null;
+let localGain: GainNode | null = null;       // controls local playback volume
+let localDest: MediaStreamAudioDestinationNode | null = null; // feeds local <audio>
+let localAudioEl: HTMLAudioElement | null = null;
+let sourceMuted = false;  // tracks current mute state
 
 console.log('Offscreen document initialized');
 
@@ -25,6 +33,16 @@ chrome.runtime.onMessage.addListener((message) => {
       startReceiveMode(message.sessionId);
     }
   }
+
+  // Toggle local (source) audio on/off while streaming
+  if (message.type === 'SET_SOURCE_MUTE') {
+    sourceMuted = message.muted;
+    if (localGain) {
+      // Smooth ramp to avoid clicks
+      localGain.gain.setTargetAtTime(sourceMuted ? 0 : 1, audioCtx!.currentTime, 0.05);
+    }
+    console.log('Source audio muted:', sourceMuted);
+  }
 });
 
 async function startSendMode(sessionId: string, streamId: string) {
@@ -33,7 +51,7 @@ async function startSendMode(sessionId: string, streamId: string) {
     resetSessionState();
     activeSessionId = sessionId;
 
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const rawStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         // @ts-ignore
         mandatory: {
@@ -43,6 +61,34 @@ async function startSendMode(sessionId: string, streamId: string) {
       },
       video: false
     });
+
+    // ── Audio graph ──────────────────────────────────────────────────────
+    // rawStream → sourceNode ─┬─ localGain → localDest → <audio> (laptop speakers)
+    //                         └─ (stream passed directly to WebRTC peers)
+    //
+    // The WebRTC peer uses rawStream directly so remote devices always get
+    // full-volume audio regardless of the local mute toggle.
+    // ─────────────────────────────────────────────────────────────────────
+    audioCtx = new AudioContext();
+    sourceNode = audioCtx.createMediaStreamSource(rawStream);
+    localGain = audioCtx.createGain();
+    localDest = audioCtx.createMediaStreamDestination();
+
+    // Start unmuted — laptop keeps playing by default
+    localGain.gain.value = sourceMuted ? 0 : 1;
+
+    sourceNode.connect(localGain);
+    localGain.connect(localDest);
+
+    // Play the local passthrough so the tab audio comes out of the laptop
+    localAudioEl = document.createElement('audio');
+    localAudioEl.srcObject = localDest.stream;
+    localAudioEl.autoplay = true;
+    document.body.appendChild(localAudioEl);
+    localAudioEl.play().catch(err => console.warn('Local passthrough play failed:', err));
+
+    // rawStream is what we send to peers — untouched, always full volume
+    const stream = rawStream;
 
     await ensureSignalingConnected(sessionId);
 
@@ -152,6 +198,20 @@ function resetSessionState() {
   socket?.off('session-peers');
   socket?.off('signal');
   destroyAllPeers();
+
+  // Tear down local audio passthrough
+  if (localAudioEl) {
+    localAudioEl.srcObject = null;
+    localAudioEl.remove();
+    localAudioEl = null;
+  }
+  if (sourceNode) { try { sourceNode.disconnect(); } catch (_) {} sourceNode = null; }
+  if (localGain)  { try { localGain.disconnect();  } catch (_) {} localGain = null; }
+  if (localDest)  { try { localDest.disconnect();  } catch (_) {} localDest = null; }
+  if (audioCtx && audioCtx.state !== 'closed') {
+    audioCtx.close().catch(() => {});
+    audioCtx = null;
+  }
 }
 
 function destroyPeer(peerId: string) {
