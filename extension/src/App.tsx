@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { Smartphone, Laptop, Speaker, Loader2, CheckCircle2, AlertCircle, Radio, Download, Send, Volume2, VolumeX } from 'lucide-react';
 
 const SIGNALING_SERVER = 'https://syncronization-server.onrender.com';
-const CONNECT_PAGE_URL = 'https://syncronization.vercel.app/';
+const CONNECT_PAGE_URL = 'https://syncronization.vercel.app/connect';
 
 type Mode = 'SEND' | 'RECEIVE';
 type Status = 'IDLE' | 'CONNECTING' | 'CAPTURING' | 'LISTENING' | 'ERROR';
@@ -149,7 +149,7 @@ function App() {
             </p>
             <div className="w-full bg-[#16161a] border border-purple-500/20 rounded-xl px-3 py-2 mb-4 text-center">
               <p className="text-purple-400 text-[10px] font-mono">
-                ✓ Connected to Vercel Cloud Relay
+                ✓ Cloud Relay Active (Render)
               </p>
             </div>
             <button

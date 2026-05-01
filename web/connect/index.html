@@ -3,24 +3,272 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Opening Syncronization...</title>
+    <title>Opening Syncronization…</title>
     <style>
-      body { background: #030303; color: #f8fafc; font-family: system-ui, sans-serif;
-             display: flex; flex-direction: column; align-items: center; justify-content: center;
-             min-height: 100vh; margin: 0; gap: 16px; }
-      .spinner { width: 40px; height: 40px; border: 3px solid rgba(168,85,247,0.2);
-                 border-top-color: #a855f7; border-radius: 50%; animation: spin 0.8s linear infinite; }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        background: #030303;
+        color: #f8fafc;
+        font-family: system-ui, -apple-system, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        gap: 0;
+      }
+
+      /* ── Logo ── */
+      .logo {
+        width: 56px; height: 56px;
+        background: linear-gradient(135deg, #a855f7, #7c3aed);
+        border-radius: 16px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 26px;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 32px rgba(168,85,247,0.35);
+      }
+
+      h1 {
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        margin-bottom: 8px;
+        text-align: center;
+      }
+
+      .subtitle {
+        color: #94a3b8;
+        font-size: 14px;
+        text-align: center;
+        margin-bottom: 36px;
+        line-height: 1.5;
+      }
+
+      /* ── Card ── */
+      .card {
+        background: #0f0f12;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 20px;
+        padding: 28px 24px;
+        width: 100%;
+        max-width: 360px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      /* ── Session badge ── */
+      .session-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #16161a;
+        border: 1px solid rgba(168,85,247,0.2);
+        border-radius: 12px;
+        padding: 12px 16px;
+      }
+      .session-label { font-size: 11px; color: #94a3b8; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+      .session-id { font-family: monospace; font-size: 15px; font-weight: 700; color: #a855f7; }
+
+      /* ── Spinner state ── */
+      .state-opening {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 0;
+      }
+      .spinner {
+        width: 36px; height: 36px;
+        border: 3px solid rgba(168,85,247,0.2);
+        border-top-color: #a855f7;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
       @keyframes spin { to { transform: rotate(360deg); } }
-      p { color: #94a3b8; font-size: 14px; }
+      .state-opening p { color: #94a3b8; font-size: 13px; }
+
+      /* ── Not installed state ── */
+      .state-notinstalled { display: none; flex-direction: column; gap: 12px; }
+
+      .btn {
+        display: flex; align-items: center; justify-content: center; gap-8px;
+        width: 100%;
+        padding: 14px 20px;
+        border-radius: 14px;
+        font-size: 15px;
+        font-weight: 700;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: opacity 0.15s, transform 0.1s;
+        text-align: center;
+      }
+      .btn:active { transform: scale(0.97); }
+      .btn-primary {
+        background: linear-gradient(135deg, #a855f7, #7c3aed);
+        color: #fff;
+        box-shadow: 0 4px 20px rgba(168,85,247,0.3);
+      }
+      .btn-secondary {
+        background: #16161a;
+        color: #f8fafc;
+        border: 1px solid rgba(255,255,255,0.08);
+      }
+      .btn-ghost {
+        background: transparent;
+        color: #94a3b8;
+        font-size: 13px;
+        padding: 10px;
+      }
+      .btn-ghost:hover { color: #f8fafc; }
+
+      .divider {
+        display: flex; align-items: center; gap: 12px;
+        color: rgba(255,255,255,0.2);
+        font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+      }
+      .divider::before, .divider::after {
+        content: ''; flex: 1;
+        height: 1px; background: rgba(255,255,255,0.08);
+      }
+
+      .note {
+        font-size: 11px;
+        color: #94a3b8;
+        text-align: center;
+        line-height: 1.5;
+      }
+      .note a { color: #a855f7; text-decoration: none; }
     </style>
   </head>
   <body>
-    <div class="spinner"></div>
-    <p>Opening Syncronization…</p>
+    <div class="logo">🔊</div>
+    <h1>Syncronization</h1>
+    <p class="subtitle">Connecting your browser audio<br>to your phone…</p>
+
+    <div class="card">
+      <!-- Session badge (hidden if no session ID) -->
+      <div class="session-row" id="session-row" style="display:none">
+        <span class="session-label">Session</span>
+        <span class="session-id" id="session-id-label">----</span>
+      </div>
+
+      <!-- State: trying to open app -->
+      <div class="state-opening" id="state-opening">
+        <div class="spinner"></div>
+        <p id="opening-msg">Opening app…</p>
+      </div>
+
+      <!-- State: app not installed -->
+      <div class="state-notinstalled" id="state-notinstalled">
+        <a id="btn-download" class="btn btn-primary" href="../downloads/syncronization-app.apk" download="syncronization.apk">
+          Install Android App
+        </a>
+        <div class="divider">ALREADY INSTALLED?</div>
+        <button class="btn btn-secondary" id="btn-retry">Try Opening Again</button>
+        <p class="note">
+          After installing, tap <strong>Try Opening Again</strong> or
+          scan the QR code once more.
+        </p>
+      </div>
+
+      <p class="note" id="bottom-note" style="display:none">
+        Not on Android? <a href="/">Visit the website</a> to learn more.
+      </p>
+    </div>
+
     <script>
-      // Redirect to the main page, preserving all query params (?id=...&server=...)
-      const params = window.location.search;
-      window.location.replace('/' + params + window.location.hash);
+      const params   = new URLSearchParams(window.location.search);
+      const id       = params.get('id') || '';
+      const server   = params.get('server') || 'https://syncronization-server.onrender.com';
+
+      // Show session badge
+      if (id) {
+        document.getElementById('session-row').style.display = 'flex';
+        document.getElementById('session-id-label').textContent = id.toUpperCase();
+      }
+
+      // Build the custom-scheme deep link
+      // syncronization://connect?id=XXX&server=https://...
+      function buildDeepLink() {
+        const u = new URL('syncronization://connect');
+        if (id)     u.searchParams.set('id', id);
+        if (server) u.searchParams.set('server', server);
+        return u.toString();
+      }
+
+      function showNotInstalled() {
+        document.getElementById('state-opening').style.display    = 'none';
+        document.getElementById('state-notinstalled').style.display = 'flex';
+        document.getElementById('bottom-note').style.display       = 'block';
+      }
+
+      function tryOpen() {
+        if (!id) {
+          // No session ID — just go to homepage
+          window.location.replace('/');
+          return;
+        }
+
+        document.getElementById('opening-msg').textContent = 'Opening app…';
+        document.getElementById('state-opening').style.display    = 'flex';
+        document.getElementById('state-notinstalled').style.display = 'none';
+        document.getElementById('bottom-note').style.display       = 'none';
+
+        // Attempt to open the app via custom scheme.
+        // If the app is installed, Android will intercept this and open it.
+        // If not, nothing happens — we detect that via a visibility/blur trick.
+        const deepLink = buildDeepLink();
+        const start = Date.now();
+
+        // Use an iframe to avoid navigating away (works on most Android browsers)
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = deepLink;
+        document.body.appendChild(iframe);
+
+        // Also try direct navigation as fallback (needed on some browsers)
+        window.location.href = deepLink;
+
+        // If the page is still visible after ~2s, the app wasn't installed
+        const fallbackTimer = setTimeout(() => {
+          if (Date.now() - start >= 1800) {
+            showNotInstalled();
+          }
+        }, 2000);
+
+        // If the user left the page (app opened), cancel the fallback
+        const onBlur = () => {
+          clearTimeout(fallbackTimer);
+          window.removeEventListener('blur', onBlur);
+        };
+        window.addEventListener('blur', onBlur);
+
+        // Also cancel if page becomes hidden (app opened)
+        const onHide = () => {
+          if (document.hidden) {
+            clearTimeout(fallbackTimer);
+            document.removeEventListener('visibilitychange', onHide);
+          }
+        };
+        document.addEventListener('visibilitychange', onHide);
+      }
+
+      // Retry button
+      document.getElementById('btn-retry').addEventListener('click', tryOpen);
+
+      // Auto-trigger on load
+      if (id) {
+        // Small delay so the page renders first
+        setTimeout(tryOpen, 400);
+      } else {
+        // No session — redirect to homepage
+        setTimeout(() => window.location.replace('/'), 1000);
+      }
     </script>
   </body>
 </html>

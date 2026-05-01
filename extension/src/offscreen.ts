@@ -116,6 +116,12 @@ async function startSendMode(sessionId: string, streamId: string) {
 
     socket?.emit('join-session', sessionId);
 
+    // Announce this session so mobile clients can auto-discover it
+    socket?.emit('announce-session', {
+      sessionId,
+      label: 'This Computer',
+    });
+
     chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
   } catch (error: any) {
     console.error('SEND error:', error);
@@ -194,6 +200,11 @@ function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | 
 }
 
 function resetSessionState() {
+  // End the announced session so it disappears from mobile discovery
+  if (activeSessionId && socket?.connected) {
+    socket.emit('end-session', { sessionId: activeSessionId });
+  }
+
   socket?.off('peer-joined');
   socket?.off('session-peers');
   socket?.off('signal');
