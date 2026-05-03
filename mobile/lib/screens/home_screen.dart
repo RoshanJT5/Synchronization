@@ -27,11 +27,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _discovery = Provider.of<DiscoveryService>(context, listen: false);
     // Start auto-discovery as soon as the screen loads
     _discovery.startDiscovery();
+    // Restart discovery when WebRTC goes back to idle (disconnect/error→try again)
+    _webrtc.addListener(_onWebrtcStateChanged);
+  }
+
+  void _onWebrtcStateChanged() {
+    if (_webrtc.state == AppConnectionState.idle &&
+        !_discovery.isConnected &&
+        !_discovery.isConnecting) {
+      _discovery.startDiscovery();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _webrtc.removeListener(_onWebrtcStateChanged);
     _urlController.dispose();
     super.dispose();
   }
@@ -69,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           'https://synchronization-5865.onrender.com';
 
       if (sessionId != null) {
+        _discovery.stopDiscovery(); // FREE the socket before WebRTC connects
         _webrtc.connect(sessionId, server);
       } else {
         _showSnack('Invalid QR code: Session ID missing');
@@ -79,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _connectDiscovered(DiscoveredSession session) {
+    _discovery.stopDiscovery(); // FREE the socket before WebRTC connects
     _webrtc.connect(
       session.sessionId,
       'https://synchronization-5865.onrender.com',
