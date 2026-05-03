@@ -27,7 +27,7 @@ class DiscoveredSession {
 /// the UI can display so the user can tap-to-connect without scanning a QR.
 class DiscoveryService extends ChangeNotifier {
   static const String _signalingServer =
-      'https://syncronization-server.onrender.com';
+      'https://synchronization-5865.onrender.com';
 
   io.Socket? _socket;
   List<DiscoveredSession> _sessions = [];

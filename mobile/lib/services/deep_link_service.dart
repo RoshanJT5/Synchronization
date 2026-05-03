@@ -52,7 +52,7 @@ class DeepLinkService {
 
     final sessionId = uri.queryParameters['id'];
     final serverUrl = uri.queryParameters['server'] ??
-        'https://syncronization-server.onrender.com';
+        'https://synchronization-5865.onrender.com';
 
     if (sessionId != null && sessionId.isNotEmpty) {
       debugPrint('[DeepLink] Session: $sessionId  Server: $serverUrl');
