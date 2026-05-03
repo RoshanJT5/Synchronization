@@ -20,18 +20,18 @@ function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (mode === 'SEND') {
+    if (mode === 'SEND' && status === 'IDLE') {
       const newSessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
       setSessionId(newSessionId);
       generateQR(newSessionId, mobileServerUrl);
     }
-  }, [mode]);
+  }, [mode, status]);
 
   useEffect(() => {
-    if (mode === 'SEND' && sessionId) {
+    if (mode === 'SEND' && sessionId && status === 'IDLE') {
       generateQR(sessionId, mobileServerUrl);
     }
-  }, [mobileServerUrl, mode, sessionId]);
+  }, [mobileServerUrl, mode, sessionId, status]);
 
   const generateQR = (id: string, serverUrl: string) => {
     const params = new URLSearchParams({ id });
@@ -55,7 +55,7 @@ function App() {
     try {
       chrome.tabCapture.getMediaStreamId({ targetTabId: undefined }, (streamId) => {
         if (!streamId) {
-          setError('Could not get tab stream ID');
+          setError('Could not get tab stream ID. Please try reloading the extension.');
           setStatus('ERROR');
           return;
         }
@@ -64,12 +64,16 @@ function App() {
           sessionId: sessionId,
           streamId: streamId
         });
-        setStatus('CAPTURING');
       });
     } catch (err: any) {
       setError(err.message || 'Failed to start capture');
       setStatus('ERROR');
     }
+  };
+
+  const handleBackToMenu = () => {
+    chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' });
+    setStatus('IDLE');
   };
 
   const handleStartReceive = () => {
@@ -251,7 +255,7 @@ function App() {
             </div>
 
             <button
-              onClick={() => window.location.reload()}
+              onClick={handleBackToMenu}
               className="mt-8 text-gray-500 text-xs hover:text-white transition-colors"
             >
               Disconnect
@@ -265,7 +269,7 @@ function App() {
             <p className="text-red-400 font-medium mb-1">Failed to Connect</p>
             <p className="text-gray-500 text-xs mb-6 px-4">{error}</p>
             <button
-              onClick={() => setStatus('IDLE')}
+              onClick={handleBackToMenu}
               className="px-4 py-2 bg-[#16161a] rounded-lg border border-white/10 text-xs"
             >
               Back to Menu

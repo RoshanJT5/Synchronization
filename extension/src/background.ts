@@ -21,6 +21,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.type === 'SET_SOURCE_MUTE') {
     // Forward mute toggle directly to the offscreen document
     chrome.runtime.sendMessage({ type: 'SET_SOURCE_MUTE', muted: message.muted });
+  } else if (message.type === 'STOP_CAPTURE') {
+    // Close the offscreen document entirely to clean up audio/sockets instantly
+    chrome.offscreen.closeDocument().catch(() => {});
+    offscreenReady = false;
   } else if (message.type === 'OFFSCREEN_READY') {
     offscreenReady = true;
     if (pendingInit) {
