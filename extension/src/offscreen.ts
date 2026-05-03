@@ -18,6 +18,7 @@ let localGain: GainNode | null = null;       // controls local playback volume
 let localDest: MediaStreamAudioDestinationNode | null = null; // feeds local <audio>
 let localAudioEl: HTMLAudioElement | null = null;
 let sourceMuted = false;  // tracks current mute state
+let capturedStream: MediaStream | null = null; // Store to release tracks
 
 console.log('Offscreen document initialized');
 
@@ -61,6 +62,8 @@ async function startSendMode(sessionId: string, streamId: string) {
       },
       video: false
     });
+
+    capturedStream = rawStream;
 
     // ── Audio graph ──────────────────────────────────────────────────────
     // rawStream → sourceNode ─┬─ localGain → localDest → <audio> (laptop speakers)
@@ -211,6 +214,10 @@ function resetSessionState() {
   destroyAllPeers();
 
   // Tear down local audio passthrough
+  if (capturedStream) {
+    capturedStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+    capturedStream = null;
+  }
   if (localAudioEl) {
     localAudioEl.srcObject = null;
     localAudioEl.remove();

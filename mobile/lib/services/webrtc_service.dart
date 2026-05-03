@@ -106,8 +106,22 @@ class WebRTCService extends ChangeNotifier {
     });
 
     _socket!.on('signal', (data) async {
-      debugPrint('[Socket] Received signal from ${data['from']}');
-      await _handleSignal(data['from'] as String, data['signal']);
+      try {
+        Map<String, dynamic> payload;
+        if (data is List && data.isNotEmpty) {
+          payload = data.first as Map<String, dynamic>;
+        } else if (data is Map) {
+          payload = Map<String, dynamic>.from(data);
+        } else {
+          debugPrint('[Socket] Invalid signal data type: ${data.runtimeType}');
+          return;
+        }
+        
+        debugPrint('[Socket] Received signal from ${payload['from']}');
+        await _handleSignal(payload['from'] as String, payload['signal']);
+      } catch (e) {
+        debugPrint('[Socket] Error parsing signal: $e');
+      }
     });
 
     _socket!.onDisconnect((_) {
@@ -139,11 +153,19 @@ class WebRTCService extends ChangeNotifier {
         await _createPeerConnection(fromId);
       }
 
-      final type = signal['type'] as String?;
+      final Map<String, dynamic> sigMap;
+      if (signal is Map) {
+        sigMap = Map<String, dynamic>.from(signal);
+      } else {
+        debugPrint('[WebRTC] Invalid signal payload');
+        return;
+      }
+
+      final type = sigMap['type'] as String?;
 
       if (type == 'offer') {
         await _peerConnection!.setRemoteDescription(
-          RTCSessionDescription(signal['sdp'] as String, 'offer'),
+          RTCSessionDescription(sigMap['sdp'] as String, 'offer'),
         );
         final answer = await _peerConnection!.createAnswer(
           _offerSdpConstraints,
@@ -156,15 +178,15 @@ class WebRTCService extends ChangeNotifier {
         });
       } else if (type == 'answer') {
         await _peerConnection!.setRemoteDescription(
-          RTCSessionDescription(signal['sdp'] as String, 'answer'),
+          RTCSessionDescription(sigMap['sdp'] as String, 'answer'),
         );
-      } else if (signal['candidate'] != null) {
+      } else if (sigMap['candidate'] != null) {
         // ICE candidate
         await _peerConnection!.addCandidate(
           RTCIceCandidate(
-            signal['candidate'] as String,
-            signal['sdpMid'] as String?,
-            signal['sdpMLineIndex'] as int?,
+            sigMap['candidate'] as String,
+            sigMap['sdpMid'] as String?,
+            sigMap['sdpMLineIndex'] as int?,
           ),
         );
       }
