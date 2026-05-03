@@ -81,10 +81,11 @@ class WebRTCService extends ChangeNotifier {
           .setTransports(['websocket'])
           .disableAutoConnect()
           .enableReconnection()
-          .setReconnectionAttempts(double.infinity)
-          .setReconnectionDelay(1000)
-          .setReconnectionDelayMax(5000)
-          .setTimeout(20000)
+          .setReconnectionAttempts(5)
+          .setReconnectionDelay(2000)
+          .setReconnectionDelayMax(8000)
+          .setTimeout(30000)
+          .setExtraHeaders({'User-Agent': 'SyncronizationMobile/1.0'})
           .build(),
     );
 
@@ -133,11 +134,11 @@ class WebRTCService extends ChangeNotifier {
 
     _socket!.connect();
 
-    // Wait for connection with timeout
+    // Wait for connection with timeout (Render free tier may need 30s to wake)
     await completer.future.timeout(
-      const Duration(seconds: 15),
+      const Duration(seconds: 30),
       onTimeout: () => throw Exception(
-        'Connection timed out. Is the signaling server running at $serverUrl?',
+        'Connection timed out. Server may be waking up — please try again.',
       ),
     );
   }

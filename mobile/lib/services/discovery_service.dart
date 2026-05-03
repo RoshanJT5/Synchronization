@@ -50,9 +50,10 @@ class DiscoveryService extends ChangeNotifier {
           .setTransports(['websocket'])
           .disableAutoConnect()
           .enableReconnection()
-          .setReconnectionAttempts(5)
+          .setReconnectionAttempts(10)
           .setReconnectionDelay(2000)
-          .setTimeout(10000)
+          .setTimeout(30000)
+          .setExtraHeaders({'User-Agent': 'SyncronizationMobile/1.0'})
           .build(),
     );
 
@@ -62,6 +63,11 @@ class DiscoveryService extends ChangeNotifier {
       _isConnecting = false;
       notifyListeners();
       // Request the current list immediately
+      _socket!.emit('get-active-sessions');
+    });
+
+    _socket!.on('reconnect', (_) {
+      debugPrint('[Discovery] Reconnected - refreshing sessions');
       _socket!.emit('get-active-sessions');
     });
 
@@ -79,15 +85,27 @@ class DiscoveryService extends ChangeNotifier {
 
     _socket!.on('active-sessions-updated', (data) {
       debugPrint('[Discovery] Sessions updated: $data');
-      final rawList = (data['sessions'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-      _sessions = rawList
-          .map((s) => DiscoveredSession(
-                sessionId: s['sessionId'] as String,
-                label: s['label'] as String? ?? 'Computer',
-                announcedAt: (s['announcedAt'] as num?)?.toInt() ?? 0,
-              ))
-          .toList();
-      notifyListeners();
+      try {
+        Map<String, dynamic> payload;
+        if (data is List && data.isNotEmpty) {
+          payload = Map<String, dynamic>.from(data.first as Map);
+        } else if (data is Map) {
+          payload = Map<String, dynamic>.from(data);
+        } else {
+          return;
+        }
+        final rawList = (payload['sessions'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _sessions = rawList
+            .map((s) => DiscoveredSession(
+                  sessionId: s['sessionId'] as String,
+                  label: s['label'] as String? ?? 'Computer',
+                  announcedAt: (s['announcedAt'] as num?)?.toInt() ?? 0,
+                ))
+            .toList();
+        notifyListeners();
+      } catch (e) {
+        debugPrint('[Discovery] Error parsing sessions: $e');
+      }
     });
 
     _socket!.connect();
