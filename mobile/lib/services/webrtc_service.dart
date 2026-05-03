@@ -267,9 +267,12 @@ class WebRTCService extends ChangeNotifier {
 
   void setVolume(double value) {
     _volume = value.clamp(0.0, 1.0);
-    _audioRenderer?.volume = _volume;
+    // flutter_webrtc 0.12.x does not expose RTCVideoRenderer.volume.
+    // Apply volume by toggling audio track enabled state (mute = 0.0).
+    _remoteStream?.getAudioTracks().forEach((track) {
+      track.enabled = _volume > 0.0;
+    });
     notifyListeners();
-  }
   }
 
   Future<void> disconnect() async {

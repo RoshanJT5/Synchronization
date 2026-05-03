@@ -1,697 +1,353 @@
-# Syncronization — Complete Execution Plan
+# Syncronization — Master Execution Plan
 
-> **Purpose**: This is the authoritative, detailed execution plan for the Syncronization project.
-> It is written so that a low-parameter agent can execute each task independently, step-by-step,
-> without needing any additional context. Read every section before starting.
->
-> **Vercel Deployment**: `https://syncronization.vercel.app`
-> **Design System**: Purple accent (`#a855f7`) · Dark bg (`#030303`) · Card (`#0f0f12`)
-
----
-
-## 📋 Table of Contents
-
-1. [Root Cause Analysis — Why Connection Fails](#1-root-cause-analysis)
-2. [Architecture: Cloud Signaling via Vercel](#2-architecture)
-3. [Current Status — What Has Already Been Done](#3-current-status)
-4. [Task A: Fix GitHub Push (Remove 1.6 GB Heap Dump)](#4-task-a-fix-github-push)
-5. [Task B: Verify Cloud Signaling Server](#5-task-b-verify-cloud-signaling-server)
-6. [Task C: Update Extension to Use Vercel Cloud Signaling](#6-task-c-update-extension)
-7. [Task D: Update Mobile App to Use Vercel Cloud Signaling](#7-task-d-update-mobile-app)
-8. [Task E: Add Feature — Volume Control Slider](#8-task-e-volume-slider)
-9. [Task F: Add Feature — Connection Quality Indicator](#9-task-f-connection-quality)
-10. [Task G: Fix Mobile Android Build (Kotlin Conflict)](#10-task-g-fix-android-build)
-11. [Task H: Update .gitignore and Push to GitHub](#11-task-h-gitignore-and-push)
-12. [Master Execution Checklist](#12-master-checklist)
-13. [File Locations Quick Reference](#13-file-reference)
-14. [Why Not Bluetooth?](#14-why-not-bluetooth)
+> **Last Revised**: 2026-05-03  
+> **Website**: https://syncronization-server.onrender.com  
+> **Purpose**: Authoritative, ground-truth plan for all remaining and completed work. Written
+> so any agent — low or high parameter — can open this file and understand exactly what has
+> been done, what still needs doing, and **why** each decision was made.
 
 ---
 
-## 1. Root Cause Analysis
+## 📐 Architecture Overview
 
-### The Symptom
-The mobile app displays:
-> **"Connection Failed — Could not connect to signaling server at http://192.168.1.5:3001"**
-
-The logcat output shows a continuous stream of:
 ```
-SocketException: Connection refused (OS Error: Connection refused, errno=111), address = 192.168.1.5
-```
-
-### The Real Cause — One Wrong URL in the Extension
-
-The extension in `App.tsx` line 5 has:
-```typescript
-const SIGNALING_SERVER = 'http://localhost:3001';
-```
-And line 15 has:
-```typescript
-const [mobileServerUrl, setMobileServerUrl] = useState('http://192.168.1.5:3001');
-```
-
-When the extension generates a QR code, it encodes a URL like:
-```
-https://syncronization.vercel.app/?id=ABCDE&server=http://192.168.1.5:3001
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                        SYNCRONIZATION SYSTEM                                 │
+│                                                                              │
+│  ┌─────────────────────┐      HTTPS      ┌─────────────────────────────────┐│
+│  │  Chrome Extension   │ ─────────────► │   Unified Render Server         ││
+│  │  (sends tab audio)  │ ◄───────────── │   (Signaling + Static Site)     ││
+│  └─────────────────────┘    signaling   └─────────────────────────────────┘│
+│           │                                            ▲                    │
+│           │  Direct P2P WebRTC (after handshake)       │ HTTPS signaling    │
+│           │  ◄──────────── Audio flows here ──────────►│                    │
+│           ▼                                            │                    │
+│  ┌─────────────────────┐                    ┌──────────┴──────────────────┐ │
+│  │   Android App       │ ─────────────────► │  Mobile WebRTC Receiver     │ │
+│  │   (plays audio)     │                    │  (flutter_webrtc)           │ │
+│  └─────────────────────┘                    └─────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The mobile app parses this QR URL and sees `?server=http://192.168.1.5:3001`. It connects to that value directly.
-The fallback to the cloud URL **never runs** because the `?server=` query param is always present.
+### Why Cloud Signaling (Not Local / Bluetooth)
+| Approach | Verdict | Reason |
+|----------|---------|--------|
+| Local IP (`192.168.1.5:3001`) | ❌ BROKEN | Windows Firewall blocks port 3001. Requires user to manually open firewall rules. Not viable for end-users. |
+| Bluetooth | ❌ NOT SUITABLE | Browser extensions cannot access Bluetooth hardware. Max 350 kbps = audible quality loss for music. Requires manual phone pairing. |
+| Cloud Signaling (Vercel) | ✅ CORRECT | Works through any firewall. Zero user configuration. After 2-second handshake, audio is P2P (cloud not in audio path). Industry-standard approach (Google Cast, AirPlay 2). |
 
-### Why http://192.168.1.5:3001 Fails
-Windows Defender Firewall blocks inbound TCP connections on port 3001 by default.
-The phone sends a TCP SYN packet to the PC. The PC's firewall drops it before Node.js ever sees it.
-Result: `errno=111` (Connection Refused) on Android.
-
-Users cannot be expected to open Windows Firewall ports. This is not a viable product.
-
-### The Fix — One Line Change
-Point both the Extension and the QR code to the **already-deployed Vercel cloud server**:
-```
-https://syncronization.vercel.app
-```
-The cloud server accepts HTTPS traffic on port 443, which is never blocked by firewalls.
-After the 2-3 second cloud handshake, audio flows **directly P2P via WebRTC** — the cloud is no longer involved.
+### Brand Design Tokens (All UI must use these)
+| Token | Value | Usage |
+|-------|-------|-------|
+| Accent Purple | `#a855f7` | Buttons, focus borders, quality indicators, sliders |
+| Deep Purple | `#7c3aed` | Gradient ends, pressed states |
+| Background | `#030303` | App/extension background |
+| Card Surface | `#0f0f12` | Card backgrounds |
+| Elevated Surface | `#16161a` | Input fields, secondary cards |
+| Border | `rgba(255,255,255,0.08)` | All borders |
+| Text Primary | `#f8fafc` | Headings, labels |
+| Text Dim | `#94a3b8` | Subtitles, placeholders |
+| Success Green | `#22c55e` | Connected state, excellent signal |
+| Error Red | `#ef4444` | Error state, poor signal |
 
 ---
 
-## 2. Architecture
+## ✅ Progress Tracker — What Is Already Done
 
-### Before (Broken)
-```
-[Chrome Extension] ──►  http://192.168.1.5:3001  ◄── [Mobile App]
-                              (PC, port 3001)
-                        ❌ BLOCKED BY FIREWALL ❌
-```
+These tasks were completed in the current session. **Do NOT redo them.**
 
-### After (Fixed)
-```
-[Chrome Extension] ──HTTPS──► syncronization.vercel.app ◄──HTTPS── [Mobile App]
-                                       (Cloud, port 443)
-                               ✅ No firewall issues
-                                         │
-                  After 2-3 sec: P2P audio via WebRTC (cloud no longer involved)
-```
-
-### Why This Works Reliably
-- Port 443 (HTTPS) is never blocked — it's the same port as regular websites.
-- The signaling server only carries ~5 KB of text (SDP offers + ICE candidates).
-- All audio bandwidth is P2P (WebRTC). The cloud server carries zero audio data.
-- Latency is determined only by the direct P2P path, not the cloud server.
-
----
-
-## 3. Current Status — What Has Already Been Done
-
-The following changes have **already been applied** to the codebase. Do not redo them.
-
-| File | Status | What Changed |
-|------|--------|-------------|
-| `extension/src/offscreen.ts` | ✅ Done | `SIGNALING_SERVER` → `https://syncronization.vercel.app` |
-| `extension/src/App.tsx` | ✅ Done | Both URL constants + default state → Vercel URL; IP input removed |
-| `extension/dist/` | ✅ Done | Extension rebuilt with `npm run build` |
-| `mobile/lib/screens/home_screen.dart` | ✅ Done | Fallback URL updated to Vercel; volume slider added; quality indicator added |
-| `mobile/lib/services/webrtc_service.dart` | ✅ Done | Volume state + `setVolume()`; `ConnectionQuality` enum + stats timer |
-| `mobile/android/settings.gradle` | ✅ Done | **Deleted** (was causing Kotlin 1.8.22 conflict) |
-| `mobile/android/java_pid11512.hprof` | ✅ Done | **Deleted** (was 1.67 GB, blocking git push) |
-| `.gitignore` | ✅ Done | Updated with `*.hprof`, build artifacts, IDE files |
-
-> [!IMPORTANT]
-> The items above are already done. Proceed from Task B to verify and then continue with any remaining tasks.
+| Task | Status | Files Changed |
+|------|--------|---------------|
+| Fix extension `SIGNALING_SERVER` URL | ✅ Done | `extension/src/offscreen.ts` line 6 |
+| Fix extension `CONNECT_PAGE_URL` | ✅ Done | `extension/src/App.tsx` line 6 |
+| Fix extension default `mobileServerUrl` | ✅ Done | `extension/src/App.tsx` line 15 |
+| Remove manual IP input field from extension UI | ✅ Done | `extension/src/App.tsx` lines 150–159 |
+| Add "Cloud Relay Active" badge to extension | ✅ Done | `extension/src/App.tsx` |
+| Rebuild extension (`npm run build`) | ✅ Done | `extension/dist/` updated |
+| Add `ConnectionQuality` enum | ✅ Done | `mobile/lib/services/webrtc_service.dart` line 13 |
+| Add volume state and `setVolume()` method | ✅ Done | `mobile/lib/services/webrtc_service.dart` lines 26–35, 268–272 |
+| Add RTT stats polling timer | ✅ Done | `mobile/lib/services/webrtc_service.dart` lines 231–266 |
+| Add volume slider to connected view | ✅ Done | `mobile/lib/screens/home_screen.dart` |
+| Add quality indicator to connected view | ✅ Done | `mobile/lib/screens/home_screen.dart` |
+| Update `home_screen.dart` fallback URL | ✅ Done | `mobile/lib/screens/home_screen.dart` line 57 |
+| Delete 1.67 GB heap dump file | ✅ Done | `mobile/android/java_pid11512.hprof` removed |
+| Delete conflicting `settings.gradle` | ✅ Done | `mobile/android/settings.gradle` removed |
+| Remove duplicate Kotlin package folder | ✅ Done | `com/syncronization/syncronization/` removed |
+| Update `.gitignore` | ✅ Done | `C:\Syncronization\.gitignore` |
+| Fix stray `}` brace bug in `webrtc_service.dart` | ✅ Done | Line 273 removed |
+| Flutter `clean` + `pub get` | ✅ Done | Dependencies resolved |
+| Fix volume API (0.12.x compatibility) | ✅ Done | `webrtc_service.dart` |
+| Update website content for cloud flow | ✅ Done | `web/index.html` |
+| Package extension ZIP | ✅ Done | `web/downloads/syncronization-extension.zip` |
+| Build release APK (arm64) | ✅ Done | `web/downloads/syncronization-app.apk` |
+| Create `vercel.json` routing | ✅ Done | `web/vercel.json` |
+| Fix redirect page query params | ✅ Done | `web/connect/index.html` |
+| Unify Website & Server on Render | ✅ Done | `signaling-server/server.js` |
+| Update extension to Render URLs | ✅ Done | `extension/src/App.tsx` |
 
 ---
 
-## 4. Task A: Fix GitHub Push
+## 🔧 Remaining Tasks
 
-### Problem
-A 1.67 GB Java heap dump file `mobile\android\java_pid11512.hprof` was generated by a crashed
-Gradle build. GitHub has a 100 MB file size limit, so `git push` fails hard.
+### TASK R1 — Initialize Git Repository
+**Priority: HIGH — Nothing can be pushed without this**
 
-### Status: ✅ Already deleted in the previous session.
+The project at `C:\Syncronization` does not have a `.git` folder. Git commands like `git push` will fail with "not a git repository."
 
-Verify it is gone:
-```powershell
-# Should return nothing if already deleted
-Test-Path "C:\Syncronization\mobile\android\java_pid11512.hprof"
-# Expected output: False
-```
-
-If the file still exists (returns `True`):
-```powershell
-Remove-Item "C:\Syncronization\mobile\android\java_pid11512.hprof" -Force
-```
-
-### If It Was Previously Committed to Git History
-If the file was ever committed (check with `git log --all --full-history -- "mobile/android/java_pid11512.hprof"`),
-you must purge it from history:
-```powershell
-# From C:\Syncronization (the git root)
-git filter-branch --force --index-filter `
-  "git rm --cached --ignore-unmatch 'mobile/android/java_pid11512.hprof'" `
-  --prune-empty --tag-name-filter cat -- --all
-
-git push origin main --force
-```
-
----
-
-## 5. Task B: Verify Cloud Signaling Server
-
-### What to Check
-Open this URL in a browser:
-```
-https://syncronization.vercel.app/socket.io/?EIO=4&transport=polling
-```
-
-**Expected response**: A JSON string starting with `0{` (Socket.IO handshake).
-**If it times out**: The signaling server Node.js process may have cold-started — wait 30 seconds and retry.
-**If 404**: The Node.js server is NOT proxied on Vercel. Use the Render fallback instead:
-```
-https://syncronization-server.onrender.com
-```
-In that case, replace all occurrences of `syncronization.vercel.app` in the extension code
-with `syncronization-server.onrender.com` and rebuild.
-
-### Important: Vercel Cannot Run Socket.IO Natively
-Vercel runs **serverless functions** (stateless, short-lived). Socket.IO requires a **persistent
-WebSocket process** (stateful, long-running). If the Socket.IO endpoint on Vercel returns 404,
-it means the signaling server is not configured as a separate Vercel service.
-
-**Resolution options**:
-1. **Use the Render server** (`syncronization-server.onrender.com`) — already deployed, correct type of hosting.
-2. **Deploy signaling-server as a separate Vercel project** with `vercel.json` override (advanced).
-
-For simplicity, **use option 1 (Render)** if Vercel returns 404.
-
----
-
-## 6. Task C: Update Extension
-
-### Current State (Already Applied)
-The following is what the extension files should already contain after the previous session:
-
-**`extension/src/App.tsx` lines 5-6:**
-```typescript
-const SIGNALING_SERVER = 'https://syncronization.vercel.app';
-const CONNECT_PAGE_URL = 'https://syncronization.vercel.app/';
-```
-
-**`extension/src/App.tsx` line 15:**
-```typescript
-const [mobileServerUrl, setMobileServerUrl] = useState('https://syncronization.vercel.app');
-```
-
-**`extension/src/App.tsx` lines 150-154 (replaced the IP input field):**
-```tsx
-<div className="w-full bg-[#16161a] border border-purple-500/20 rounded-xl px-3 py-2 mb-4 text-center">
-  <p className="text-purple-400 text-[10px] font-mono">
-    ✓ Connected to Vercel Cloud Relay
-  </p>
-</div>
-```
-
-**`extension/src/offscreen.ts` line 6:**
-```typescript
-const SIGNALING_SERVER = 'https://syncronization.vercel.app';
-```
-
-### Verify the Build is Current
-The extension was rebuilt. Verify it is loaded in Chrome:
-1. Open `chrome://extensions/`
-2. Find "Syncronization"
-3. If the extension was built after the code change, the last updated timestamp will be recent.
-4. If unsure, click the **refresh** icon on the extension card.
-
-### Rebuild (if needed)
-```powershell
-# From C:\Syncronization\extension
-npm run build
-```
-Then click the refresh icon in `chrome://extensions/`.
-
-### Verify QR Code Contains Correct URL
-1. Open the extension popup.
-2. The QR code should encode a URL like:
-   ```
-   https://syncronization.vercel.app/?id=ABCDE&server=https%3A%2F%2Fsyncronization.vercel.app
-   ```
-   NOT `http://192.168.1.5:3001`.
-
----
-
-## 7. Task D: Update Mobile App
-
-### Current State (Already Applied)
-
-**`mobile/lib/screens/home_screen.dart` line 57:**
-```dart
-final server = uri.queryParameters['server'] ?? 'https://syncronization.vercel.app';
-```
-
-The mobile app now:
-1. Reads the `?server=` param from the scanned QR URL (will be the Vercel URL since extension is fixed).
-2. Falls back to `https://syncronization.vercel.app` if the param is missing.
-
-### Verify AndroidManifest.xml
-File: `mobile/android/app/src/main/AndroidManifest.xml`
-
-The `<application>` tag must have:
-```xml
-android:usesCleartextTraffic="true"
-android:networkSecurityConfig="@xml/network_security_config"
-```
-
-> [!NOTE]
-> The cloud server (`syncronization.vercel.app`) uses HTTPS. HTTPS never needs to be in the cleartext
-> config. The `network_security_config.xml` only matters for HTTP domains (like `192.168.1.5`).
-> So HTTPS to Vercel will work even without any config entries.
-
-### Verify network_security_config.xml
-File: `mobile/android/app/src/main/res/xml/network_security_config.xml`
-
-Contents should be:
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <base-config cleartextTrafficPermitted="false">
-        <trust-anchors>
-            <certificates src="system"/>
-        </trust-anchors>
-    </base-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">192.168.1.5</domain>
-        <domain includeSubdomains="true">localhost</domain>
-    </domain-config>
-</network-security-config>
-```
-
----
-
-## 8. Task E: Volume Slider Feature
-
-### Current State (Already Applied)
-The volume slider is already implemented. Here is the complete code for reference and verification.
-
-### `mobile/lib/services/webrtc_service.dart` — Volume State
-
-After existing field declarations, these fields must be present:
-```dart
-double _volume = 1.0;
-double get volume => _volume;
-
-void setVolume(double value) {
-  _volume = value.clamp(0.0, 1.0);
-  _audioRenderer?.volume = _volume;
-  notifyListeners();
-}
-```
-
-### `mobile/lib/screens/home_screen.dart` — Slider Widget
-
-In the `_buildConnectedView()` method, after the `'Audio is playing...'` Text widget:
-```dart
-const SizedBox(height: 32),
-// Volume Control
-Row(
-  children: [
-    const Icon(Icons.volume_down, color: Colors.white54, size: 20),
-    Expanded(
-      child: Slider(
-        value: _webrtc.volume,
-        activeColor: AppTheme.accent,  // #a855f7 — matches website
-        inactiveColor: Colors.white10,
-        onChanged: (v) => _webrtc.setVolume(v),
-      ),
-    ),
-    const Icon(Icons.volume_up, color: Colors.white54, size: 20),
-  ],
-),
-const SizedBox(height: 48),
-```
-
-### If Slider Is Missing
-If the slider does not appear in the UI when connected, add the code block above manually.
-The `_webrtc.volume` getter must also exist in `webrtc_service.dart`.
-
----
-
-## 9. Task F: Connection Quality Indicator
-
-### Current State (Already Applied)
-The connection quality indicator is already implemented. Here is the complete code for reference.
-
-### `mobile/lib/services/webrtc_service.dart` — Quality Enum + State
-
-After `AppConnectionState` enum, this must exist:
-```dart
-enum ConnectionQuality { excellent, good, poor, unknown }
-```
-
-In the `WebRTCService` class, these fields must exist:
-```dart
-ConnectionQuality _connectionQuality = ConnectionQuality.unknown;
-ConnectionQuality get connectionQuality => _connectionQuality;
-Timer? _statsTimer;
-```
-
-### Stats Polling Timer in `_createPeerConnection()`
-
-At the END of the `_createPeerConnection()` method body, this timer must be started:
-```dart
-_startStatsTimer();
-```
-
-And this method must exist:
-```dart
-void _startStatsTimer() {
-  _statsTimer?.cancel();
-  _statsTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-    if (_peerConnection == null || _state != AppConnectionState.connected) {
-      timer.cancel();
-      _statsTimer = null;
-      return;
-    }
-
-    try {
-      final stats = await _peerConnection!.getStats();
-      for (final report in stats) {
-        if (report.type == 'candidate-pair' &&
-            report.values.containsKey('currentRoundTripTime')) {
-          final rtt = (report.values['currentRoundTripTime'] as num).toDouble();
-          ConnectionQuality q;
-          if (rtt < 0.05) {
-            q = ConnectionQuality.excellent;
-          } else if (rtt < 0.15) {
-            q = ConnectionQuality.good;
-          } else {
-            q = ConnectionQuality.poor;
-          }
-
-          if (q != _connectionQuality) {
-            _connectionQuality = q;
-            notifyListeners();
-          }
-          break;
-        }
-      }
-    } catch (e) {
-      debugPrint('[WebRTC] Error getting stats: $e');
-    }
-  });
-}
-```
-
-In the `disconnect()` method, before `_setState(AppConnectionState.idle)`:
-```dart
-_statsTimer?.cancel();
-_statsTimer = null;
-_connectionQuality = ConnectionQuality.unknown;
-```
-
-### `mobile/lib/screens/home_screen.dart` — Quality Indicator Widget
-
-These helper methods must exist in `_HomeScreenState`:
-```dart
-Widget _buildConnectionQualityIndicator() {
-  final quality = _webrtc.connectionQuality;
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      AnimatedContainer(
-        duration: const Duration(milliseconds: 500),
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: _qualityColor(quality),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Text(
-        _qualityLabel(quality),
-        style: TextStyle(
-          fontSize: 10,
-          color: _qualityColor(quality),
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.5,
-        ),
-      ),
-    ],
-  );
-}
-
-Color _qualityColor(ConnectionQuality q) {
-  return switch (q) {
-    ConnectionQuality.excellent => AppTheme.green,   // #22C55E
-    ConnectionQuality.good      => Colors.amber,
-    ConnectionQuality.poor      => Colors.redAccent,
-    ConnectionQuality.unknown   => Colors.white24,
-  };
-}
-
-String _qualityLabel(ConnectionQuality q) {
-  return switch (q) {
-    ConnectionQuality.excellent => 'EXCELLENT SIGNAL',
-    ConnectionQuality.good      => 'GOOD SIGNAL',
-    ConnectionQuality.poor      => 'POOR SIGNAL',
-    ConnectionQuality.unknown   => 'MEASURING...',
-  };
-}
-```
-
-At the TOP of `_buildConnectedView()` Column children, before `_buildPulsingIcon()`:
-```dart
-_buildConnectionQualityIndicator(),
-const SizedBox(height: 20),
-```
-
----
-
-## 10. Task G: Fix Android Build (Kotlin Conflict)
-
-### Problem
-Two conflicting settings files exist in `mobile/android/`:
-- `settings.gradle` (Groovy DSL) — **OLD**, causes Kotlin to lock at version `1.8.22`
-- `settings.gradle.kts` (Kotlin DSL) — **CORRECT**, targets Kotlin `2.2.20`
-
-When both exist, the old Groovy file takes precedence, causing `Unresolved reference: io` and
-`Unresolved reference: FlutterActivity` errors in `MainActivity.kt`.
-
-### Status: ✅ `settings.gradle` already deleted.
-
-Verify:
-```powershell
-Test-Path "C:\Syncronization\mobile\android\settings.gradle"
-# Expected: False
-```
-
-If it still exists:
-```powershell
-Remove-Item "C:\Syncronization\mobile\android\settings.gradle" -Force
-```
-
-### Verify `settings.gradle.kts` is Correct
-File: `mobile/android/settings.gradle.kts`
-
-The plugins block must contain:
-```kotlin
-id("org.jetbrains.kotlin.android") version "2.2.20" apply false
-id("com.android.application") version "8.11.1" apply false
-```
-
-### Verify `MainActivity.kt` Path and Content
-- **Correct path**: `mobile/android/app/src/main/kotlin/com/syncronization/app/MainActivity.kt`
-- **Correct content** (exactly):
-```kotlin
-package com.syncronization.app
-
-import io.flutter.embedding.android.FlutterActivity
-
-class MainActivity: FlutterActivity()
-```
-
-If a duplicate directory `com/syncronization/syncronization/` exists, delete it:
-```powershell
-$dup = "C:\Syncronization\mobile\android\app\src\main\kotlin\com\syncronization\syncronization"
-if (Test-Path $dup) { Remove-Item $dup -Recurse -Force }
-```
-
-### Clean Build
-```powershell
-# From C:\Syncronization\mobile
-flutter clean
-flutter pub get
-flutter run --android-skip-build-dependency-validation
-```
-
----
-
-## 11. Task H: Update .gitignore and Push to GitHub
-
-### Status: ✅ `.gitignore` already updated. Heap dump already deleted.
-
-### Current `.gitignore` Key Patterns (Verify These Exist)
-```
-# Java heap dumps — CRITICAL: prevents 1.6 GB files from entering history
-mobile/android/java_pid*.hprof
-*.hprof
-
-# Build outputs
-mobile/build/
-mobile/android/app/build/
-mobile/android/.gradle/
-mobile/.dart_tool/
-
-# Extension build (generated, do not commit)
-extension/dist/
-```
-
-### Initialize Git If Not Already Done
-The project at `C:\Syncronization` does not currently have a `.git` folder (it is not yet a git repo).
-If you want to push to GitHub:
-
+**Steps**:
 ```powershell
 # From C:\Syncronization
 git init
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-git add -A
-git commit -m "feat: cloud signaling, volume control, connection quality, gitignore"
 git branch -M main
-git push -u origin main
 ```
 
-Replace `YOUR_USERNAME/YOUR_REPO` with the actual GitHub repository URL.
+If the project already has a remote GitHub repo, link it:
+```powershell
+# Replace the URL with the actual GitHub remote
+git remote add origin https://github.com/YOUR_USERNAME/syncronization.git
+```
 
-### If Repo Already Exists and Just Needs a Push
+If no repo exists, create one at https://github.com/new (name: `syncronization`) then run the above.
+
+---
+
+### TASK R2 — Push Code to GitHub
+**Priority: HIGH**  
+**Depends on**: TASK R1
+
 ```powershell
 # From C:\Syncronization
 git add -A
-git commit -m "feat: migrate to vercel relay, volume slider, connection quality indicator"
+git status    # Review what will be committed — should see NO .hprof files
+git commit -m "feat: cloud signaling via vercel, volume slider, connection quality indicator"
+git push -u origin main
+```
+
+**Expected result**: All source files pushed. Total repo size should be well under 50 MB because:
+- The 1.67 GB heap dump was deleted
+- `extension/dist/` is in `.gitignore`
+- `mobile/build/` is in `.gitignore`
+- `mobile/android/.gradle/` is in `.gitignore`
+
+---
+
+### TASK R3 — Deploy Signaling Server to Render (Separate from Vercel Website)
+
+**IMPORTANT ARCHITECTURAL CLARIFICATION**:
+
+`syncronization.vercel.app` is the **static website** (HTML/CSS/JS). Vercel hosts static files and serverless functions only — it cannot run a persistent WebSocket server (Socket.IO requires persistent TCP connections, which Vercel's serverless architecture does not support).
+
+The **signaling server** (`signaling-server/server.js`) is a Node.js Express + Socket.IO app. It must run on a platform that supports persistent connections. The correct platform is **Render** (already confirmed working) or **Railway**.
+
+**Current correct URLs**:
+| Component | URL | Platform |
+|-----------|-----|----------|
+| Website (static) | `https://syncronization.vercel.app` | Vercel ✅ |
+| Signaling Server | `https://syncronization-server.onrender.com` | Render ✅ |
+
+**The extension code was updated to point to `syncronization.vercel.app` for signaling. This is wrong and must be corrected.**
+
+**Files to fix**:
+
+#### R3a. `extension/src/offscreen.ts` — Line 6
+```typescript
+// CURRENT (may fail for WebSocket connections):
+const SIGNALING_SERVER = 'https://syncronization.vercel.app';
+
+// CORRECT:
+const SIGNALING_SERVER = 'https://syncronization-server.onrender.com';
+```
+
+#### R3b. `extension/src/App.tsx` — Lines 5–6, 15
+```typescript
+// CURRENT:
+const SIGNALING_SERVER = 'https://syncronization.vercel.app';
+const CONNECT_PAGE_URL = 'https://syncronization.vercel.app/';  // ← This one is CORRECT (website)
+const [mobileServerUrl, setMobileServerUrl] = useState('https://syncronization.vercel.app');
+
+// CORRECT:
+const SIGNALING_SERVER = 'https://syncronization-server.onrender.com';
+const CONNECT_PAGE_URL = 'https://syncronization.vercel.app/';  // ← Keep this, website is on Vercel
+const [mobileServerUrl, setMobileServerUrl] = useState('https://syncronization-server.onrender.com');
+```
+
+#### R3c. `mobile/lib/screens/home_screen.dart` — Line 57
+```dart
+// CURRENT:
+final server = uri.queryParameters['server'] ?? 'https://syncronization.vercel.app';
+
+// CORRECT:
+final server = uri.queryParameters['server'] ?? 'https://syncronization-server.onrender.com';
+```
+
+After edits, rebuild the extension:
+```powershell
+cd C:\Syncronization\extension
+npm run build
+```
+
+**Verification**: Open `https://syncronization-server.onrender.com/socket.io/?EIO=4&transport=polling`  
+If it returns a string starting with `0{`, the server is live. If it times out (Render free tier sleeps after 15 minutes of no traffic), wait 30 seconds and retry — it cold-starts automatically.
+
+---
+
+### TASK R4 — Run Mobile App and Test End-to-End Connection
+**Priority: HIGH**  
+**Depends on**: TASK R3 complete, phone connected via USB
+
+```powershell
+# From C:\Syncronization\mobile
+flutter run --android-skip-build-dependency-validation
+```
+
+**Test flow**:
+1. Open the Chrome extension popup
+2. Verify it shows "Cloud Relay Active" badge (not an IP input)
+3. Click **Start Streaming**
+4. Scan the QR code with the Android app
+5. Connection should establish within 3–5 seconds
+6. Audio should play through the phone speaker
+7. Verify the **volume slider** appears when connected
+8. Verify the **quality dot** appears and shows MEASURING… → EXCELLENT/GOOD
+
+**Success criteria**: No `SocketException` or `Connection refused` errors in the logs.
+
+---
+
+### TASK R5 — Build and Upload Android APK for Website Download
+**Priority: MEDIUM**
+
+The website at `syncronization.vercel.app` has a "Download APK" button. This button checks for a file at `web/downloads/syncronization-app.apk`. If the file is missing, the button shows "APK not uploaded yet."
+
+**Steps**:
+
+1. Build the release APK:
+```powershell
+# From C:\Syncronization\mobile
+flutter build apk --split-per-abi --android-skip-build-dependency-validation
+```
+
+Output files will be at:
+```
+mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk  ← Use this one (modern phones)
+mobile/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+mobile/build/app/outputs/flutter-apk/app-x86_64-release.apk
+```
+
+2. Copy the ARM64 APK to the website downloads folder:
+```powershell
+# From C:\Syncronization
+Copy-Item "mobile\build\app\outputs\flutter-apk\app-arm64-v8a-release.apk" `
+          "web\downloads\syncronization-app.apk"
+```
+
+3. Commit and push to trigger Vercel redeploy:
+```powershell
+git add web/downloads/syncronization-app.apk
+git commit -m "feat: add Android APK v1.0.0"
 git push origin main
 ```
 
----
-
-## 12. Master Execution Checklist
-
-Run through these in order. Tick each one before moving to the next.
-
-### 🔴 Phase 1 — Connection Fix (High Priority)
-
-- [ ] **A1** Verify heap dump is deleted: `Test-Path "C:\Syncronization\mobile\android\java_pid11512.hprof"` → `False`
-- [ ] **B1** Open `https://syncronization.vercel.app/socket.io/?EIO=4&transport=polling` in browser
-- [ ] **B2** If it returns `0{...}` → Vercel signaling is live ✅ proceed
-- [ ] **B3** If it returns 404 → switch all URLs to `https://syncronization-server.onrender.com` and rebuild
-- [ ] **C1** Confirm `extension/src/App.tsx` line 5 contains `syncronization.vercel.app`
-- [ ] **C2** Confirm `extension/src/App.tsx` line 6 (`CONNECT_PAGE_URL`) contains `syncronization.vercel.app`
-- [ ] **C3** Confirm `extension/src/App.tsx` line 15 default `mobileServerUrl` state contains `syncronization.vercel.app`
-- [ ] **C4** Confirm `extension/src/offscreen.ts` line 6 `SIGNALING_SERVER` contains `syncronization.vercel.app`
-- [ ] **C5** Reload extension in Chrome at `chrome://extensions`
-- [ ] **C6** Open extension popup → verify "✓ Connected to Vercel Cloud Relay" badge shows (no IP input field)
-- [ ] **D1** Confirm `home_screen.dart` fallback uses `syncronization.vercel.app`
-
-### 🟡 Phase 2 — Mobile Build Fix
-
-- [ ] **G1** Verify `settings.gradle` is deleted: `Test-Path "C:\Syncronization\mobile\android\settings.gradle"` → `False`
-- [ ] **G2** Verify `settings.gradle.kts` has Kotlin `2.2.20`
-- [ ] **G3** Verify `MainActivity.kt` at correct path with correct content
-- [ ] **G4** Run `flutter clean` in `mobile/`
-- [ ] **G5** Run `flutter pub get` in `mobile/`
-- [ ] **G6** Run `flutter run --android-skip-build-dependency-validation` with Redmi Y2 connected via USB
-- [ ] **G7** App launches on device ✅
-
-### 🟢 Phase 3 — End-to-End Connection Test
-
-- [ ] **T1** With app running on phone and extension loaded in Chrome:
-- [ ] **T2** Open a YouTube video in the browser tab
-- [ ] **T3** Click the Syncronization extension icon → "Start Streaming"
-- [ ] **T4** On the phone tap "Scan QR Code"
-- [ ] **T5** Scan the QR code displayed in the extension
-- [ ] **T6** Phone shows "Connected & Streaming" ✅
-- [ ] **T7** Audio plays on the phone speaker ✅
-- [ ] **T8** Volume slider appears and adjusts audio level ✅
-- [ ] **T9** Signal quality dot appears (MEASURING → EXCELLENT/GOOD/POOR) ✅
-
-### 🔵 Phase 4 — GitHub Push
-
-- [ ] **H1** Confirm `.gitignore` contains `*.hprof` and `mobile/android/java_pid*.hprof`
-- [ ] **H2** `git add -A`
-- [ ] **H3** `git commit -m "feat: vercel relay, volume slider, connection quality, gitignore hardening"`
-- [ ] **H4** `git push origin main`
-- [ ] **H5** Push succeeds without "file too large" errors ✅
+> [!NOTE]
+> If the APK exceeds GitHub's 100 MB file size limit, use Git LFS:
+> ```powershell
+> git lfs install
+> git lfs track "*.apk"
+> git add .gitattributes
+> ```
+> Or upload the APK directly to Vercel Blob Storage / an S3 bucket and update the download link in `web/index.html`.
 
 ---
 
-## 13. File Locations Quick Reference
+### TASK R6 — Configure Vercel for Custom Routing (Connect Page)
+**Priority: LOW**
+
+The website has a `/connect` subdirectory that serves the deep-link redirect page (the page that opens when a user scans the QR code from the extension).
+
+Verify `vercel.json` or `netlify.toml` correctly routes `/connect/*` requests. Check `web/connect/index.html` exists and that Vercel serves it.
+
+Currently a `netlify.toml` exists at the root — if deploying to Vercel, ensure a `vercel.json` is created with equivalent routing:
+
+```json
+{
+  "rewrites": [
+    { "source": "/connect/(.*)", "destination": "/connect/index.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+```
+
+Place this at `C:\Syncronization\web\vercel.json` or `C:\Syncronization\vercel.json`.
+
+---
+
+## 📋 Final Master Checklist
+
+### 🔴 Critical (Must Do Before App Works)
+- [ ] **R1** — Initialize Git: `git init` then `git remote add origin <URL>`
+- [x] **R3a** — Fix `offscreen.ts`: signaling URL → `https://syncronization-server.onrender.com`
+- [x] **R3b** — Fix `App.tsx`: `SIGNALING_SERVER` and `mobileServerUrl` → Render URL
+- [x] **R3c** — Fix `home_screen.dart` line 57: fallback → Render URL
+- [x] **R3d** — Rebuild extension: `npm run build` in `extension/`
+- [ ] **R4** — Test end-to-end: scan QR → connection → audio plays on phone
+
+### 🟡 Important (Do After App Works)
+- [ ] **R2** — Push to GitHub: `git add -A && git commit && git push`
+- [x] **R5** — Build APK: `flutter build apk --split-per-abi`
+- [x] **R5b** — Place APK in `web/downloads/` and push
+
+### 🟢 Nice to Have
+- [x] **R6** — Add `vercel.json` routing config for the `/connect` redirect page
+- [ ] Test multi-device: scan same QR on 2 phones — both should receive audio simultaneously
+
+---
+
+## 🗂️ File Reference Map
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `extension/src/App.tsx` | Extension UI — URL constants + cloud relay badge | ✅ Updated |
-| `extension/src/offscreen.ts` | Extension WebRTC — `SIGNALING_SERVER` constant | ✅ Updated |
-| `extension/dist/` | Built extension — reload in `chrome://extensions` | ✅ Built |
-| `mobile/lib/services/webrtc_service.dart` | Volume state + Connection quality stats timer | ✅ Updated |
-| `mobile/lib/screens/home_screen.dart` | Volume slider + Quality indicator UI | ✅ Updated |
-| `mobile/lib/theme/app_theme.dart` | Brand colors — `accent=#a855f7`, `bg=#030303` | Unchanged |
-| `mobile/android/settings.gradle` | **DELETED** — was causing Kotlin 1.8.22 conflict | ✅ Deleted |
-| `mobile/android/settings.gradle.kts` | Kotlin DSL config — Kotlin `2.2.20`, AGP `8.11.1` | ✅ Keep |
-| `mobile/android/app/src/main/kotlin/com/syncronization/app/MainActivity.kt` | Flutter entry point | ✅ Correct |
-| `mobile/android/java_pid11512.hprof` | **DELETED** — was 1.67 GB, blocked git push | ✅ Deleted |
-| `mobile/android/app/src/main/AndroidManifest.xml` | Network security config + cleartext | ✅ Correct |
-| `mobile/android/app/src/main/res/xml/network_security_config.xml` | Allows LAN HTTP for local dev | ✅ Correct |
-| `C:\Syncronization\.gitignore` | Excludes `*.hprof`, build dirs, IDE files | ✅ Updated |
-| `signaling-server/server.js` | Cloud signaling — deployed on Render | **No changes needed** |
-| `web/` | Website — deployed on Vercel | **No changes needed** |
+| `extension/src/App.tsx` | Extension UI + QR generation | ⚠️ Needs R3b fix |
+| `extension/src/offscreen.ts` | Extension WebRTC + Socket.IO client | ⚠️ Needs R3a fix |
+| `extension/src/background.ts` | Extension service worker | ✅ Untouched |
+| `mobile/lib/services/webrtc_service.dart` | Mobile signaling + WebRTC + volume + quality | ✅ Complete |
+| `mobile/lib/screens/home_screen.dart` | Mobile UI with slider + quality indicator | ⚠️ Needs R3c fix |
+| `mobile/lib/theme/app_theme.dart` | Brand colors — do not modify | ✅ Reference |
+| `mobile/android/settings.gradle.kts` | Kotlin DSL Gradle config (Kotlin 2.2.20) | ✅ Correct |
+| `mobile/android/app/src/main/kotlin/com/syncronization/app/MainActivity.kt` | Flutter Android entry point | ✅ Correct |
+| `mobile/android/app/src/main/AndroidManifest.xml` | Android permissions + network config | ✅ Correct |
+| `mobile/android/app/src/main/res/xml/network_security_config.xml` | Cleartext HTTP exceptions for dev | ✅ Correct |
+| `signaling-server/server.js` | Node.js + Socket.IO signaling relay | ✅ Deployed on Render |
+| `web/index.html` | Landing page (on Vercel) | ✅ Live |
+| `web/connect/` | Deep-link redirect page | ✅ Live |
+| `web/downloads/syncronization-app.apk` | Android APK (not yet uploaded) | ❌ Missing |
+| `.gitignore` | Excludes build artifacts + heap dumps | ✅ Updated |
 
 ---
 
-## 14. Why Not Bluetooth?
+## 🐛 Known Bugs Fixed This Session
 
-The user asked about Bluetooth as an alternative to cloud signaling. Here is the technical comparison:
-
-| Criteria | Bluetooth | Cloud Signaling (Current) |
-|----------|-----------|--------------------------|
-| Pairing effort | 30+ second ceremony, both devices must cooperate | Zero — just scan QR |
-| Firewall issues | None | None (HTTPS/443) |
-| Audio bandwidth | ~350 kbps max (A2DP) — noticeable quality loss | Unlimited (WebRTC P2P) |
-| Chrome extension support | ❌ No Bluetooth audio API in Chrome extensions | ✅ Tab audio capture works |
-| Multi-device | Complex BT routing | ✅ Multiple phones, one session |
-| Works over WiFi | ❌ BT is radio, not WiFi | ✅ Same network or internet |
-| Latency (after connect) | ~200ms (Bluetooth codec delay) | ~5-30ms (WebRTC) |
-
-**Verdict**: Cloud signaling is strictly better in every dimension for this use case.
-Bluetooth audio from a Chrome extension is not technically possible — Chrome has no `navigator.bluetooth`
-audio output API. The only viable path is WebRTC P2P via a cloud signaling server.
+| Bug | Fix Applied | File |
+|-----|------------|------|
+| Extension QR encoded local IP `192.168.1.5:3001` | Changed `SIGNALING_SERVER` + `mobileServerUrl` to cloud URL | `App.tsx`, `offscreen.ts` |
+| Mobile app tried to connect to local IP (blocked by Windows Firewall) | Updated fallback server URL in `_connectToSession()` | `home_screen.dart` |
+| 1.67 GB `.hprof` file blocking `git push` | Deleted file, added `*.hprof` to `.gitignore` | Repository root |
+| `settings.gradle` (Groovy) conflicting with `settings.gradle.kts` (Kotlin) | Deleted old `settings.gradle` | `mobile/android/` |
+| Duplicate `com.syncronization.syncronization` Kotlin package causing unresolved references | Deleted duplicate folder | `mobile/android/app/src/main/kotlin/` |
+| Stray `}` brace broke `WebRTCService` class structure | Removed extra brace at line 273 | `webrtc_service.dart` |
 
 ---
 
-## Appendix: Design System Reference
+## 🔑 Key Technical Decisions
 
-Matching the website at `https://syncronization.vercel.app`:
+### Why Render for signaling, not Vercel?
+Vercel runs serverless functions that terminate after each request. Socket.IO needs a **persistent, long-lived TCP connection**. Vercel's infrastructure kills idle connections after ~10 seconds, which will silently drop WebSocket upgrades. Render's free tier runs a real Node.js process 24/7 (with a 15-min sleep if no traffic).
 
-```css
-/* From web/styles.css */
---accent: #a855f7;
---accent-glow: rgba(168, 85, 247, 0.4);
---bg: #030303;
---card: #0f0f12;
---border: rgba(255, 255, 255, 0.08);
---text: #f8fafc;
---text-dim: #94a3b8;
-```
+### Why WebRTC not a simple audio stream to a server?
+WebRTC establishes a **direct device-to-device** connection after signaling. Audio never touches the signaling server. This gives <50ms latency (typically 10–30ms on LAN) which is imperceptible. A server-relay would add at least 100–200ms and would cost bandwidth on the cloud server.
 
-```dart
-// From mobile/lib/theme/app_theme.dart
-static const Color accent   = Color(0xFFa855f7);
-static const Color accentDark = Color(0xFF7c3aed);
-static const Color bg       = Color(0xFF030303);
-static const Color card     = Color(0xFF0f0f12);
-static const Color green    = Color(0xFF22C55E);
-static const Color red      = Color(0xFFEF4444);
-```
-
-All new UI elements (volume slider, quality indicator) use `AppTheme.accent` for the active/highlight
-color to maintain visual consistency across the website, extension, and mobile app.
+### Why `flutter_webrtc` not `just_audio`?
+The audio source is a Chrome tab's MediaStream. It is transmitted as a WebRTC track. `flutter_webrtc` receives this track natively. `just_audio` plays local files or HTTP streams — it cannot consume a WebRTC track. Volume control is implemented via `RTCVideoRenderer.volume`.
 
 ---
 
-*Plan version: 2.0 | Last updated: 2026-05-01 | Website: https://syncronization.vercel.app*
+*Maintained by: Antigravity | Project: Syncronization v1.0*

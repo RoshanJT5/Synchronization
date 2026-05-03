@@ -18,8 +18,9 @@ mobile/android/.gradle/
 mobile/android/local.properties
 mobile/android/java_pid*.hprof
 *.hprof
-*.apk
-*.aab
+# Exclude raw APK/AAB build outputs but NOT web/downloads/ (served by Vercel)
+mobile/build/**/*.apk
+mobile/build/**/*.aab
 *.aar
 
 # iOS build artifacts
@@ -54,5 +55,8 @@ logs/
 .env.production.local
 
 # Downloads and build artifacts
-web/downloads/
+# Note: web/downloads/ is intentionally tracked so the APK and extension ZIP
+# are served by Vercel. Only exclude the raw APK/AAB build outputs.
+!web/downloads/
+!web/downloads/**
 extension/dist/

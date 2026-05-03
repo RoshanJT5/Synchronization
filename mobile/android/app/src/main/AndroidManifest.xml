@@ -56,15 +56,15 @@
                 <data android:scheme="syncronization" android:host="connect" />
             </intent-filter>
 
-            <!-- HTTPS deep link from the website -->
+            <!-- HTTPS deep link from the website (App Link — opens app directly when QR is scanned) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="synchronization.netlify.app"
-                    android:pathPrefix="/" />
+                    android:host="syncronization.vercel.app"
+                    android:pathPrefix="/connect" />
             </intent-filter>
         </activity>
 
