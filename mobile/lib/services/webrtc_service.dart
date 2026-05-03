@@ -183,13 +183,25 @@ class WebRTCService extends ChangeNotifier {
         );
       } else if (sigMap['candidate'] != null) {
         // ICE candidate
-        await _peerConnection!.addCandidate(
-          RTCIceCandidate(
-            sigMap['candidate'] as String,
-            sigMap['sdpMid'] as String?,
-            sigMap['sdpMLineIndex'] as int?,
-          ),
-        );
+        final candidateData = sigMap['candidate'];
+        if (candidateData is Map) {
+          final candMap = Map<String, dynamic>.from(candidateData);
+          await _peerConnection!.addCandidate(
+            RTCIceCandidate(
+              candMap['candidate'] as String?,
+              candMap['sdpMid'] as String?,
+              candMap['sdpMLineIndex'] as int?,
+            ),
+          );
+        } else if (candidateData is String) {
+          await _peerConnection!.addCandidate(
+            RTCIceCandidate(
+              candidateData,
+              sigMap['sdpMid'] as String?,
+              sigMap['sdpMLineIndex'] as int?,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint('[WebRTC] Signal handling error: $e');
