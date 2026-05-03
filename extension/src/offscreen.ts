@@ -3,7 +3,7 @@ import { Buffer } from 'buffer';
 (window as any).global = window;
 (window as any).process = (window as any).process || { env: {} };
 
-const SIGNALING_SERVER = 'https://syncronization-server.onrender.com';
+const SIGNALING_SERVER = 'https://synchronization-5865.onrender.com';
 let Peer: typeof import('simple-peer').default;
 let socket: import('socket.io-client').Socket | null = null;
 const peers = new Map<string, any>();

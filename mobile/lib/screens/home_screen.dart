@@ -66,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final uri = Uri.parse(url);
       final sessionId = uri.queryParameters['id'];
       final server = uri.queryParameters['server'] ??
-          'https://syncronization-server.onrender.com';
+          'https://synchronization-5865.onrender.com';
 
       if (sessionId != null) {
         _webrtc.connect(sessionId, server);
@@ -81,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _connectDiscovered(DiscoveredSession session) {
     _webrtc.connect(
       session.sessionId,
-      'https://syncronization-server.onrender.com',
+      'https://synchronization-5865.onrender.com',
     );
   }
 
@@ -666,7 +666,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           controller: _urlController,
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
-            hintText: 'https://syncronization-server.onrender.com/?id=...',
+            hintText: 'https://synchronization-5865.onrender.com/?id=...',
             hintStyle: TextStyle(color: Colors.white38),
             enabledBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: AppTheme.accent),

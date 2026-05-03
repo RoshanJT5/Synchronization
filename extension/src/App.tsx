@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import { Smartphone, Laptop, Speaker, Loader2, CheckCircle2, AlertCircle, Radio, Download, Send, Volume2, VolumeX } from 'lucide-react';
 
-const SIGNALING_SERVER = 'https://syncronization-server.onrender.com';
-const CONNECT_PAGE_URL = 'https://syncronization-server.onrender.com/connect';
+const SIGNALING_SERVER = 'https://synchronization-5865.onrender.com';
+const CONNECT_PAGE_URL = 'https://synchronization-5865.onrender.com/connect';
 
 type Mode = 'SEND' | 'RECEIVE';
 type Status = 'IDLE' | 'CONNECTING' | 'CAPTURING' | 'LISTENING' | 'ERROR';
@@ -12,7 +12,7 @@ function App() {
   const [mode, setMode] = useState<Mode>('SEND');
   const [sessionId, setSessionId] = useState('');
   const [remoteSessionId, setRemoteSessionId] = useState('');
-  const [mobileServerUrl, setMobileServerUrl] = useState('https://syncronization-server.onrender.com');
+  const [mobileServerUrl, setMobileServerUrl] = useState('https://synchronization-5865.onrender.com');
   const [status, setStatus] = useState<Status>('IDLE');
   const [error, setError] = useState('');
   // true = laptop speakers are silent, false = laptop keeps playing alongside remotes
