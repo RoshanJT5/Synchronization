@@ -95,6 +95,18 @@ async function startSendMode(sessionId: string, streamId: string) {
 
     await ensureSignalingConnected(sessionId);
 
+    const announce = () => {
+      console.log('Announcing session:', sessionId);
+      socket?.emit('join-session', sessionId);
+      socket?.emit('announce-session', {
+        sessionId,
+        label: 'This Computer',
+      });
+    };
+
+    socket?.on('connect', announce);
+    announce(); // Initial announce
+
     socket?.on('peer-joined', ({ peerId }) => {
       if (activeSessionId !== sessionId) return;
       console.log('Receiver joined session:', peerId);
@@ -115,14 +127,6 @@ async function startSendMode(sessionId: string, streamId: string) {
       if (peer) {
         peer.signal(signal);
       }
-    });
-
-    socket?.emit('join-session', sessionId);
-
-    // Announce this session so mobile clients can auto-discover it
-    socket?.emit('announce-session', {
-      sessionId,
-      label: 'This Computer',
     });
 
     chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
@@ -211,6 +215,7 @@ function resetSessionState() {
   socket?.off('peer-joined');
   socket?.off('session-peers');
   socket?.off('signal');
+  socket?.off('connect');
   destroyAllPeers();
 
   // Tear down local audio passthrough

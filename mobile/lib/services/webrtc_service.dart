@@ -50,6 +50,9 @@ class WebRTCService extends ChangeNotifier {
     'optional': [],
   };
 
+  Future<void>? _pcFuture;
+  Future<void> _signalingQueue = Future.value();
+
   /// Connect to a session as a receiver (mobile = receiver)
   Future<void> connect(String sessionId, String serverUrl) async {
     if (_state == AppConnectionState.connecting ||
@@ -65,6 +68,7 @@ class WebRTCService extends ChangeNotifier {
       await _initAudioRenderer();
       await _connectSocket(serverUrl, sessionId);
     } catch (e) {
+      debugPrint('[WebRTC] Connection failed: $e');
       _setError(e.toString());
     }
   }
@@ -106,23 +110,26 @@ class WebRTCService extends ChangeNotifier {
       }
     });
 
-    _socket!.on('signal', (data) async {
-      try {
-        Map<String, dynamic> payload;
-        if (data is List && data.isNotEmpty) {
-          payload = data.first as Map<String, dynamic>;
-        } else if (data is Map) {
-          payload = Map<String, dynamic>.from(data);
-        } else {
-          debugPrint('[Socket] Invalid signal data type: ${data.runtimeType}');
-          return;
+    _socket!.on('signal', (data) {
+      // Use a signaling queue to process signals sequentially
+      _signalingQueue = _signalingQueue.then((_) async {
+        try {
+          Map<String, dynamic> payload;
+          if (data is List && data.isNotEmpty) {
+            payload = Map<String, dynamic>.from(data.first as Map);
+          } else if (data is Map) {
+            payload = Map<String, dynamic>.from(data);
+          } else {
+            debugPrint('[Socket] Invalid signal data type: ${data.runtimeType}');
+            return;
+          }
+          
+          debugPrint('[Socket] Processing signal from ${payload['from']}');
+          await _handleSignal(payload['from'] as String, payload['signal']);
+        } catch (e) {
+          debugPrint('[Socket] Error in signaling queue: $e');
         }
-        
-        debugPrint('[Socket] Received signal from ${payload['from']}');
-        await _handleSignal(payload['from'] as String, payload['signal']);
-      } catch (e) {
-        debugPrint('[Socket] Error parsing signal: $e');
-      }
+      });
     });
 
     _socket!.onDisconnect((_) {
@@ -150,8 +157,10 @@ class WebRTCService extends ChangeNotifier {
 
   Future<void> _handleSignal(String fromId, dynamic signal) async {
     try {
+      // Ensure peer connection exists (atomic check)
       if (_peerConnection == null) {
-        await _createPeerConnection(fromId);
+        _pcFuture ??= _createPeerConnection(fromId);
+        await _pcFuture;
       }
 
       final Map<String, dynamic> sigMap;
@@ -163,21 +172,28 @@ class WebRTCService extends ChangeNotifier {
       }
 
       final type = sigMap['type'] as String?;
+      debugPrint('[WebRTC] Handling signal type: ${type ?? (sigMap['candidate'] != null ? 'candidate' : 'unknown')} (State: ${_peerConnection?.signalingState})');
 
       if (type == 'offer') {
+        final sdp = sigMap['sdp'] as String;
+        debugPrint('[WebRTC] Setting remote offer');
         await _peerConnection!.setRemoteDescription(
-          RTCSessionDescription(sigMap['sdp'] as String, 'offer'),
+          RTCSessionDescription(sdp, 'offer'),
         );
-        final answer = await _peerConnection!.createAnswer(
-          _offerSdpConstraints,
-        );
+        
+        debugPrint('[WebRTC] Creating answer (Current State: ${_peerConnection!.signalingState})');
+        final answer = await _peerConnection!.createAnswer(_offerSdpConstraints);
+        
+        debugPrint('[WebRTC] Setting local answer');
         await _peerConnection!.setLocalDescription(answer);
+        
         _socket?.emit('signal', {
           'sessionId': _activeSessionId,
           'signal': {'type': 'answer', 'sdp': answer.sdp},
           'to': fromId,
         });
       } else if (type == 'answer') {
+        debugPrint('[WebRTC] Setting remote answer');
         await _peerConnection!.setRemoteDescription(
           RTCSessionDescription(sigMap['sdp'] as String, 'answer'),
         );
@@ -334,6 +350,8 @@ class WebRTCService extends ChangeNotifier {
     _connectionQuality = ConnectionQuality.unknown;
 
     _activeSessionId = '';
+    _pcFuture = null;
+    _signalingQueue = Future.value();
     _setState(AppConnectionState.idle);
   }
 
