@@ -10,11 +10,11 @@
     "offscreen"
   ],
   "host_permissions": [
-    "http://localhost:3001/*",
-    "ws://localhost:3001/*"
+    "https://synchronization-5865.onrender.com/*",
+    "wss://synchronization-5865.onrender.com/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:3001 ws://localhost:3001;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://synchronization-5865.onrender.com wss://synchronization-5865.onrender.com;"
   },
   "action": {
     "default_popup": "index.html",
