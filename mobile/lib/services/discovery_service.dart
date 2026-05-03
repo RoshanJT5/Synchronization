@@ -47,7 +47,7 @@ class DiscoveryService extends ChangeNotifier {
     _socket = io.io(
       _signalingServer,
       io.OptionBuilder()
-          .setTransports(['websocket', 'polling'])
+          .setTransports(['websocket'])
           .disableAutoConnect()
           .enableReconnection()
           .setReconnectionAttempts(5)
