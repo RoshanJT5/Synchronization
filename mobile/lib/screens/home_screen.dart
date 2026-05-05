@@ -7,7 +7,9 @@ import '../theme/app_theme.dart';
 import '../widgets/gradient_button.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.enableDiscovery = true});
+
+  final bool enableDiscovery;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -25,14 +27,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _webrtc = Provider.of<WebRTCService>(context, listen: false);
     _discovery = Provider.of<DiscoveryService>(context, listen: false);
-    // Start auto-discovery as soon as the screen loads
-    _discovery.startDiscovery();
+    // Start auto-discovery after the first frame so provider notifications do
+    // not fire while Flutter is still building the app shell.
+    if (widget.enableDiscovery) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _discovery.startDiscovery();
+        }
+      });
+    }
     // Restart discovery when WebRTC goes back to idle (disconnect/error→try again)
     _webrtc.addListener(_onWebrtcStateChanged);
   }
 
   void _onWebrtcStateChanged() {
     if (_webrtc.state == AppConnectionState.idle &&
+        widget.enableDiscovery &&
         !_discovery.isConnected &&
         !_discovery.isConnecting) {
       _discovery.startDiscovery();
@@ -51,7 +61,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       // Re-start discovery when app comes back to foreground
-      if (!_discovery.isConnected && !_discovery.isConnecting) {
+      if (widget.enableDiscovery &&
+          !_discovery.isConnected &&
+          !_discovery.isConnecting) {
         _discovery.startDiscovery();
       }
     }

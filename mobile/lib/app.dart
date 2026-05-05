@@ -7,7 +7,9 @@ import 'services/discovery_service.dart';
 import 'services/deep_link_service.dart';
 
 class SyncronizationApp extends StatelessWidget {
-  const SyncronizationApp({super.key});
+  const SyncronizationApp({super.key, this.enableDiscovery = true});
+
+  final bool enableDiscovery;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +22,7 @@ class SyncronizationApp extends StatelessWidget {
         title: 'Syncronization',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark(),
-        home: const _DeepLinkWrapper(),
+        home: _DeepLinkWrapper(enableDiscovery: enableDiscovery),
       ),
     );
   }
@@ -30,7 +32,9 @@ class SyncronizationApp extends StatelessWidget {
 /// (or tapping a link) while the app is open or cold-starts it will
 /// automatically trigger a connection.
 class _DeepLinkWrapper extends StatefulWidget {
-  const _DeepLinkWrapper();
+  const _DeepLinkWrapper({required this.enableDiscovery});
+
+  final bool enableDiscovery;
 
   @override
   State<_DeepLinkWrapper> createState() => _DeepLinkWrapperState();
@@ -57,5 +61,6 @@ class _DeepLinkWrapperState extends State<_DeepLinkWrapper> {
   }
 
   @override
-  Widget build(BuildContext context) => const HomeScreen();
+  Widget build(BuildContext context) =>
+      HomeScreen(enableDiscovery: widget.enableDiscovery);
 }

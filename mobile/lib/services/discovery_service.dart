@@ -47,11 +47,12 @@ class DiscoveryService extends ChangeNotifier {
     _socket = io.io(
       _signalingServer,
       io.OptionBuilder()
-          .setTransports(['websocket'])
+          .setTransports(['websocket', 'polling'])
           .disableAutoConnect()
           .enableReconnection()
-          .setReconnectionAttempts(10)
-          .setReconnectionDelay(2000)
+          .setReconnectionAttempts(15)
+          .setReconnectionDelay(1000)
+          .setReconnectionDelayMax(8000)
           .setTimeout(30000)
           .setExtraHeaders({'User-Agent': 'SyncronizationMobile/1.0'})
           .build(),

@@ -21,11 +21,15 @@ class WebRTCService extends ChangeNotifier {
   AppConnectionState _state = AppConnectionState.idle;
   String _errorMessage = '';
   String _activeSessionId = '';
-  String _serverUrl = '';
 
   double _volume = 1.0;
   ConnectionQuality _connectionQuality = ConnectionQuality.unknown;
   Timer? _statsTimer;
+  Timer? _connectionTimeoutTimer;
+  Timer? _disconnectGraceTimer;
+  bool _hasRemoteDescription = false;
+  bool _isDisposed = false;
+  final List<RTCIceCandidate> _pendingRemoteCandidates = [];
 
   AppConnectionState get state => _state;
   String get errorMessage => _errorMessage;
@@ -61,12 +65,12 @@ class WebRTCService extends ChangeNotifier {
     }
 
     _activeSessionId = sessionId;
-    _serverUrl = serverUrl;
     _setState(AppConnectionState.connecting);
 
     try {
       await _initAudioRenderer();
       await _connectSocket(serverUrl, sessionId);
+      _startConnectionTimeout();
     } catch (e) {
       debugPrint('[WebRTC] Connection failed: $e');
       _setError(e.toString());
@@ -82,11 +86,11 @@ class WebRTCService extends ChangeNotifier {
     _socket = io.io(
       serverUrl,
       io.OptionBuilder()
-          .setTransports(['websocket'])
+          .setTransports(['websocket', 'polling'])
           .disableAutoConnect()
           .enableReconnection()
-          .setReconnectionAttempts(5)
-          .setReconnectionDelay(2000)
+          .setReconnectionAttempts(15)
+          .setReconnectionDelay(1000)
           .setReconnectionDelayMax(8000)
           .setTimeout(30000)
           .setExtraHeaders({'User-Agent': 'SyncronizationMobile/1.0'})
@@ -98,6 +102,11 @@ class WebRTCService extends ChangeNotifier {
     _socket!.onConnect((_) {
       debugPrint('[Socket] Connected to $serverUrl');
       if (!completer.isCompleted) completer.complete();
+      _joinSession(sessionId);
+    });
+
+    _socket!.on('reconnect', (_) {
+      debugPrint('[Socket] Reconnected - rejoining session');
       _joinSession(sessionId);
     });
 
@@ -134,8 +143,8 @@ class WebRTCService extends ChangeNotifier {
 
     _socket!.onDisconnect((_) {
       debugPrint('[Socket] Disconnected');
-      if (_state == AppConnectionState.connected) {
-        _setError('Disconnected from signaling server');
+      if (_state == AppConnectionState.connecting) {
+        _startConnectionTimeout();
       }
     });
 
@@ -180,6 +189,8 @@ class WebRTCService extends ChangeNotifier {
         await _peerConnection!.setRemoteDescription(
           RTCSessionDescription(sdp, 'offer'),
         );
+        _hasRemoteDescription = true;
+        await _flushPendingRemoteCandidates();
         
         debugPrint('[WebRTC] Creating answer (Current State: ${_peerConnection!.signalingState})');
         final answer = await _peerConnection!.createAnswer(_offerSdpConstraints);
@@ -197,26 +208,17 @@ class WebRTCService extends ChangeNotifier {
         await _peerConnection!.setRemoteDescription(
           RTCSessionDescription(sigMap['sdp'] as String, 'answer'),
         );
+        _hasRemoteDescription = true;
+        await _flushPendingRemoteCandidates();
       } else if (sigMap['candidate'] != null) {
-        // ICE candidate
-        final candidateData = sigMap['candidate'];
-        if (candidateData is Map) {
-          final candMap = Map<String, dynamic>.from(candidateData);
-          await _peerConnection!.addCandidate(
-            RTCIceCandidate(
-              candMap['candidate'] as String?,
-              candMap['sdpMid'] as String?,
-              candMap['sdpMLineIndex'] as int?,
-            ),
-          );
-        } else if (candidateData is String) {
-          await _peerConnection!.addCandidate(
-            RTCIceCandidate(
-              candidateData,
-              sigMap['sdpMid'] as String?,
-              sigMap['sdpMLineIndex'] as int?,
-            ),
-          );
+        final candidate = _parseIceCandidate(sigMap);
+        if (candidate == null) return;
+
+        if (!_hasRemoteDescription) {
+          debugPrint('[WebRTC] Queueing ICE candidate until remote description is set');
+          _pendingRemoteCandidates.add(candidate);
+        } else {
+          await _peerConnection!.addCandidate(candidate);
         }
       }
     } catch (e) {
@@ -229,6 +231,8 @@ class WebRTCService extends ChangeNotifier {
     debugPrint('[WebRTC] Creating peer connection for sender: $senderId');
 
     _peerConnection = await createPeerConnection(_iceConfig);
+    _hasRemoteDescription = false;
+    _pendingRemoteCandidates.clear();
 
     _peerConnection!.onIceCandidate = (candidate) {
       if (candidate.candidate != null) {
@@ -247,12 +251,15 @@ class WebRTCService extends ChangeNotifier {
     _peerConnection!.onConnectionState = (state) {
       debugPrint('[WebRTC] Connection state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        _connectionTimeoutTimer?.cancel();
+        _disconnectGraceTimer?.cancel();
         _setState(AppConnectionState.connected);
       } else if (state ==
-              RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-          state ==
-              RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         _setError('WebRTC connection lost');
+      } else if (state ==
+          RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+        _startDisconnectGraceTimer();
       }
     };
 
@@ -277,6 +284,58 @@ class WebRTCService extends ChangeNotifier {
     };
 
     _startStatsTimer();
+  }
+
+  RTCIceCandidate? _parseIceCandidate(Map<String, dynamic> sigMap) {
+    final candidateData = sigMap['candidate'];
+    if (candidateData is Map) {
+      final candMap = Map<String, dynamic>.from(candidateData);
+      return RTCIceCandidate(
+        candMap['candidate'] as String?,
+        candMap['sdpMid'] as String?,
+        (candMap['sdpMLineIndex'] as num?)?.toInt(),
+      );
+    }
+
+    if (candidateData is String) {
+      return RTCIceCandidate(
+        candidateData,
+        sigMap['sdpMid'] as String?,
+        (sigMap['sdpMLineIndex'] as num?)?.toInt(),
+      );
+    }
+
+    return null;
+  }
+
+  Future<void> _flushPendingRemoteCandidates() async {
+    if (_pendingRemoteCandidates.isEmpty || _peerConnection == null) return;
+
+    final pending = List<RTCIceCandidate>.from(_pendingRemoteCandidates);
+    _pendingRemoteCandidates.clear();
+    for (final candidate in pending) {
+      await _peerConnection!.addCandidate(candidate);
+    }
+  }
+
+  void _startConnectionTimeout() {
+    _connectionTimeoutTimer?.cancel();
+    _connectionTimeoutTimer = Timer(const Duration(seconds: 45), () {
+      if (_state == AppConnectionState.connecting) {
+        _setError(
+          'Could not complete WebRTC connection. Make sure the extension is still streaming and both devices are on the same network.',
+        );
+      }
+    });
+  }
+
+  void _startDisconnectGraceTimer() {
+    _disconnectGraceTimer?.cancel();
+    _disconnectGraceTimer = Timer(const Duration(seconds: 10), () {
+      if (_state == AppConnectionState.connected) {
+        _setError('WebRTC connection lost');
+      }
+    });
   }
 
   void _startStatsTimer() {
@@ -317,6 +376,7 @@ class WebRTCService extends ChangeNotifier {
   }
 
   void setVolume(double value) {
+    if (_isDisposed) return;
     _volume = value.clamp(0.0, 1.0);
     // flutter_webrtc 0.12.x does not expose RTCVideoRenderer.volume.
     // Apply volume by toggling audio track enabled state (mute = 0.0).
@@ -326,7 +386,7 @@ class WebRTCService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> disconnect() async {
+  Future<void> disconnect({bool notify = true}) async {
     debugPrint('[WebRTC] Disconnecting...');
 
     _socket?.disconnect();
@@ -347,15 +407,27 @@ class WebRTCService extends ChangeNotifier {
 
     _statsTimer?.cancel();
     _statsTimer = null;
+    _connectionTimeoutTimer?.cancel();
+    _connectionTimeoutTimer = null;
+    _disconnectGraceTimer?.cancel();
+    _disconnectGraceTimer = null;
     _connectionQuality = ConnectionQuality.unknown;
 
     _activeSessionId = '';
     _pcFuture = null;
     _signalingQueue = Future.value();
-    _setState(AppConnectionState.idle);
+    _hasRemoteDescription = false;
+    _pendingRemoteCandidates.clear();
+    if (notify && !_isDisposed) {
+      _setState(AppConnectionState.idle);
+    } else {
+      _state = AppConnectionState.idle;
+      _errorMessage = '';
+    }
   }
 
   void _setState(AppConnectionState newState) {
+    if (_isDisposed) return;
     _state = newState;
     if (newState != AppConnectionState.error) {
       _errorMessage = '';
@@ -364,6 +436,9 @@ class WebRTCService extends ChangeNotifier {
   }
 
   void _setError(String message) {
+    if (_isDisposed) return;
+    _connectionTimeoutTimer?.cancel();
+    _disconnectGraceTimer?.cancel();
     _errorMessage = message;
     _state = AppConnectionState.error;
     notifyListeners();
@@ -371,7 +446,8 @@ class WebRTCService extends ChangeNotifier {
 
   @override
   void dispose() {
-    disconnect();
+    _isDisposed = true;
+    disconnect(notify: false);
     super.dispose();
   }
 }

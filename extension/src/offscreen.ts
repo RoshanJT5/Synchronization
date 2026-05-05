@@ -10,6 +10,7 @@ const peers = new Map<string, any>();
 let audioPlayer: HTMLAudioElement | null = null;
 let activeSessionId = '';
 let networkingReady: Promise<void> | null = null;
+let announceTimer: number | null = null;
 
 // ── Source audio passthrough (keeps laptop speakers alive while streaming) ──
 let audioCtx: AudioContext | null = null;
@@ -106,6 +107,7 @@ async function startSendMode(sessionId: string, streamId: string) {
 
     socket?.on('connect', announce);
     announce(); // Initial announce
+    startSessionHeartbeat(sessionId, announce);
 
     socket?.on('peer-joined', ({ peerId }) => {
       if (activeSessionId !== sessionId) return;
@@ -212,6 +214,7 @@ function resetSessionState() {
     socket.emit('end-session', { sessionId: activeSessionId });
   }
 
+  stopSessionHeartbeat();
   socket?.off('peer-joined');
   socket?.off('session-peers');
   socket?.off('signal');
@@ -248,6 +251,38 @@ function destroyPeer(peerId: string) {
 function destroyAllPeers() {
   for (const peerId of peers.keys()) {
     destroyPeer(peerId);
+  }
+}
+
+function startSessionHeartbeat(sessionId: string, announce: () => void) {
+  stopSessionHeartbeat();
+  announceTimer = window.setInterval(() => {
+    if (activeSessionId !== sessionId) return;
+
+    if (socket?.connected) {
+      socket.emit('session-heartbeat', { sessionId });
+      socket.emit('announce-session', {
+        sessionId,
+        label: 'This Computer',
+      });
+    } else {
+      socket?.connect();
+    }
+  }, 15000);
+
+  // Re-announce occasionally so a restarted signaling server can rebuild its
+  // discovery list without needing the user to restart capture.
+  window.setTimeout(() => {
+    if (activeSessionId === sessionId && socket?.connected) {
+      announce();
+    }
+  }, 1000);
+}
+
+function stopSessionHeartbeat() {
+  if (announceTimer !== null) {
+    window.clearInterval(announceTimer);
+    announceTimer = null;
   }
 }
 

@@ -14,7 +14,9 @@ app.get('/connect', (req, res) => {
   res.sendFile(path.join(__dirname, '../web/connect/index.html'));
 });
 
-const io = new Server(server, { 
+const io = new Server(server, {
+  pingInterval: 10000,
+  pingTimeout: 20000,
   cors: { 
     origin: "*",
     methods: ["GET", "POST"]
@@ -27,8 +29,10 @@ const io = new Server(server, {
 // Mobile clients call 'get-active-sessions' to get the current list,
 // and subscribe to 'active-sessions-updated' for live updates.
 const activeSessions = new Map();
+const SESSION_TTL_MS = 45000;
 
 function broadcastActiveSessions() {
+  pruneExpiredSessions();
   const list = Array.from(activeSessions.values()).map(({ sessionId, label, announcedAt }) => ({
     sessionId,
     label,
@@ -36,6 +40,27 @@ function broadcastActiveSessions() {
   }));
   io.emit('active-sessions-updated', { sessions: list });
 }
+
+function pruneExpiredSessions() {
+  const now = Date.now();
+  let changed = false;
+
+  for (const [sessionId, info] of activeSessions.entries()) {
+    if (now - (info.lastSeen || info.announcedAt || 0) > SESSION_TTL_MS) {
+      activeSessions.delete(sessionId);
+      changed = true;
+      console.log(`Expired stale session ${sessionId}`);
+    }
+  }
+
+  return changed;
+}
+
+setInterval(() => {
+  if (pruneExpiredSessions()) {
+    broadcastActiveSessions();
+  }
+}, 15000);
 // ─────────────────────────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
@@ -43,14 +68,25 @@ io.on('connection', (socket) => {
 
   // ── Discovery: extension announces it is streaming ──────────────────────
   socket.on('announce-session', ({ sessionId, label }) => {
+    if (!sessionId) return;
+    const existing = activeSessions.get(sessionId);
     console.log(`Session announced: ${sessionId} (${label || 'Unnamed'})`);
     activeSessions.set(sessionId, {
       sessionId,
       label: label || 'Computer',
       socketId: socket.id,
-      announcedAt: Date.now(),
+      announcedAt: existing?.announcedAt || Date.now(),
+      lastSeen: Date.now(),
     });
     broadcastActiveSessions();
+  });
+
+  socket.on('session-heartbeat', ({ sessionId }) => {
+    const session = activeSessions.get(sessionId);
+    if (!session) return;
+
+    session.socketId = socket.id;
+    session.lastSeen = Date.now();
   });
 
   // ── Discovery: extension signals it stopped streaming ───────────────────
@@ -62,6 +98,7 @@ io.on('connection', (socket) => {
 
   // ── Discovery: mobile requests current list of active sessions ───────────
   socket.on('get-active-sessions', () => {
+    pruneExpiredSessions();
     const list = Array.from(activeSessions.values()).map(({ sessionId, label, announcedAt }) => ({
       sessionId,
       label,
