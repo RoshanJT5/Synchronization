@@ -93,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       if (sessionId != null) {
         _discovery.stopDiscovery(); // FREE the socket before WebRTC connects
-        _webrtc.connect(sessionId, server);
+        _webrtc.connect(sessionId.toUpperCase(), server);
       } else {
         _showSnack('Invalid QR code: Session ID missing');
       }

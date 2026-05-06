@@ -43,6 +43,22 @@ class WebRTCService extends ChangeNotifier {
     'iceServers': [
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
+      {'urls': 'stun:openrelay.metered.ca:80'},
+      {
+        'urls': 'turn:openrelay.metered.ca:80',
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      {
+        'urls': 'turn:openrelay.metered.ca:443',
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      {
+        'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
     ],
   };
 
@@ -59,17 +75,19 @@ class WebRTCService extends ChangeNotifier {
 
   /// Connect to a session as a receiver (mobile = receiver)
   Future<void> connect(String sessionId, String serverUrl) async {
-    if (_state == AppConnectionState.connecting ||
-        _state == AppConnectionState.connected) {
-      await disconnect();
+    if (_state != AppConnectionState.idle ||
+        _socket != null ||
+        _peerConnection != null ||
+        _audioRenderer != null) {
+      await disconnect(notify: false);
     }
 
-    _activeSessionId = sessionId;
+    _activeSessionId = sessionId.toUpperCase();
     _setState(AppConnectionState.connecting);
 
     try {
       await _initAudioRenderer();
-      await _connectSocket(serverUrl, sessionId);
+      await _connectSocket(serverUrl, _activeSessionId);
       _startConnectionTimeout();
     } catch (e) {
       debugPrint('[WebRTC] Connection failed: $e');

@@ -4,6 +4,26 @@ import { Buffer } from 'buffer';
 (window as any).process = (window as any).process || { env: {} };
 
 const SIGNALING_SERVER = 'https://synchronization-5865.onrender.com';
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:openrelay.metered.ca:80' },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  }
+];
 let Peer: typeof import('simple-peer').default;
 let socket: import('socket.io-client').Socket | null = null;
 const peers = new Map<string, any>();
@@ -98,7 +118,6 @@ async function startSendMode(sessionId: string, streamId: string) {
 
     const announce = () => {
       console.log('Announcing session:', sessionId);
-      socket?.emit('join-session', sessionId);
       socket?.emit('announce-session', {
         sessionId,
         label: 'This Computer',
@@ -106,11 +125,13 @@ async function startSendMode(sessionId: string, streamId: string) {
     };
 
     socket?.on('connect', announce);
+    socket?.emit('join-session', sessionId);
     announce(); // Initial announce
     startSessionHeartbeat(sessionId, announce);
 
     socket?.on('peer-joined', ({ peerId }) => {
       if (activeSessionId !== sessionId) return;
+      if (peerId === socket?.id) return;
       console.log('Receiver joined session:', peerId);
       setupPeer(sessionId, true, stream, peerId);
     });
@@ -118,6 +139,7 @@ async function startSendMode(sessionId: string, streamId: string) {
     socket?.on('session-peers', ({ peers }) => {
       if (activeSessionId !== sessionId) return;
       for (const peerId of peers || []) {
+        if (peerId === socket?.id) continue;
         console.log('Found receiver already in session:', peerId);
         setupPeer(sessionId, true, stream, peerId);
       }
@@ -169,13 +191,19 @@ async function startReceiveMode(sessionId: string) {
 }
 
 function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | null, targetId: string) {
+  const existingPeer = peers.get(targetId);
+  if (existingPeer && !existingPeer.destroyed) {
+    console.log('Peer already exists, keeping current connection:', targetId);
+    return existingPeer;
+  }
+
   destroyPeer(targetId);
 
   const peer = new Peer({
     initiator: initiator,
     trickle: true, // Switched to trickle for faster handshake
     stream: stream || undefined,
-    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+    config: { iceServers: ICE_SERVERS }
   });
 
   peer.peerId = targetId;
@@ -268,7 +296,7 @@ function startSessionHeartbeat(sessionId: string, announce: () => void) {
     } else {
       socket?.connect();
     }
-  }, 15000);
+  }, 7000);
 
   // Re-announce occasionally so a restarted signaling server can rebuild its
   // discovery list without needing the user to restart capture.

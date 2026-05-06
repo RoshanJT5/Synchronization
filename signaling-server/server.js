@@ -29,7 +29,7 @@ const io = new Server(server, {
 // Mobile clients call 'get-active-sessions' to get the current list,
 // and subscribe to 'active-sessions-updated' for live updates.
 const activeSessions = new Map();
-const SESSION_TTL_MS = 45000;
+const SESSION_TTL_MS = 20000;
 
 function broadcastActiveSessions() {
   pruneExpiredSessions();
@@ -109,7 +109,8 @@ io.on('connection', (socket) => {
 
   // ── Session join (WebRTC signaling room) ─────────────────────────────────
   socket.on('join-session', (sessionId) => {
-    const existingPeers = Array.from(io.sockets.adapter.rooms.get(sessionId) || []);
+    const existingPeers = Array.from(io.sockets.adapter.rooms.get(sessionId) || [])
+      .filter((peerId) => peerId !== socket.id);
 
     socket.join(sessionId);
     console.log(`Socket ${socket.id} joined session ${sessionId}`);
