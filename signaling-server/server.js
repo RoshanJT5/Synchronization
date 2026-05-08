@@ -5,20 +5,58 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
+const webRoot = path.join(__dirname, '../web');
+const downloadsRoot = path.join(webRoot, 'downloads');
+
+app.get('/__version', (req, res) => {
+  const artifact = (fileName) => {
+    try {
+      const stats = require('fs').statSync(path.join(downloadsRoot, fileName));
+      return {
+        bytes: stats.size,
+        modifiedAt: stats.mtime.toISOString(),
+      };
+    } catch (error) {
+      return null;
+    }
+  };
+
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  res.json({
+    gitCommit: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'local',
+    buildTag: 'downloads-20260509-0215',
+    extensionZip: artifact('syncronization-extension.zip'),
+    androidApk: artifact('syncronization-app.apk'),
+  });
+});
+
+app.use('/downloads', express.static(downloadsRoot, {
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('Content-Disposition', 'attachment');
+  },
+}));
 
 // Serve the static website files from the 'web' directory
-app.use(express.static(path.join(__dirname, '../web')));
+app.use(express.static(webRoot, {
+  setHeaders: (res, filePath) => {
+    if (filePath.includes(`${path.sep}downloads${path.sep}`)) {
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      res.setHeader('Content-Disposition', 'attachment');
+    }
+  },
+}));
 
 // Handle the /connect redirect specifically to ensure it matches the old structure
 app.get('/connect', (req, res) => {
-  res.sendFile(path.join(__dirname, '../web/connect/index.html'));
+  res.sendFile(path.join(webRoot, 'connect/index.html'));
 });
 
 // Short QR URL: /c/ABC123 is easier and faster for phone cameras to decode
 // than the old /connect?id=ABC123 form. The connect page reads the ID from
 // the path and opens the mobile app when installed.
 app.get('/c/:sessionId', (req, res) => {
-  res.sendFile(path.join(__dirname, '../web/connect/index.html'));
+  res.sendFile(path.join(webRoot, 'connect/index.html'));
 });
 
 const io = new Server(server, {
