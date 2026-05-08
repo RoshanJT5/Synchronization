@@ -165,7 +165,7 @@
 
       <!-- State: app not installed -->
       <div class="state-notinstalled" id="state-notinstalled">
-        <a id="btn-download" class="btn btn-primary" href="../downloads/syncronization-app.apk" download="syncronization.apk">
+        <a id="btn-download" class="btn btn-primary" href="/downloads/syncronization-app.apk" download="syncronization.apk">
           Install Android App
         </a>
         <div class="divider">ALREADY INSTALLED?</div>
@@ -183,7 +183,8 @@
 
     <script>
       const params   = new URLSearchParams(window.location.search);
-      const id       = params.get('id') || '';
+      const pathMatch = window.location.pathname.match(/\/c\/([^/?#]+)/);
+      const id       = params.get('id') || (pathMatch ? decodeURIComponent(pathMatch[1]) : '');
       const server   = params.get('server') || 'https://synchronization-5865.onrender.com';
 
       // Show session badge

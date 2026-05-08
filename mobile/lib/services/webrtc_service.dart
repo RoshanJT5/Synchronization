@@ -26,8 +26,10 @@ class WebRTCService extends ChangeNotifier {
   ConnectionQuality _connectionQuality = ConnectionQuality.unknown;
   Timer? _statsTimer;
   Timer? _connectionTimeoutTimer;
+  Timer? _waitingForHostTimer;
   Timer? _disconnectGraceTimer;
   bool _hasRemoteDescription = false;
+  bool _isWaitingForHost = false;
   bool _isDisposed = false;
   final List<RTCIceCandidate> _pendingRemoteCandidates = [];
 
@@ -37,6 +39,7 @@ class WebRTCService extends ChangeNotifier {
   MediaStream? get remoteStream => _remoteStream;
   double get volume => _volume;
   ConnectionQuality get connectionQuality => _connectionQuality;
+  bool get isWaitingForHost => _isWaitingForHost;
 
   // ICE servers config
   static const Map<String, dynamic> _iceConfig = {
@@ -88,6 +91,7 @@ class WebRTCService extends ChangeNotifier {
     try {
       await _initAudioRenderer();
       await _connectSocket(serverUrl, _activeSessionId);
+      _startWaitingForHostTimer();
       _startConnectionTimeout();
     } catch (e) {
       debugPrint('[WebRTC] Connection failed: $e');
@@ -275,6 +279,8 @@ class WebRTCService extends ChangeNotifier {
       debugPrint('[WebRTC] Connection state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _connectionTimeoutTimer?.cancel();
+        _waitingForHostTimer?.cancel();
+        _isWaitingForHost = false;
         _disconnectGraceTimer?.cancel();
         _setState(AppConnectionState.connected);
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
@@ -347,6 +353,17 @@ class WebRTCService extends ChangeNotifier {
         _setError(
           'Could not complete WebRTC connection. Make sure the extension is still streaming and both devices are on the same network.',
         );
+      }
+    });
+  }
+
+  void _startWaitingForHostTimer() {
+    _waitingForHostTimer?.cancel();
+    _isWaitingForHost = false;
+    _waitingForHostTimer = Timer(const Duration(seconds: 2), () {
+      if (_state == AppConnectionState.connecting) {
+        _isWaitingForHost = true;
+        notifyListeners();
       }
     });
   }
@@ -432,9 +449,12 @@ class WebRTCService extends ChangeNotifier {
     _statsTimer = null;
     _connectionTimeoutTimer?.cancel();
     _connectionTimeoutTimer = null;
+    _waitingForHostTimer?.cancel();
+    _waitingForHostTimer = null;
     _disconnectGraceTimer?.cancel();
     _disconnectGraceTimer = null;
     _connectionQuality = ConnectionQuality.unknown;
+    _isWaitingForHost = false;
 
     _activeSessionId = '';
     _pcFuture = null;
@@ -455,13 +475,18 @@ class WebRTCService extends ChangeNotifier {
     if (newState != AppConnectionState.error) {
       _errorMessage = '';
     }
+    if (newState != AppConnectionState.connecting) {
+      _isWaitingForHost = false;
+    }
     notifyListeners();
   }
 
   void _setError(String message) {
     if (_isDisposed) return;
     _connectionTimeoutTimer?.cancel();
+    _waitingForHostTimer?.cancel();
     _disconnectGraceTimer?.cancel();
+    _isWaitingForHost = false;
     _errorMessage = message;
     _state = AppConnectionState.error;
     notifyListeners();

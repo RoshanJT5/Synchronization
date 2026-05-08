@@ -91,7 +91,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       if (input.startsWith('http')) {
         final uri = Uri.parse(input);
-        sessionId = uri.queryParameters['id'] ?? '';
+        final pathSessionId =
+            uri.pathSegments.length >= 2 && uri.pathSegments.first == 'c'
+                ? uri.pathSegments[1]
+                : null;
+        sessionId = uri.queryParameters['id'] ?? pathSessionId ?? '';
         server = uri.queryParameters['server'] ?? server;
       } else {
         sessionId = input;
@@ -372,7 +376,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             decoration: BoxDecoration(
               color: AppTheme.card,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.accent.withValues(alpha: 0.25)),
+              border:
+                  Border.all(color: AppTheme.accent.withValues(alpha: 0.25)),
               boxShadow: [
                 BoxShadow(
                   color: AppTheme.accent.withValues(alpha: 0.06),
@@ -453,19 +458,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [
           const CircularProgressIndicator(color: AppTheme.accent),
           const SizedBox(height: 24),
-          const Text(
-            'Connecting...',
-            style: TextStyle(fontSize: 20, color: Colors.white),
+          Text(
+            _webrtc.isWaitingForHost ? 'Ready!' : 'Connecting...',
+            style: const TextStyle(fontSize: 20, color: Colors.white),
           ),
           const SizedBox(height: 8),
           Text(
-            'Joining session ${_webrtc.activeSessionId}',
+            _webrtc.isWaitingForHost
+                ? 'Please click "Start Streaming" on the browser extension.'
+                : 'Joining session ${_webrtc.activeSessionId}',
+            textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
           ),
           const SizedBox(height: 48),
           TextButton(
             onPressed: () => _webrtc.disconnect(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.redAccent)),
+            child:
+                const Text('Cancel', style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -585,7 +594,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                        icon: const Icon(Icons.close,
+                            color: Colors.white, size: 30),
                         onPressed: _stopScanning,
                       ),
                       const Expanded(
@@ -636,7 +646,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: AppTheme.accent.withValues(alpha: 0.1),
-        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.2), width: 2),
+        border:
+            Border.all(color: AppTheme.accent.withValues(alpha: 0.2), width: 2),
       ),
       child: const Icon(Icons.volume_up, size: 80, color: AppTheme.accent),
     );
@@ -707,7 +718,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child:
+                const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () {
@@ -717,7 +729,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Connect', style: TextStyle(color: AppTheme.accent)),
+            child:
+                const Text('Connect', style: TextStyle(color: AppTheme.accent)),
           ),
         ],
       ),

@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
-import { io } from 'socket.io-client';
 import { Smartphone, Laptop, Speaker, Loader2, CheckCircle2, AlertCircle, Radio, Download, Send, Volume2, VolumeX } from 'lucide-react';
 
-const SIGNALING_SERVER = 'https://synchronization-5865.onrender.com';
-const CONNECT_PAGE_URL = 'https://synchronization-5865.onrender.com/connect';
+const CONNECT_PAGE_URL = 'https://synchronization-5865.onrender.com/c';
 
 type Mode = 'SEND' | 'RECEIVE';
 type Status = 'IDLE' | 'CONNECTING' | 'CAPTURING' | 'LISTENING' | 'ERROR';
@@ -13,29 +11,32 @@ function App() {
   const [mode, setMode] = useState<Mode>('SEND');
   const [sessionId, setSessionId] = useState('');
   const [remoteSessionId, setRemoteSessionId] = useState('');
-  const [mobileServerUrl, setMobileServerUrl] = useState('https://synchronization-5865.onrender.com');
   const [status, setStatus] = useState<Status>('IDLE');
   const [error, setError] = useState('');
   // true = laptop speakers are silent, false = laptop keeps playing alongside remotes
   const [sourceMuted, setSourceMuted] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [readyPeers, setReadyPeers] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     chrome.runtime.sendMessage({ type: 'GET_STATE' }, (response) => {
-      if (response && response.status !== 'IDLE') {
+      if (response && (response.status !== 'IDLE' || response.sessionId)) {
         setMode(response.mode as Mode);
         setStatus(response.status as Status);
         setSourceMuted(response.sourceMuted);
+        setReadyPeers(response.readyPeers || 0);
         if (response.mode === 'SEND') {
           setSessionId(response.sessionId);
+          generateQR(response.sessionId);
         } else {
           setRemoteSessionId(response.sessionId);
         }
       } else {
-        const newSessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
+        const newSessionId = createSessionId();
         setSessionId(newSessionId);
-        generateQR(newSessionId, mobileServerUrl);
+        generateQR(newSessionId);
+        chrome.runtime.sendMessage({ type: 'PREPARE_SEND_SESSION', sessionId: newSessionId });
       }
     });
   }, []);
@@ -43,42 +44,33 @@ function App() {
   useEffect(() => {
     if (mode === 'SEND' && sessionId) {
       if (status === 'IDLE' || showQR) {
-        generateQR(sessionId, mobileServerUrl);
+        generateQR(sessionId);
       }
     }
-  }, [mobileServerUrl, mode, sessionId, status, showQR]);
+  }, [mode, sessionId, status, showQR]);
 
   useEffect(() => {
     if (mode === 'SEND' && status === 'IDLE' && sessionId) {
-      const socket = io(SIGNALING_SERVER);
-      socket.on('connect', () => {
-        socket.emit('join-session', sessionId);
-      });
-      socket.on('peer-joined', () => {
-        handleStartSend();
-      });
-      socket.on('session-peers', ({ peers }) => {
-        if (peers && peers.length > 1) {
-          handleStartSend();
-        }
-      });
-      return () => { socket.disconnect(); };
+      chrome.runtime.sendMessage({ type: 'PREPARE_SEND_SESSION', sessionId });
     }
   }, [mode, status, sessionId]);
 
-  const generateQR = (id: string, serverUrl: string) => {
-    const params = new URLSearchParams({ id });
-    if (serverUrl.trim() && serverUrl.trim() !== SIGNALING_SERVER) {
-      params.set('server', serverUrl.trim());
-    }
-    const connectionUrl = `${CONNECT_PAGE_URL}?${params.toString()}`;
+  const createSessionId = () => {
+    const bytes = new Uint8Array(4);
+    crypto.getRandomValues(bytes);
+    const value = Array.from(bytes).reduce((acc, byte) => (acc * 256) + byte, 0);
+    return value.toString(36).slice(0, 6).toUpperCase().padStart(6, '0');
+  };
+
+  const generateQR = (id: string) => {
+    const connectionUrl = `${CONNECT_PAGE_URL}/${encodeURIComponent(id)}`;
     setTimeout(() => {
       if (canvasRef.current) {
         QRCode.toCanvas(canvasRef.current, connectionUrl, {
-          width: 160,
-          margin: 2,
-          color: { dark: '#ffffff', light: '#00000000' },
-          errorCorrectionLevel: 'L'
+          width: 210,
+          margin: 4,
+          color: { dark: '#050505', light: '#ffffff' },
+          errorCorrectionLevel: 'H'
         });
       }
     }, 100);
@@ -108,6 +100,10 @@ function App() {
   const handleBackToMenu = () => {
     chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' });
     setStatus('IDLE');
+    setReadyPeers(0);
+    const newSessionId = createSessionId();
+    setSessionId(newSessionId);
+    chrome.runtime.sendMessage({ type: 'PREPARE_SEND_SESSION', sessionId: newSessionId });
   };
 
   const handleStartReceive = () => {
@@ -134,6 +130,11 @@ function App() {
       } else if (message.type === 'CONNECTION_ERROR') {
         setError(message.error);
         setStatus('ERROR');
+      } else if (message.type === 'STATE_UPDATED' && message.state) {
+        setReadyPeers(message.state.readyPeers || 0);
+        if (message.state.sessionId) {
+          setSessionId(message.state.sessionId);
+        }
       }
     };
     chrome.runtime.onMessage.addListener(listener);
@@ -144,9 +145,7 @@ function App() {
     <div className="min-h-[420px] w-[320px] bg-[#0a0a0c] text-white p-6 font-sans flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-xl">
-          <Speaker size={20} className="text-white" />
-        </div>
+        <img src="/app_icon.jpg" alt="" className="w-10 h-10 rounded-xl object-cover border border-white/10" />
         <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
           Syncronization
         </h1>
@@ -178,13 +177,20 @@ function App() {
       <div className="flex-1 flex flex-col items-center justify-center">
         {status === 'IDLE' && mode === 'SEND' && (
           <div className="flex flex-col items-center w-full">
-            <div className="bg-[#16161a] p-3 rounded-2xl border border-white/5 mb-4">
+            <div className="bg-white p-3 rounded-2xl border border-white/10 mb-4 shadow-xl shadow-purple-500/10">
               <canvas ref={canvasRef} />
             </div>
             <p className="text-gray-400 text-xs text-center mb-6">
               Scan with mobile or use ID: <br />
               <span className="text-purple-400 font-mono font-bold">{sessionId}</span>
             </p>
+            {readyPeers > 0 && (
+              <div className="w-full bg-green-500/10 border border-green-500/30 rounded-xl px-3 py-3 mb-4 text-center">
+                <p className="text-green-400 text-sm font-bold flex items-center justify-center gap-2">
+                  <Smartphone size={16} /> {readyPeers} device{readyPeers === 1 ? '' : 's'} ready to stream
+                </p>
+              </div>
+            )}
             <div className="w-full bg-[#16161a] border border-purple-500/20 rounded-xl px-3 py-2 mb-4 text-center">
               <p className="text-purple-400 text-[10px] font-mono">
                 ✓ Cloud Relay Active (Render)
@@ -297,7 +303,7 @@ function App() {
                   {showQR ? 'Hide QR Code' : '+ Add Another Device'}
                 </button>
                 {showQR && (
-                  <div className="bg-[#16161a] p-3 rounded-2xl border border-white/5 mt-3">
+                  <div className="bg-white p-3 rounded-2xl border border-white/10 mt-3">
                     <canvas ref={canvasRef} />
                   </div>
                 )}

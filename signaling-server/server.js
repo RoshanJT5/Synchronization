@@ -14,6 +14,13 @@ app.get('/connect', (req, res) => {
   res.sendFile(path.join(__dirname, '../web/connect/index.html'));
 });
 
+// Short QR URL: /c/ABC123 is easier and faster for phone cameras to decode
+// than the old /connect?id=ABC123 form. The connect page reads the ID from
+// the path and opens the mobile app when installed.
+app.get('/c/:sessionId', (req, res) => {
+  res.sendFile(path.join(__dirname, '../web/connect/index.html'));
+});
+
 const io = new Server(server, {
   pingInterval: 10000,
   pingTimeout: 20000,
