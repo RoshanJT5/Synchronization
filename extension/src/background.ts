@@ -121,8 +121,23 @@ function prepareSendSession(sessionId: string) {
     timeout: 20000
   });
 
+  let announceInterval: any;
   lobbySocket.on('connect', () => {
     lobbySocket?.emit('join-session', sessionId);
+    
+    const announce = () => {
+      lobbySocket?.emit('announce-session', {
+        sessionId,
+        label: 'Browser Extension',
+      });
+    };
+    
+    announce();
+    announceInterval = setInterval(announce, 5000);
+  });
+
+  lobbySocket.on('disconnect', () => {
+    clearInterval(announceInterval);
   });
 
   lobbySocket.on('peer-joined', ({ peerId }) => {

@@ -82,7 +82,15 @@ async function startSendMode(sessionId: string, streamId: string) {
         mandatory: {
           chromeMediaSource: 'tab',
           chromeMediaSourceId: streamId
-        }
+        },
+        optional: [
+          { googAutoGainControl: false },
+          { googNoiseSuppression: false },
+          { googHighpassFilter: false },
+          { googAudioMirroring: false },
+          { echoCancellation: false },
+          { latency: 0 }
+        ]
       },
       video: false
     });
@@ -96,15 +104,23 @@ async function startSendMode(sessionId: string, streamId: string) {
     // The WebRTC peer uses rawStream directly so remote devices always get
     // full-volume audio regardless of the local mute toggle.
     // ─────────────────────────────────────────────────────────────────────
-    audioCtx = new AudioContext();
+    audioCtx = new AudioContext({ latencyHint: 'interactive' });
     sourceNode = audioCtx.createMediaStreamSource(rawStream);
+    
+    // Add a precise delay to the laptop's speakers to perfectly match
+    // the ~40ms network/WebRTC latency of the mobile device.
+    const delayNode = audioCtx.createDelay(1.0);
+    delayNode.delayTime.value = 0.04; // 40 milliseconds
+
     localGain = audioCtx.createGain();
     localDest = audioCtx.createMediaStreamDestination();
 
     // Start unmuted — laptop keeps playing by default
     localGain.gain.value = sourceMuted ? 0 : 1;
 
-    sourceNode.connect(localGain);
+    // Route: source -> delay -> gain -> laptop speakers
+    sourceNode.connect(delayNode);
+    delayNode.connect(localGain);
     localGain.connect(localDest);
 
     // Play the local passthrough so the tab audio comes out of the laptop
