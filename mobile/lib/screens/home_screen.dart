@@ -84,21 +84,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _connectToSession(String url) {
+  void _connectToSession(String input) {
     try {
-      final uri = Uri.parse(url);
-      final sessionId = uri.queryParameters['id'];
-      final server = uri.queryParameters['server'] ??
-          'https://synchronization-5865.onrender.com';
+      String sessionId;
+      String server = 'https://synchronization-5865.onrender.com';
 
-      if (sessionId != null) {
+      if (input.startsWith('http')) {
+        final uri = Uri.parse(input);
+        sessionId = uri.queryParameters['id'] ?? '';
+        server = uri.queryParameters['server'] ?? server;
+      } else {
+        sessionId = input;
+      }
+
+      if (sessionId.isNotEmpty) {
         _discovery.stopDiscovery(); // FREE the socket before WebRTC connects
         _webrtc.connect(sessionId.toUpperCase(), server);
       } else {
-        _showSnack('Invalid QR code: Session ID missing');
+        _showSnack('Invalid input: Session ID missing');
       }
     } catch (e) {
-      _showSnack('Error parsing QR: $e');
+      _showSnack('Error parsing input: $e');
     }
   }
 
@@ -229,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: TextButton(
               onPressed: _showManualDialog,
               child: const Text(
-                'Enter URL manually',
+                'Enter Session ID manually',
                 style: TextStyle(color: AppTheme.accent, fontSize: 13),
               ),
             ),
@@ -684,14 +690,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
         title: const Text(
-          'Enter Connection URL',
+          'Enter Session ID',
           style: TextStyle(color: Colors.white),
         ),
         content: TextField(
           controller: _urlController,
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
-            hintText: 'https://synchronization-5865.onrender.com/?id=...',
+            hintText: 'e.g. A1B2C3D4',
             hintStyle: TextStyle(color: Colors.white38),
             enabledBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: AppTheme.accent),

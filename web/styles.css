@@ -80,6 +80,13 @@ a {
   box-shadow: 0 4px 12px var(--accent-glow);
 }
 
+.brand-logo {
+  height: 40px;
+  width: 40px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
 nav {
   display: flex;
   gap: 32px;

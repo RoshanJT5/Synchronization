@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
+import { io } from 'socket.io-client';
 import { Smartphone, Laptop, Speaker, Loader2, CheckCircle2, AlertCircle, Radio, Download, Send, Volume2, VolumeX } from 'lucide-react';
 
 const SIGNALING_SERVER = 'https://synchronization-5865.onrender.com';
@@ -17,25 +18,57 @@ function App() {
   const [error, setError] = useState('');
   // true = laptop speakers are silent, false = laptop keeps playing alongside remotes
   const [sourceMuted, setSourceMuted] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (mode === 'SEND' && status === 'IDLE') {
-      const newSessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
-      setSessionId(newSessionId);
-      generateQR(newSessionId, mobileServerUrl);
-    }
-  }, [mode, status]);
+    chrome.runtime.sendMessage({ type: 'GET_STATE' }, (response) => {
+      if (response && response.status !== 'IDLE') {
+        setMode(response.mode as Mode);
+        setStatus(response.status as Status);
+        setSourceMuted(response.sourceMuted);
+        if (response.mode === 'SEND') {
+          setSessionId(response.sessionId);
+        } else {
+          setRemoteSessionId(response.sessionId);
+        }
+      } else {
+        const newSessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
+        setSessionId(newSessionId);
+        generateQR(newSessionId, mobileServerUrl);
+      }
+    });
+  }, []);
 
   useEffect(() => {
-    if (mode === 'SEND' && sessionId && status === 'IDLE') {
-      generateQR(sessionId, mobileServerUrl);
+    if (mode === 'SEND' && sessionId) {
+      if (status === 'IDLE' || showQR) {
+        generateQR(sessionId, mobileServerUrl);
+      }
     }
-  }, [mobileServerUrl, mode, sessionId, status]);
+  }, [mobileServerUrl, mode, sessionId, status, showQR]);
+
+  useEffect(() => {
+    if (mode === 'SEND' && status === 'IDLE' && sessionId) {
+      const socket = io(SIGNALING_SERVER);
+      socket.on('connect', () => {
+        socket.emit('join-session', sessionId);
+      });
+      socket.on('peer-joined', () => {
+        handleStartSend();
+      });
+      socket.on('session-peers', ({ peers }) => {
+        if (peers && peers.length > 1) {
+          handleStartSend();
+        }
+      });
+      return () => { socket.disconnect(); };
+    }
+  }, [mode, status, sessionId]);
 
   const generateQR = (id: string, serverUrl: string) => {
     const params = new URLSearchParams({ id });
-    if (serverUrl.trim()) {
+    if (serverUrl.trim() && serverUrl.trim() !== SIGNALING_SERVER) {
       params.set('server', serverUrl.trim());
     }
     const connectionUrl = `${CONNECT_PAGE_URL}?${params.toString()}`;
@@ -44,7 +77,8 @@ function App() {
         QRCode.toCanvas(canvasRef.current, connectionUrl, {
           width: 160,
           margin: 2,
-          color: { dark: '#ffffff', light: '#00000000' }
+          color: { dark: '#ffffff', light: '#00000000' },
+          errorCorrectionLevel: 'L'
         });
       }
     }, 100);
@@ -253,6 +287,22 @@ function App() {
                 <span className="text-[10px] font-bold text-green-500 uppercase">Live</span>
               </span>
             </div>
+
+            {status === 'CAPTURING' && mode === 'SEND' && (
+              <div className="w-full mt-4 flex flex-col items-center">
+                <button
+                  onClick={() => setShowQR(!showQR)}
+                  className="text-xs text-purple-400 hover:text-purple-300 font-bold uppercase tracking-wider transition-colors"
+                >
+                  {showQR ? 'Hide QR Code' : '+ Add Another Device'}
+                </button>
+                {showQR && (
+                  <div className="bg-[#16161a] p-3 rounded-2xl border border-white/5 mt-3">
+                    <canvas ref={canvasRef} />
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               onClick={handleBackToMenu}
