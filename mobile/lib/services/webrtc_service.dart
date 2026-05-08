@@ -43,22 +43,22 @@ class WebRTCService extends ChangeNotifier {
     'iceServers': [
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
-      {'urls': 'stun:openrelay.metered.ca:80'},
-      {
-        'urls': 'turn:openrelay.metered.ca:80',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-      {
-        'urls': 'turn:openrelay.metered.ca:443',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-      {
-        'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
+      // {'urls': 'stun:openrelay.metered.ca:80'}, // optional STUN fallback (kept disabled)
+      // {
+      //   'urls': 'turn:openrelay.metered.ca:80',
+      //   'username': 'openrelayproject',
+      //   'credential': 'openrelayproject',
+      // },
+      // {
+      //   'urls': 'turn:openrelay.metered.ca:443',
+      //   'username': 'openrelayproject',
+      //   'credential': 'openrelayproject',
+      // },
+      // {
+      //   'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
+      //   'username': 'openrelayproject',
+      //   'credential': 'openrelayproject',
+      // },
     ],
   };
 
@@ -147,10 +147,11 @@ class WebRTCService extends ChangeNotifier {
           } else if (data is Map) {
             payload = Map<String, dynamic>.from(data);
           } else {
-            debugPrint('[Socket] Invalid signal data type: ${data.runtimeType}');
+            debugPrint(
+                '[Socket] Invalid signal data type: ${data.runtimeType}');
             return;
           }
-          
+
           debugPrint('[Socket] Processing signal from ${payload['from']}');
           await _handleSignal(payload['from'] as String, payload['signal']);
         } catch (e) {
@@ -199,7 +200,8 @@ class WebRTCService extends ChangeNotifier {
       }
 
       final type = sigMap['type'] as String?;
-      debugPrint('[WebRTC] Handling signal type: ${type ?? (sigMap['candidate'] != null ? 'candidate' : 'unknown')} (State: ${_peerConnection?.signalingState})');
+      debugPrint(
+          '[WebRTC] Handling signal type: ${type ?? (sigMap['candidate'] != null ? 'candidate' : 'unknown')} (State: ${_peerConnection?.signalingState})');
 
       if (type == 'offer') {
         final sdp = sigMap['sdp'] as String;
@@ -209,13 +211,15 @@ class WebRTCService extends ChangeNotifier {
         );
         _hasRemoteDescription = true;
         await _flushPendingRemoteCandidates();
-        
-        debugPrint('[WebRTC] Creating answer (Current State: ${_peerConnection!.signalingState})');
-        final answer = await _peerConnection!.createAnswer(_offerSdpConstraints);
-        
+
+        debugPrint(
+            '[WebRTC] Creating answer (Current State: ${_peerConnection!.signalingState})');
+        final answer =
+            await _peerConnection!.createAnswer(_offerSdpConstraints);
+
         debugPrint('[WebRTC] Setting local answer');
         await _peerConnection!.setLocalDescription(answer);
-        
+
         _socket?.emit('signal', {
           'sessionId': _activeSessionId,
           'signal': {'type': 'answer', 'sdp': answer.sdp},
@@ -233,7 +237,8 @@ class WebRTCService extends ChangeNotifier {
         if (candidate == null) return;
 
         if (!_hasRemoteDescription) {
-          debugPrint('[WebRTC] Queueing ICE candidate until remote description is set');
+          debugPrint(
+              '[WebRTC] Queueing ICE candidate until remote description is set');
           _pendingRemoteCandidates.add(candidate);
         } else {
           await _peerConnection!.addCandidate(candidate);
@@ -272,8 +277,7 @@ class WebRTCService extends ChangeNotifier {
         _connectionTimeoutTimer?.cancel();
         _disconnectGraceTimer?.cancel();
         _setState(AppConnectionState.connected);
-      } else if (state ==
-          RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         _setError('WebRTC connection lost');
       } else if (state ==
           RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
@@ -370,7 +374,8 @@ class WebRTCService extends ChangeNotifier {
         for (final report in stats) {
           if (report.type == 'candidate-pair' &&
               report.values.containsKey('currentRoundTripTime')) {
-            final rtt = (report.values['currentRoundTripTime'] as num).toDouble();
+            final rtt =
+                (report.values['currentRoundTripTime'] as num).toDouble();
             ConnectionQuality q;
             if (rtt < 0.05) {
               q = ConnectionQuality.excellent;

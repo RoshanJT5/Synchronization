@@ -24,9 +24,12 @@ const ICE_SERVERS = [
     credential: 'openrelayproject'
   }
 ];
-let Peer: typeof import('simple-peer').default;
 let socket: import('socket.io-client').Socket | null = null;
-const peers = new Map<string, any>();
+type PeerState = {
+  pc: RTCPeerConnection;
+  targetId: string;
+};
+const peers = new Map<string, PeerState>();
 let audioPlayer: HTMLAudioElement | null = null;
 let activeSessionId = '';
 let networkingReady: Promise<void> | null = null;
@@ -149,7 +152,7 @@ async function startSendMode(sessionId: string, streamId: string) {
       if (activeSessionId !== sessionId) return;
       const peer = peers.get(from);
       if (peer) {
-        peer.signal(signal);
+        handlePeerSignal(peer, signal);
       }
     });
 
@@ -177,7 +180,7 @@ async function startReceiveMode(sessionId: string) {
         console.log('First signal from sender received, setting up peer');
         peer = setupPeer(sessionId, false, null, from);
       }
-      peer.signal(signal);
+      handlePeerSignal(peer, signal);
     });
 
     socket?.emit('join-session', sessionId);
@@ -192,48 +195,112 @@ async function startReceiveMode(sessionId: string) {
 
 function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | null, targetId: string) {
   const existingPeer = peers.get(targetId);
-  if (existingPeer && !existingPeer.destroyed) {
+  if (existingPeer && existingPeer.pc.connectionState !== 'closed') {
     console.log('Peer already exists, keeping current connection:', targetId);
     return existingPeer;
   }
 
   destroyPeer(targetId);
 
-  const peer = new Peer({
-    initiator: initiator,
-    trickle: true, // Switched to trickle for faster handshake
-    stream: stream || undefined,
-    config: { iceServers: ICE_SERVERS }
-  });
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const peer: PeerState = { pc, targetId };
 
-  peer.peerId = targetId;
   peers.set(targetId, peer);
 
-  peer.on('signal', (data: any) => {
-    socket.emit('signal', { sessionId, signal: data, to: targetId });
+  stream?.getTracks().forEach((track) => {
+    pc.addTrack(track, stream);
   });
 
-  peer.on('stream', (remoteStream: MediaStream) => {
-    console.log('WebRTC Stream Received!');
-    playStream(remoteStream);
-  });
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket?.emit('signal', {
+        sessionId,
+        signal: event.candidate.toJSON(),
+        to: targetId
+      });
+    }
+  };
 
-  peer.on('connect', () => {
-    console.log('WebRTC P2P Connection established!');
-    chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
-  });
+  pc.ontrack = (event) => {
+    const [remoteStream] = event.streams;
+    if (remoteStream) {
+      console.log('WebRTC Stream Received!');
+      playStream(remoteStream);
+    }
+  };
 
-  peer.on('close', () => {
-    peers.delete(targetId);
-  });
+  pc.onconnectionstatechange = () => {
+    console.log('WebRTC connection state:', pc.connectionState);
+    if (pc.connectionState === 'connected') {
+      chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
+    } else if (pc.connectionState === 'failed') {
+      peers.delete(targetId);
+      chrome.runtime.sendMessage({
+        type: 'CONNECTION_ERROR',
+        error: 'WebRTC connection failed before audio could start.'
+      });
+    } else if (pc.connectionState === 'closed') {
+      peers.delete(targetId);
+    }
+  };
 
-  peer.on('error', (err: any) => {
-    console.error('Peer error:', err);
-    peers.delete(targetId);
-    chrome.runtime.sendMessage({ type: 'CONNECTION_ERROR', error: 'WebRTC Peer Error' });
-  });
+  pc.oniceconnectionstatechange = () => {
+    console.log('WebRTC ICE state:', pc.iceConnectionState);
+  };
+
+  if (initiator) {
+    createAndSendOffer(peer, sessionId).catch((error) => {
+      console.error('Offer creation failed:', error);
+      chrome.runtime.sendMessage({
+        type: 'CONNECTION_ERROR',
+        error: error?.message || 'Could not create WebRTC offer.'
+      });
+    });
+  }
 
   return peer;
+}
+
+async function createAndSendOffer(peer: PeerState, sessionId: string) {
+  const offer = await peer.pc.createOffer({
+    offerToReceiveAudio: false,
+    offerToReceiveVideo: false
+  });
+  await peer.pc.setLocalDescription(offer);
+  socket?.emit('signal', {
+    sessionId,
+    signal: {
+      type: offer.type,
+      sdp: offer.sdp
+    },
+    to: peer.targetId
+  });
+}
+
+async function handlePeerSignal(peer: PeerState, signal: any) {
+  if (!signal || peer.pc.connectionState === 'closed') return;
+
+  if (signal.type === 'offer' || signal.type === 'answer') {
+    await peer.pc.setRemoteDescription(new RTCSessionDescription(signal));
+
+    if (signal.type === 'offer') {
+      const answer = await peer.pc.createAnswer();
+      await peer.pc.setLocalDescription(answer);
+      socket?.emit('signal', {
+        sessionId: activeSessionId,
+        signal: {
+          type: answer.type,
+          sdp: answer.sdp
+        },
+        to: peer.targetId
+      });
+    }
+    return;
+  }
+
+  if (signal.candidate) {
+    await peer.pc.addIceCandidate(new RTCIceCandidate(signal));
+  }
 }
 
 function resetSessionState() {
@@ -271,7 +338,7 @@ function resetSessionState() {
 function destroyPeer(peerId: string) {
   const peer = peers.get(peerId);
   if (peer) {
-    try { peer.destroy(); } catch (e) { }
+    try { peer.pc.close(); } catch (e) { }
     peers.delete(peerId);
   }
 }
@@ -370,10 +437,8 @@ function ensureNetworkingReady() {
   }
 
   networkingReady = Promise.all([
-    import('simple-peer'),
     import('socket.io-client')
-  ]).then(([peerModule, socketModule]) => {
-    Peer = peerModule.default;
+  ]).then(([socketModule]) => {
     socket = socketModule.io(SIGNALING_SERVER, {
       autoConnect: false,
       reconnection: true,
