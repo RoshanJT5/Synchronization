@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 /// Handles two deep link formats:
 ///
 /// 1. Custom scheme (fallback, from connect page):
-///    syncronization://connect?id=SESSION_ID&server=https://...
+///    synchronization://connect?id=SESSION_ID&server=https://...
 ///
 /// 2. HTTPS App Link (preferred, Android intercepts QR scan directly):
 ///    https://synchronization-807q.onrender.com/connect?id=SESSION_ID&server=https://...
@@ -42,11 +42,11 @@ class DeepLinkService {
     debugPrint('[DeepLink] Received URI: $uri');
 
     final bool isCustomScheme =
-        uri.scheme == 'syncronization' && uri.host == 'connect';
+        uri.scheme == 'synchronization' && uri.host == 'connect';
 
     final bool isAppLink = (uri.scheme == 'https' || uri.scheme == 'http') &&
         (uri.host == 'synchronization-807q.onrender.com' ||
-            uri.host == 'synchronization-807q.onrender.com') &&
+            uri.host == 'syncronization.vercel.app') &&
         (uri.path.startsWith('/connect') || uri.path.startsWith('/c/'));
 
     if (!isCustomScheme && !isAppLink) return;

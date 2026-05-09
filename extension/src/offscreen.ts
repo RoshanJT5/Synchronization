@@ -256,11 +256,22 @@ function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | 
 
     clockChannel.onmessage = (e) => {
       // Receiver echoed back { t: senderT, r: receiverT }
-      // We can compute RTT = performance.now() - senderT
+      // RTT = now - senderT; one-way ≈ RTT/2
       try {
         const msg = JSON.parse(e.data);
         const rtt = performance.now() - msg.t;
-        console.log(`[ClockSync] RTT=${rtt.toFixed(1)}ms`);
+        const oneWayMs = rtt / 2;
+        console.log(`[ClockSync] RTT=${rtt.toFixed(1)}ms  one-way≈${oneWayMs.toFixed(1)}ms`);
+
+        // Update the laptop speaker delay to match measured one-way latency.
+        // Clamp to [10ms, 300ms] to avoid audible artifacts.
+        const delayNode = (window as any).__syncDelayNode as DelayNode | undefined;
+        const ctx = (window as any).__syncAudioCtx as AudioContext | undefined;
+        if (delayNode && ctx) {
+          const targetDelay = Math.max(0.01, Math.min(0.3, oneWayMs / 1000));
+          // Smooth ramp over 200ms to avoid clicks
+          delayNode.delayTime.setTargetAtTime(targetDelay, ctx.currentTime, 0.2);
+        }
       } catch (_) {}
     };
 
@@ -388,13 +399,31 @@ async function handlePeerSignal(peer: PeerState, signal: any) {
 
     if (signal.type === 'offer') {
       const answer = await peer.pc.createAnswer();
-      await peer.pc.setLocalDescription(answer);
+      // Patch answer SDP for low-latency Opus (same as offer)
+      let sdp = answer.sdp || '';
+      sdp = sdp.replace(
+        /a=fmtp:(\d+) (.*opus.*)/gi,
+        (match: string, pt: string, params: string) => {
+          const existing = new Map(
+            params.split(';').map((p: string) => {
+              const [k, v] = p.trim().split('=');
+              return [k.trim(), v?.trim() ?? '1'];
+            })
+          );
+          existing.set('ptime', '10');
+          existing.set('maxptime', '10');
+          existing.set('useinbandfec', '1');
+          existing.set('usedtx', '0');
+          existing.set('stereo', '1');
+          existing.set('maxplaybackrate', '48000');
+          existing.set('sprop-maxcapturerate', '48000');
+          return `a=fmtp:${pt} ${Array.from(existing.entries()).map(([k, v]) => `${k}=${v}`).join(';')}`;
+        }
+      );
+      await peer.pc.setLocalDescription(new RTCSessionDescription({ type: 'answer', sdp }));
       socket?.emit('signal', {
         sessionId: activeSessionId,
-        signal: {
-          type: answer.type,
-          sdp: answer.sdp
-        },
+        signal: { type: 'answer', sdp },
         to: peer.targetId
       });
     }

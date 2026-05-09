@@ -186,7 +186,10 @@ class MobileSourceService extends ChangeNotifier {
       'label': 'This Phone 📱',
       'type': 'mobile-source',
     });
-    _setState(MobileSourceState.streaming);
+    // Stay in 'announcing' until first speaker connects
+    if (_state != MobileSourceState.streaming) {
+      _setState(MobileSourceState.announcing);
+    }
 
     // Heartbeat so the session stays alive
     _heartbeatTimer?.cancel();
@@ -232,6 +235,10 @@ class MobileSourceService extends ChangeNotifier {
     pc.onConnectionState = (state) {
       debugPrint('[MobileSource] Peer $speakerId state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        // First speaker connected — switch from announcing → streaming
+        if (_state == MobileSourceState.announcing) {
+          _setState(MobileSourceState.streaming);
+        }
         _speakerCount = _peers.values
             .where((p) =>
                 p.connectionState ==
@@ -246,6 +253,10 @@ class MobileSourceService extends ChangeNotifier {
                 p.connectionState ==
                 RTCPeerConnectionState.RTCPeerConnectionStateConnected)
             .length;
+        // If all speakers dropped, go back to announcing
+        if (_speakerCount == 0 && _state == MobileSourceState.streaming) {
+          _setState(MobileSourceState.announcing);
+        }
         notifyListeners();
       }
     };
