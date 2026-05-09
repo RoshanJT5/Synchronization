@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import { Smartphone, Laptop, Speaker, Loader2, CheckCircle2, AlertCircle, Radio, Download, Send, Volume2, VolumeX } from 'lucide-react';
 
-const CONNECT_PAGE_URL = 'https://synchronization-5865.onrender.com/c';
+const CONNECT_PAGE_URL = 'https://synchronization.pages.dev/c';
 
 type Mode = 'SEND' | 'RECEIVE';
 type Status = 'IDLE' | 'CONNECTING' | 'CAPTURING' | 'LISTENING' | 'ERROR';
@@ -193,7 +193,7 @@ function App() {
             )}
             <div className="w-full bg-[#16161a] border border-purple-500/20 rounded-xl px-3 py-2 mb-4 text-center">
               <p className="text-purple-400 text-[10px] font-mono">
-                ✓ Cloud Relay Active (Render)
+                ✓ Cloud Relay Active
               </p>
             </div>
             <button

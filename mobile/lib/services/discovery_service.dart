@@ -2,17 +2,23 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
-/// Represents a streaming session announced by a Chrome extension.
+/// A session announced on the signaling server.
 class DiscoveredSession {
   final String sessionId;
   final String label;
   final int announcedAt;
 
+  /// 'computer' (Chrome extension) or 'mobile-source' (phone streaming mic).
+  final String type;
+
   const DiscoveredSession({
     required this.sessionId,
     required this.label,
     required this.announcedAt,
+    this.type = 'computer',
   });
+
+  bool get isMobileSource => type == 'mobile-source';
 
   @override
   bool operator ==(Object other) =>
@@ -23,8 +29,8 @@ class DiscoveredSession {
 }
 
 /// Connects to the signaling server and listens for active session
-/// announcements from Chrome extensions. Provides a live list that
-/// the UI can display so the user can tap-to-connect without scanning a QR.
+/// announcements. Provides a live list split into computer sessions and
+/// mobile-source sessions so the UI can render them in separate sections.
 class DiscoveryService extends ChangeNotifier {
   static const String _signalingServer =
       'https://synchronization-5865.onrender.com';
@@ -34,11 +40,20 @@ class DiscoveryService extends ChangeNotifier {
   bool _isConnected = false;
   bool _isConnecting = false;
 
+  /// All sessions (computers + mobile sources).
   List<DiscoveredSession> get sessions => List.unmodifiable(_sessions);
+
+  /// Only Chrome extension / computer sessions.
+  List<DiscoveredSession> get computerSessions =>
+      _sessions.where((s) => !s.isMobileSource).toList();
+
+  /// Only mobile-source sessions.
+  List<DiscoveredSession> get mobileSessions =>
+      _sessions.where((s) => s.isMobileSource).toList();
+
   bool get isConnected => _isConnected;
   bool get isConnecting => _isConnecting;
 
-  /// Start listening for active sessions on the signaling server.
   Future<void> startDiscovery() async {
     if (_isConnecting || _isConnected) return;
     _isConnecting = true;
@@ -59,21 +74,20 @@ class DiscoveryService extends ChangeNotifier {
     );
 
     _socket!.onConnect((_) {
-      debugPrint('[Discovery] Connected to signaling server');
+      debugPrint('[Discovery] Connected');
       _isConnected = true;
       _isConnecting = false;
       notifyListeners();
-      // Request the current list immediately
       _socket!.emit('get-active-sessions');
     });
 
     _socket!.on('reconnect', (_) {
-      debugPrint('[Discovery] Reconnected - refreshing sessions');
+      debugPrint('[Discovery] Reconnected');
       _socket!.emit('get-active-sessions');
     });
 
     _socket!.onConnectError((error) {
-      debugPrint('[Discovery] Connection error: $error');
+      debugPrint('[Discovery] Connect error: $error');
       _isConnecting = false;
       notifyListeners();
     });
@@ -85,7 +99,6 @@ class DiscoveryService extends ChangeNotifier {
     });
 
     _socket!.on('active-sessions-updated', (data) {
-      debugPrint('[Discovery] Sessions updated: $data');
       try {
         Map<String, dynamic> payload;
         if (data is List && data.isNotEmpty) {
@@ -95,24 +108,25 @@ class DiscoveryService extends ChangeNotifier {
         } else {
           return;
         }
-        final rawList = (payload['sessions'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final rawList =
+            (payload['sessions'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _sessions = rawList
             .map((s) => DiscoveredSession(
                   sessionId: s['sessionId'] as String,
-                  label: s['label'] as String? ?? 'Computer',
+                  label: s['label'] as String? ?? 'Unknown',
                   announcedAt: (s['announcedAt'] as num?)?.toInt() ?? 0,
+                  type: s['type'] as String? ?? 'computer',
                 ))
             .toList();
         notifyListeners();
       } catch (e) {
-        debugPrint('[Discovery] Error parsing sessions: $e');
+        debugPrint('[Discovery] Parse error: $e');
       }
     });
 
     _socket!.connect();
   }
 
-  /// Stop discovery and disconnect from the signaling server.
   void stopDiscovery() {
     _socket?.disconnect();
     _socket?.dispose();

@@ -23,7 +23,7 @@ app.get('/__version', (req, res) => {
 
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.json({
-    gitCommit: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'local',
+    gitCommit: process.env.COMMIT_SHA || 'local',
     buildTag: 'downloads-20260509-0215',
     extensionZip: artifact('syncronization-extension.zip'),
     androidApk: artifact('syncronization-app.apk'),
@@ -78,9 +78,10 @@ const SESSION_TTL_MS = 20000;
 
 function broadcastActiveSessions() {
   pruneExpiredSessions();
-  const list = Array.from(activeSessions.values()).map(({ sessionId, label, announcedAt }) => ({
+  const list = Array.from(activeSessions.values()).map(({ sessionId, label, type, announcedAt }) => ({
     sessionId,
     label,
+    type: type || 'computer',
     announcedAt,
   }));
   io.emit('active-sessions-updated', { sessions: list });
@@ -112,13 +113,14 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   // ── Discovery: extension announces it is streaming ──────────────────────
-  socket.on('announce-session', ({ sessionId, label }) => {
+  socket.on('announce-session', ({ sessionId, label, type }) => {
     if (!sessionId) return;
     const existing = activeSessions.get(sessionId);
-    console.log(`Session announced: ${sessionId} (${label || 'Unnamed'})`);
+    console.log(`Session announced: ${sessionId} (${label || 'Unnamed'}, type=${type || 'computer'})`);
     activeSessions.set(sessionId, {
       sessionId,
       label: label || 'Computer',
+      type: type || 'computer',
       socketId: socket.id,
       announcedAt: existing?.announcedAt || Date.now(),
       lastSeen: Date.now(),
@@ -144,9 +146,10 @@ io.on('connection', (socket) => {
   // ── Discovery: mobile requests current list of active sessions ───────────
   socket.on('get-active-sessions', () => {
     pruneExpiredSessions();
-    const list = Array.from(activeSessions.values()).map(({ sessionId, label, announcedAt }) => ({
+    const list = Array.from(activeSessions.values()).map(({ sessionId, label, type, announcedAt }) => ({
       sessionId,
       label,
+      type: type || 'computer',
       announcedAt,
     }));
     socket.emit('active-sessions-updated', { sessions: list });

@@ -340,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 6),
           Text(
-            'Open the Chrome extension and click\n"Start Streaming" to appear here.',
+            'Open the Chrome extension\nto appear here automatically.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.3),
@@ -453,30 +453,111 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildConnectingView() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(color: AppTheme.accent),
-          const SizedBox(height: 24),
-          Text(
-            _webrtc.isWaitingForHost ? 'Ready!' : 'Connecting...',
-            style: const TextStyle(fontSize: 20, color: Colors.white),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _webrtc.isWaitingForHost
-                ? 'Please click "Start Streaming" on the browser extension.'
-                : 'Joining session ${_webrtc.activeSessionId}',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
-          ),
-          const SizedBox(height: 48),
-          TextButton(
-            onPressed: () => _webrtc.disconnect(),
-            child:
-                const Text('Cancel', style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icon changes based on state
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 400),
+              child: _webrtc.isWaitingForHost
+                  ? Container(
+                      key: const ValueKey('waiting'),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppTheme.accent.withValues(alpha: 0.1),
+                        border: Border.all(
+                          color: AppTheme.accent.withValues(alpha: 0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.laptop_mac,
+                        size: 48,
+                        color: AppTheme.accent,
+                      ),
+                    )
+                  : const SizedBox(
+                      key: ValueKey('spinner'),
+                      width: 48,
+                      height: 48,
+                      child: CircularProgressIndicator(
+                        color: AppTheme.accent,
+                        strokeWidth: 3,
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              _webrtc.isWaitingForHost ? 'Ready to Connect' : 'Connecting...',
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _webrtc.isWaitingForHost
+                  ? 'Now click "Start Streaming"\non the Chrome extension.'
+                  : 'Joining session ${_webrtc.activeSessionId}…',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.white.withValues(alpha: 0.55),
+                height: 1.5,
+              ),
+            ),
+            if (_webrtc.isWaitingForHost) ...[
+              const SizedBox(height: 24),
+              // Pulsing indicator to draw attention
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.accent.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Session ${_webrtc.activeSessionId}',
+                      style: const TextStyle(
+                        color: AppTheme.accent,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 48),
+            TextButton(
+              onPressed: () => _webrtc.disconnect(),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -511,7 +592,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               color: Colors.white.withValues(alpha: 0.7),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 20),
+          // Sync stats card
+          _buildSyncStatsCard(),
+          const SizedBox(height: 20),
           // Volume slider
           Row(
             children: [
@@ -527,7 +611,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const Icon(Icons.volume_up, color: Colors.white54, size: 20),
             ],
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 32),
           GradientButton(
             label: 'Disconnect',
             icon: Icons.link_off,
@@ -536,6 +620,76 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSyncStatsCard() {
+    return ListenableBuilder(
+      listenable: _webrtc.clockSync,
+      builder: (context, _) {
+        final latency = _webrtc.clockSync.emaLatencyMs;
+        final jitter = _webrtc.clockSync.emaJitterMs;
+        final buffer = _webrtc.clockSync.playbackDelayMs;
+
+        Color syncColor;
+        String syncLabel;
+        if (latency < 30 && jitter < 5) {
+          syncColor = AppTheme.green;
+          syncLabel = 'PERFECT SYNC';
+        } else if (latency < 60 && jitter < 15) {
+          syncColor = Colors.amber;
+          syncLabel = 'GOOD SYNC';
+        } else {
+          syncColor = Colors.redAccent;
+          syncLabel = 'SYNCING...';
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppTheme.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: syncColor.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _statCell('LATENCY', '${latency.toStringAsFixed(0)}ms', syncColor),
+              Container(width: 1, height: 28, color: AppTheme.border),
+              _statCell('JITTER', '${jitter.toStringAsFixed(0)}ms', syncColor),
+              Container(width: 1, height: 28, color: AppTheme.border),
+              _statCell('SYNC', syncLabel, syncColor),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _statCell(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'monospace',
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppTheme.textDim,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1,
+          ),
+        ),
+      ],
     );
   }
 

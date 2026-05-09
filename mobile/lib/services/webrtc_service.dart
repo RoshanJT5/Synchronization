@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'clock_sync_service.dart';
 
 enum AppConnectionState {
   idle,
@@ -32,6 +33,9 @@ class WebRTCService extends ChangeNotifier {
   bool _isWaitingForHost = false;
   bool _isDisposed = false;
   final List<RTCIceCandidate> _pendingRemoteCandidates = [];
+
+  // Clock sync
+  final ClockSyncService clockSync = ClockSyncService();
 
   AppConnectionState get state => _state;
   String get errorMessage => _errorMessage;
@@ -311,6 +315,17 @@ class WebRTCService extends ChangeNotifier {
       notifyListeners();
     };
 
+    // ── Clock-sync data channel ──────────────────────────────────────────
+    // The extension (initiator) opens a "clock-sync" data channel.
+    // We receive it here and attach it to ClockSyncService.
+    _peerConnection!.onDataChannel = (channel) {
+      if (channel.label == 'clock-sync') {
+        debugPrint('[WebRTC] Clock-sync data channel received');
+        clockSync.attach(channel);
+      }
+    };
+    // ─────────────────────────────────────────────────────────────────────
+
     _startStatsTimer();
   }
 
@@ -406,6 +421,8 @@ class WebRTCService extends ChangeNotifier {
               _connectionQuality = q;
               notifyListeners();
             }
+            // Feed RTT into clock sync service for latency estimation
+            clockSync.updateRtt(rtt);
             break;
           }
         }
@@ -455,6 +472,7 @@ class WebRTCService extends ChangeNotifier {
     _disconnectGraceTimer = null;
     _connectionQuality = ConnectionQuality.unknown;
     _isWaitingForHost = false;
+    clockSync.detach();
 
     _activeSessionId = '';
     _pcFuture = null;

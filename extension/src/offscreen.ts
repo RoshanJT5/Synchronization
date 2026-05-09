@@ -227,6 +227,58 @@ function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | 
     pc.addTrack(track, stream);
   });
 
+  // ── Clock-sync data channel ──────────────────────────────────────────────
+  // Sender opens a data channel and sends { t: performance.now() } every 500ms.
+  // Receiver replies with { t: senderT, r: performance.now() }.
+  // This lets the mobile compute: offset = (r - t) / 2  (half-RTT estimate)
+  // and drift-correct its audio scheduling.
+  let clockChannel: RTCDataChannel | null = null;
+  let clockTimer: number | null = null;
+
+  if (initiator) {
+    clockChannel = pc.createDataChannel('clock-sync', {
+      ordered: false,
+      maxRetransmits: 0,
+    });
+
+    clockChannel.onopen = () => {
+      clockTimer = window.setInterval(() => {
+        if (clockChannel?.readyState === 'open') {
+          clockChannel.send(JSON.stringify({ t: performance.now() }));
+        }
+      }, 500);
+    };
+
+    clockChannel.onmessage = (e) => {
+      // Receiver echoed back { t: senderT, r: receiverT }
+      // We can compute RTT = performance.now() - senderT
+      try {
+        const msg = JSON.parse(e.data);
+        const rtt = performance.now() - msg.t;
+        console.log(`[ClockSync] RTT=${rtt.toFixed(1)}ms`);
+      } catch (_) {}
+    };
+
+    clockChannel.onclose = () => {
+      if (clockTimer !== null) { window.clearInterval(clockTimer); clockTimer = null; }
+    };
+  } else {
+    pc.ondatachannel = (e) => {
+      if (e.channel.label === 'clock-sync') {
+        e.channel.onmessage = (msg) => {
+          try {
+            const data = JSON.parse(msg.data);
+            // Echo back with our receive timestamp
+            if (e.channel.readyState === 'open') {
+              e.channel.send(JSON.stringify({ t: data.t, r: performance.now() }));
+            }
+          } catch (_) {}
+        };
+      }
+    };
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       socket?.emit('signal', {
@@ -250,12 +302,14 @@ function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | 
     if (pc.connectionState === 'connected') {
       chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
     } else if (pc.connectionState === 'failed') {
+      if (clockTimer !== null) { window.clearInterval(clockTimer); clockTimer = null; }
       peers.delete(targetId);
       chrome.runtime.sendMessage({
         type: 'CONNECTION_ERROR',
         error: 'WebRTC connection failed before audio could start.'
       });
     } else if (pc.connectionState === 'closed') {
+      if (clockTimer !== null) { window.clearInterval(clockTimer); clockTimer = null; }
       peers.delete(targetId);
     }
   };
@@ -282,12 +336,40 @@ async function createAndSendOffer(peer: PeerState, sessionId: string) {
     offerToReceiveAudio: false,
     offerToReceiveVideo: false
   });
-  await peer.pc.setLocalDescription(offer);
+
+  // ── Patch SDP for minimum latency ────────────────────────────────────────
+  // 1. Force Opus codec with lowest possible ptime (10ms frames vs default 20ms)
+  // 2. Set maxplaybackrate to 48000 (full fidelity)
+  // 3. Disable DTX (discontinuous transmission) — prevents silence gaps
+  // 4. Set stereo=1 for music quality
+  let sdp = offer.sdp || '';
+  sdp = sdp.replace(
+    /a=fmtp:(\d+) (.*opus.*)/gi,
+    (match, pt, params) => {
+      const existing = new Map(
+        params.split(';').map((p: string) => {
+          const [k, v] = p.trim().split('=');
+          return [k.trim(), v?.trim() ?? '1'];
+        })
+      );
+      existing.set('ptime', '10');
+      existing.set('maxptime', '10');
+      existing.set('useinbandfec', '1');
+      existing.set('usedtx', '0');
+      existing.set('stereo', '1');
+      existing.set('maxplaybackrate', '48000');
+      existing.set('sprop-maxcapturerate', '48000');
+      return `a=fmtp:${pt} ${Array.from(existing.entries()).map(([k, v]) => `${k}=${v}`).join(';')}`;
+    }
+  );
+  // ─────────────────────────────────────────────────────────────────────────
+
+  await peer.pc.setLocalDescription(new RTCSessionDescription({ type: 'offer', sdp }));
   socket?.emit('signal', {
     sessionId,
     signal: {
-      type: offer.type,
-      sdp: offer.sdp
+      type: 'offer',
+      sdp
     },
     to: peer.targetId
   });

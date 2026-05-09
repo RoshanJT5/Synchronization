@@ -4,7 +4,7 @@ Static one-page website for docs, setup, download links, and QR deep-link handof
 
 ## Deploy
 
-Upload the `web/` folder to any static host such as Netlify, Vercel, GitHub Pages, Cloudflare Pages, or Render Static Sites.
+Upload the `web/` folder to Cloudflare Pages for optimized hosting and redirects.
 
 ## Downloads
 

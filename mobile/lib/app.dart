@@ -5,6 +5,7 @@ import 'screens/home_screen.dart';
 import 'services/webrtc_service.dart';
 import 'services/discovery_service.dart';
 import 'services/deep_link_service.dart';
+import 'services/mobile_source_service.dart';
 
 class SyncronizationApp extends StatelessWidget {
   const SyncronizationApp({super.key, this.enableDiscovery = true});
@@ -17,6 +18,7 @@ class SyncronizationApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => WebRTCService()),
         ChangeNotifierProvider(create: (_) => DiscoveryService()),
+        ChangeNotifierProvider(create: (_) => MobileSourceService()),
       ],
       child: MaterialApp(
         title: 'Syncronization',
