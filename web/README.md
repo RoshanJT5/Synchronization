@@ -4,7 +4,7 @@ Static one-page website for docs, setup, download links, and QR deep-link handof
 
 ## Deploy
 
-Upload the `web/` folder to Cloudflare Pages for optimized hosting and redirects.
+Upload the `web/` folder to Render or any static host.
 
 ## Downloads
 
@@ -18,18 +18,13 @@ Put release artifacts here before deployment:
 The extension QR points to:
 
 ```text
-https://synchronization.app/connect?id=SESSION&server=http%3A%2F%2FYOUR_PC_IP%3A3001
+https://synchronization-807q.onrender.com/connect?id=SESSION&server=https://synchronization-807q.onrender.com
 ```
 
 The website opens:
 
 ```text
-synchronization://connect?id=SESSION&server=http%3A%2F%2FYOUR_PC_IP%3A3001
+synchronization://connect?id=SESSION&server=https://synchronization-807q.onrender.com
 ```
 
 If the app is installed, it opens and connects. If it is not installed, the user stays on the website and can download the app.
-
-If you deploy to a different domain, update:
-
-- `CONNECT_PAGE_URL` in `extension/src/App.tsx`
-- Android deep-link host in `mobile/android/app/src/main/AndroidManifest.xml`

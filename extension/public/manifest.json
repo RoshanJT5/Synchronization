@@ -15,11 +15,11 @@
     "offscreen"
   ],
   "host_permissions": [
-    "https://synchronization-5865.onrender.com/*",
-    "wss://synchronization-5865.onrender.com/*"
+    "https://synchronization-807q.onrender.com/*",
+    "wss://synchronization-807q.onrender.com/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://synchronization-5865.onrender.com wss://synchronization-5865.onrender.com;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://synchronization-807q.onrender.com wss://synchronization-807q.onrender.com;"
   },
   "action": {
     "default_popup": "index.html",

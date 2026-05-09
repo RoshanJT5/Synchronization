@@ -33,7 +33,7 @@ class DiscoveredSession {
 /// mobile-source sessions so the UI can render them in separate sections.
 class DiscoveryService extends ChangeNotifier {
   static const String _signalingServer =
-      'https://synchronization-5865.onrender.com';
+      'https://synchronization-807q.onrender.com';
 
   io.Socket? _socket;
   List<DiscoveredSession> _sessions = [];

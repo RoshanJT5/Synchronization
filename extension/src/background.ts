@@ -2,7 +2,7 @@
 
 import { io, Socket } from 'socket.io-client';
 
-const SIGNALING_SERVER = 'https://synchronization-5865.onrender.com';
+const SIGNALING_SERVER = 'https://synchronization-807q.onrender.com';
 const STATE_STORAGE_KEY = 'syncronization.currentState';
 
 let offscreenReady = false;

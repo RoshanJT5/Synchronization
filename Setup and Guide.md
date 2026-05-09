@@ -3,7 +3,7 @@
 You now have a premium P2P audio synchronization system! This project allows you to stream your browser tab audio to any Android device with ultra-low latency.
 
 ## 🚀 Deployment Status
-- **Website**: [https://synchronization.pages.dev](https://synchronization.pages.dev)
+- **Website**: [https://synchronization-807q.onrender.com](https://synchronization-807q.onrender.com)
 - **Signaling Server**: Cloud-hosted Node.js (Automatic Relay)
 
 ---
@@ -43,7 +43,7 @@ The mobile app receives and plays the stream.
 ---
 
 ## 🛠️ 3. Signaling Server (Advanced)
-By default, the app uses the cloud relay at `synchronization.pages.dev`. To run your own:
+By default, the app uses the cloud relay at `synchronization-807q.onrender.com`. To run your own:
 1. **Run**:
    ```powershell
    cd signaling-server

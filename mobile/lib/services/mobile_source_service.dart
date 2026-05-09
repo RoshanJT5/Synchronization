@@ -17,7 +17,7 @@ enum MobileSourceState { idle, announcing, streaming, error }
 ///   3. [stopSource] — tears everything down cleanly.
 class MobileSourceService extends ChangeNotifier {
   static const String _signalingServer =
-      'https://synchronization-5865.onrender.com';
+      'https://synchronization-807q.onrender.com';
 
   static const Map<String, dynamic> _iceConfig = {
     'iceServers': [

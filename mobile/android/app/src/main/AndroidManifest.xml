@@ -63,22 +63,22 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="synchronization.pages.dev"
+                    android:host="synchronization-807q.onrender.com"
                     android:pathPrefix="/connect" />
             </intent-filter>
 
-            <!-- Render-hosted short QR links: https://synchronization-5865.onrender.com/c/ABC123 -->
+            <!-- Render-hosted short QR links: https://synchronization-807q.onrender.com/c/ABC123 -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="synchronization-5865.onrender.com"
+                    android:host="synchronization-807q.onrender.com"
                     android:pathPrefix="/c" />
                 <data
                     android:scheme="https"
-                    android:host="synchronization-5865.onrender.com"
+                    android:host="synchronization-807q.onrender.com"
                     android:pathPrefix="/connect" />
             </intent-filter>
         </activity>

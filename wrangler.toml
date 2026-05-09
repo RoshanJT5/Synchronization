@@ -1,5 +1,0 @@
-name = "synchronization"
-pages_build_output_dir = "web"
-
-[vars]
-# Add any environment variables here if needed

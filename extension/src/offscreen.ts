@@ -3,7 +3,7 @@ import { Buffer } from 'buffer';
 (window as any).global = window;
 (window as any).process = (window as any).process || { env: {} };
 
-const SIGNALING_SERVER = 'https://synchronization-5865.onrender.com';
+const SIGNALING_SERVER = 'https://synchronization-807q.onrender.com';
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
