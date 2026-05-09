@@ -3,10 +3,10 @@
 ## Current Status
 
 **APK File:**
-- Location: `web/downloads/syncronization-app.apk`
+- Location: `web/downloads/synchronization-app.apk`
 - Size: 84.47 MB
 - Last Built: 2026-04-30 22:09:28
-- Website Link: ✅ Properly linked in `web/index.html` at `<a id="apk-download" href="downloads/syncronization-app.apk">`
+- Website Link: ✅ Properly linked in `web/index.html` at `<a id="apk-download" href="downloads/synchronization-app.apk">`
 
 ## Redmi Y2/S2 Device Issue
 

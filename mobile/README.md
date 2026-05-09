@@ -1,6 +1,6 @@
-# Syncronization — Mobile App
+# Synchronization — Mobile App
 
-Flutter mobile app that receives browser audio streamed from the Syncronization Chrome extension and plays it as a wireless speaker.
+Flutter mobile app that receives browser audio streamed from the Synchronization Chrome extension and plays it as a wireless speaker.
 
 ## Features
 

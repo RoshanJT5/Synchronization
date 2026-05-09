@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.syncronization.app"
+    namespace = "com.synchronization.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.syncronization.app"
+        applicationId = "com.synchronization.app"
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutter.versionCode

@@ -1,4 +1,4 @@
-package com.syncronization.app
+package com.synchronization.app
 
 import io.flutter.embedding.android.FlutterActivity
 

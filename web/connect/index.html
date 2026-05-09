@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Opening Syncronization…</title>
+    <title>Opening Synchronization…</title>
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -147,7 +147,7 @@
   </head>
   <body>
     <div class="logo">🔊</div>
-    <h1>Syncronization</h1>
+    <h1>Synchronization</h1>
     <p class="subtitle">Connecting your browser audio<br>to your phone…</p>
 
     <div class="card">
@@ -165,7 +165,7 @@
 
       <!-- State: app not installed -->
       <div class="state-notinstalled" id="state-notinstalled">
-        <a id="btn-download" class="btn btn-primary" href="/downloads/syncronization-app.apk?v=20260509-0215" download="syncronization.apk">
+        <a id="btn-download" class="btn btn-primary" href="/downloads/synchronization-app.apk?v=20260509-0215" download="synchronization.apk">
           Install Android App
         </a>
         <div class="divider">ALREADY INSTALLED?</div>
@@ -194,9 +194,9 @@
       }
 
       // Build the custom-scheme deep link
-      // syncronization://connect?id=XXX&server=https://...
+      // synchronization://connect?id=XXX&server=https://...
       function buildDeepLink() {
-        const u = new URL('syncronization://connect');
+        const u = new URL('synchronization://connect');
         if (id)     u.searchParams.set('id', id);
         if (server) u.searchParams.set('server', server);
         return u.toString();

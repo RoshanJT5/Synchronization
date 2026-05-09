@@ -147,7 +147,7 @@ function App() {
       <div className="flex items-center gap-3 mb-6">
         <img src="/app_icon.jpg" alt="" className="w-10 h-10 rounded-xl object-cover border border-white/10" />
         <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-          Syncronization
+          Synchronization
         </h1>
       </div>
 

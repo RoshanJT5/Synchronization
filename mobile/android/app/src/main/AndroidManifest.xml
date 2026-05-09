@@ -25,7 +25,7 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
-        android:label="Syncronization"
+        android:label="Synchronization"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
@@ -53,7 +53,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="syncronization" android:host="connect" />
+                <data android:scheme="synchronization" android:host="connect" />
             </intent-filter>
 
             <!-- HTTPS deep link from the website (App Link — opens app directly when QR is scanned) -->
@@ -63,7 +63,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="syncronization.vercel.app"
+                    android:host="synchronization.pages.dev"
                     android:pathPrefix="/connect" />
             </intent-filter>
 

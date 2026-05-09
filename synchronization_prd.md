@@ -1,6 +1,6 @@
-# Syncronization: Remote Browser Speaker
+# Synchronization: Remote Browser Speaker
 
-Syncronization is a tool that allows you to use your mobile device (or multiple devices) as external speakers for any audio playing in your browser (Netflix, YouTube, Prime, etc.).
+Synchronization is a tool that allows you to use your mobile device (or multiple devices) as external speakers for any audio playing in your browser (Netflix, YouTube, Prime, etc.).
 
 ## 🚀 Concept
 - **Browser Extension**: Captures audio and generates a QR code.
@@ -41,4 +41,4 @@ Syncronization is a tool that allows you to use your mobile device (or multiple 
 
 ---
 > [!IMPORTANT]
-> The full implementation plan has been saved to [docs/plans/2026-04-29-syncronization.md](file:///c:/Users/Roshan%20Talreja/Desktop/MY%20PROJECTS/Syncronization/docs/plans/2026-04-29-syncronization.md).
+> The full implementation plan has been saved to [docs/plans/2026-04-29-synchronization.md](file:///c:/Users/Roshan%20Talreja/Desktop/MY%20PROJECTS/Synchronization/docs/plans/2026-04-29-synchronization.md).

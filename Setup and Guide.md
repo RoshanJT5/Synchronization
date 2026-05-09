@@ -1,4 +1,4 @@
-# Syncronization: Setup & Usage Guide
+# Synchronization: Setup & Usage Guide
 
 You now have a premium P2P audio synchronization system! This project allows you to stream your browser tab audio to any Android device with ultra-low latency.
 
@@ -55,9 +55,9 @@ By default, the app uses the cloud relay at `synchronization.pages.dev`. To run 
 ---
 
 ## 📱 Usage
-1. Open a tab with audio (YouTube, Spotify, etc.) and click the **Syncronization Extension** icon.
+1. Open a tab with audio (YouTube, Spotify, etc.) and click the **Synchronization Extension** icon.
 2. Click **Start Streaming** in the extension popup. A QR code will appear.
-3. Open the **Syncronization App** on your Android phone.
+3. Open the **Synchronization App** on your Android phone.
 4. Click **Scan QR Code** and point your camera at your computer screen.
 5. The connection will establish in ~2 seconds. Audio will now play on your phone!
 

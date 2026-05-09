@@ -7,8 +7,8 @@ import 'services/discovery_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/mobile_source_service.dart';
 
-class SyncronizationApp extends StatelessWidget {
-  const SyncronizationApp({super.key, this.enableDiscovery = true});
+class SynchronizationApp extends StatelessWidget {
+  const SynchronizationApp({super.key, this.enableDiscovery = true});
 
   final bool enableDiscovery;
 
@@ -21,7 +21,7 @@ class SyncronizationApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => MobileSourceService()),
       ],
       child: MaterialApp(
-        title: 'Syncronization',
+        title: 'Synchronization',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark(),
         home: _DeepLinkWrapper(enableDiscovery: enableDiscovery),

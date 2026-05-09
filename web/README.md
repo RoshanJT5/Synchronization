@@ -1,4 +1,4 @@
-# Syncronization Website
+# Synchronization Website
 
 Static one-page website for docs, setup, download links, and QR deep-link handoff.
 
@@ -10,21 +10,21 @@ Upload the `web/` folder to Cloudflare Pages for optimized hosting and redirects
 
 Put release artifacts here before deployment:
 
-- `web/downloads/syncronization-app.apk`
-- `web/downloads/syncronization-extension.zip`
+- `web/downloads/synchronization-app.apk`
+- `web/downloads/synchronization-extension.zip`
 
 ## QR / Deep Link Flow
 
 The extension QR points to:
 
 ```text
-https://syncronization.app/connect?id=SESSION&server=http%3A%2F%2FYOUR_PC_IP%3A3001
+https://synchronization.app/connect?id=SESSION&server=http%3A%2F%2FYOUR_PC_IP%3A3001
 ```
 
 The website opens:
 
 ```text
-syncronization://connect?id=SESSION&server=http%3A%2F%2FYOUR_PC_IP%3A3001
+synchronization://connect?id=SESSION&server=http%3A%2F%2FYOUR_PC_IP%3A3001
 ```
 
 If the app is installed, it opens and connects. If it is not installed, the user stays on the website and can download the app.

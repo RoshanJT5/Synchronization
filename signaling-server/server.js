@@ -25,8 +25,8 @@ app.get('/__version', (req, res) => {
   res.json({
     gitCommit: process.env.COMMIT_SHA || 'local',
     buildTag: 'downloads-20260509-0215',
-    extensionZip: artifact('syncronization-extension.zip'),
-    androidApk: artifact('syncronization-app.apk'),
+    extensionZip: artifact('synchronization-extension.zip'),
+    androidApk: artifact('synchronization-app.apk'),
   });
 });
 

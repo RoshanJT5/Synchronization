@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:syncronization/app.dart';
+import 'package:synchronization/app.dart';
 
 void main() {
-  testWidgets('Syncronization app renders home screen', (tester) async {
-    await tester.pumpWidget(const SyncronizationApp(enableDiscovery: false));
+  testWidgets('Synchronization app renders home screen', (tester) async {
+    await tester.pumpWidget(const SynchronizationApp(enableDiscovery: false));
     await tester.pump();
 
-    expect(find.text('Syncronization'), findsOneWidget);
+    expect(find.text('Synchronization'), findsOneWidget);
   });
 }

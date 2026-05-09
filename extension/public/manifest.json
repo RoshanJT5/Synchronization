@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Syncronization",
+  "name": "Synchronization",
   "version": "1.0",
   "description": "Sync browser audio to your mobile devices as a remote speaker.",
   "icons": {
@@ -23,7 +23,7 @@
   },
   "action": {
     "default_popup": "index.html",
-    "default_title": "Open Syncronization"
+    "default_title": "Open Synchronization"
   },
   "background": {
     "service_worker": "background.js",
