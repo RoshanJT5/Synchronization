@@ -107,10 +107,14 @@ async function startSendMode(sessionId: string, streamId: string) {
     audioCtx = new AudioContext({ latencyHint: 'interactive' });
     sourceNode = audioCtx.createMediaStreamSource(rawStream);
     
-    // Add a precise delay to the laptop's speakers to perfectly match
-    // the ~40ms network/WebRTC latency of the mobile device.
+    // Adaptive delay: starts at 40ms, updated by clock-sync RTT measurements
+    // so laptop speakers stay perfectly in sync with the mobile receiver.
     const delayNode = audioCtx.createDelay(1.0);
-    delayNode.delayTime.value = 0.04; // 40 milliseconds
+    delayNode.delayTime.value = 0.04; // 40ms initial estimate
+
+    // Expose so clock-sync can update it
+    (window as any).__syncDelayNode = delayNode;
+    (window as any).__syncAudioCtx = audioCtx;
 
     localGain = audioCtx.createGain();
     localDest = audioCtx.createMediaStreamDestination();
@@ -140,6 +144,7 @@ async function startSendMode(sessionId: string, streamId: string) {
       socket?.emit('announce-session', {
         sessionId,
         label: 'This Computer',
+        type: 'computer',
       });
     };
 
@@ -457,6 +462,7 @@ function startSessionHeartbeat(sessionId: string, announce: () => void) {
       socket.emit('announce-session', {
         sessionId,
         label: 'This Computer',
+        type: 'computer',
       });
     } else {
       socket?.connect();

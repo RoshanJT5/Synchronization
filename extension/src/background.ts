@@ -129,6 +129,7 @@ function prepareSendSession(sessionId: string) {
       lobbySocket?.emit('announce-session', {
         sessionId,
         label: 'Browser Extension',
+        type: 'computer',
       });
     };
     
