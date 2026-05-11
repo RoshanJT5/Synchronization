@@ -52,7 +52,7 @@ a {
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
-  height: 72px;
+  height: 75px;
   padding: 0 5vw;
   position: sticky;
   top: 0;
@@ -81,8 +81,8 @@ a {
 }
 
 .brand-logo {
-  height: 40px;
-  width: 40px;
+  height: 65px;
+  width: 400px;
   border-radius: 8px;
   object-fit: contain;
 }
