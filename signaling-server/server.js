@@ -24,7 +24,7 @@ app.get('/__version', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.json({
     gitCommit: process.env.COMMIT_SHA || 'local',
-    buildTag: 'downloads-20260509-0215',
+    buildTag: 'downloads-20260512-0130',
     extensionZip: artifact('synchronization-extension.zip'),
     androidApk: artifact('synchronization-app.apk'),
   });

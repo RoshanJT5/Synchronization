@@ -4,9 +4,9 @@
   "version": "1.0",
   "description": "Sync browser audio to your mobile devices as a remote speaker.",
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "app_icon.jpg",
+    "48": "app_icon.jpg",
+    "128": "app_icon.jpg"
   },
   "permissions": [
     "tabCapture",
