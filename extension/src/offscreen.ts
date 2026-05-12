@@ -153,7 +153,9 @@ async function startSendMode(sessionId: string, streamId: string) {
     // The WebRTC peer uses rawStream directly so remote devices always get
     // full-volume audio regardless of the local mute toggle.
     // ─────────────────────────────────────────────────────────────────────
-    audioCtx = new AudioContext({ latencyHint: 'interactive' });
+    // Route: source -> delay -> gain -> laptop speakers
+    // We force 48000Hz to match the Flutter receiver's playback settings
+    audioCtx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
     sourceNode = audioCtx.createMediaStreamSource(rawStream);
     
     // Source monitor delay: starts at syncBufferMs (default 400 ms).
@@ -233,26 +235,29 @@ async function startSendMode(sessionId: string, streamId: string) {
     // Captures raw PCM data from the tab and broadcasts it to all peers
     // as timestamped JSON packets via their 'clock-sync' data channels.
     if (audioCtx && sourceNode) {
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      // Capture 2 channels (stereo)
+      const processor = audioCtx.createScriptProcessor(4096, 2, 2);
       sourceNode.connect(processor);
       processor.connect(audioCtx.destination);
 
       processor.onaudioprocess = (e) => {
         if (peers.size === 0) return;
 
-        // Interleave/process audio data (mono for simplicity as per source capture)
-        const inputData = e.inputBuffer.getChannelData(0);
-        // Convert Float32 to Int16 to save some space before JSON conversion
-        const int16Data = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          int16Data[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+        const left = e.inputBuffer.getChannelData(0);
+        const right = e.inputBuffer.getChannelData(1);
+        
+        // Interleave channels: [L0, R0, L1, R1, ...]
+        const interleaved = new Int16Array(left.length * 2);
+        for (let i = 0; i < left.length; i++) {
+          interleaved[i * 2]     = Math.max(-1, Math.min(1, left[i])) * 0x7FFF;
+          interleaved[i * 2 + 1] = Math.max(-1, Math.min(1, right[i])) * 0x7FFF;
         }
 
         const syncPacket = {
           type: 'audio',
           chunkId: chunkSequence++,
           playbackTimestamp: Date.now() + SYNC_BUFFER_MS,
-          audioData: Array.from(new Uint8Array(int16Data.buffer)) 
+          audioData: Array.from(new Uint8Array(interleaved.buffer)) 
         };
 
         const packetJson = JSON.stringify(syncPacket);

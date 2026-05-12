@@ -347,14 +347,8 @@ class WebRTCService extends ChangeNotifier {
       debugPrint('[WebRTC] Got remote track: ${event.track.kind}');
       if (event.streams.isNotEmpty) {
         _remoteStream = event.streams[0];
-        if (_audioRenderer != null) {
-          _audioRenderer!.srcObject = _remoteStream;
-        }
-        // Apply current volume to the new tracks
-        for (var track in _remoteStream!.getAudioTracks()) {
-          track.enabled = _volume > 0;
-          Helper.setVolume(_volume, track);
-        }
+        // We DO NOT route to _audioRenderer here because we use the 
+        // synchronized PlaybackBuffer via DataChannel instead.
         notifyListeners();
       }
     };
@@ -362,14 +356,8 @@ class WebRTCService extends ChangeNotifier {
     _peerConnection!.onAddStream = (stream) {
       debugPrint('[WebRTC] Got remote stream');
       _remoteStream = stream;
-      if (_audioRenderer != null) {
-        _audioRenderer!.srcObject = stream;
-      }
-      // Apply current volume to the new tracks
-      for (var track in stream.getAudioTracks()) {
-        track.enabled = _volume > 0;
-        Helper.setVolume(_volume, track);
-      }
+      // We DO NOT route to _audioRenderer here because we use the 
+      // synchronized PlaybackBuffer via DataChannel instead.
       notifyListeners();
     };
 
@@ -559,13 +547,8 @@ class WebRTCService extends ChangeNotifier {
   void setVolume(double value) {
     if (_isDisposed) return;
     _volume = value.clamp(0.0, 1.0);
-
-    // Use Helper.setVolume for linear scaling on mobile.
-    // track.enabled provides a reliable absolute mute at 0.0.
-    _remoteStream?.getAudioTracks().forEach((track) {
-      track.enabled = _volume > 0.0;
-      Helper.setVolume(_volume, track);
-    });
+    // Note: Volume for PlaybackBuffer audio is currently handled 
+    // by the system volume or could be implemented in _playAudioChunk.
     notifyListeners();
   }
 
