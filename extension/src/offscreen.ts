@@ -39,7 +39,10 @@ let announceTimer: number | null = null;
 // Default source buffer: 400 ms — gives receivers enough time to decode and
 // schedule playback before the source monitor plays out loud.
 // Configurable via SET_SYNC_BUFFER message from the extension popup.
-let syncBufferMs = 400;
+let syncBufferMs = 700;
+
+const SYNC_BUFFER_MS = 700; // All receivers will delay playback by this amount
+let chunkSequence = 0;      // Incrementing packet ID
 
 // Receive-side sync: AudioContext + DelayNode used when this extension is
 // running in RECEIVE mode (extension acting as a remote speaker).
@@ -215,6 +218,44 @@ async function startSendMode(sessionId: string, streamId: string) {
       }
     });
 
+    // ── Audio Capture for DataChannel ─────────────────────────────────────────
+    // Captures raw PCM data from the tab and broadcasts it to all peers
+    // as timestamped JSON packets via their 'clock-sync' data channels.
+    if (audioCtx && sourceNode) {
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      sourceNode.connect(processor);
+      processor.connect(audioCtx.destination);
+
+      processor.onaudioprocess = (e) => {
+        if (peers.size === 0) return;
+
+        // Interleave/process audio data (mono for simplicity as per source capture)
+        const inputData = e.inputBuffer.getChannelData(0);
+        // Convert Float32 to Int16 to save some space before JSON conversion
+        const int16Data = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) {
+          int16Data[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+        }
+
+        const syncPacket = {
+          type: 'audio',
+          chunkId: chunkSequence++,
+          playbackTimestamp: Date.now() + SYNC_BUFFER_MS,
+          audioData: Array.from(new Uint8Array(int16Data.buffer)) 
+        };
+
+        const packetJson = JSON.stringify(syncPacket);
+        for (const peer of peers.values()) {
+          const ch = (peer as any).__clockChannel as RTCDataChannel | undefined;
+          if (ch && ch.readyState === 'open') {
+            ch.send(packetJson);
+          }
+        }
+      };
+      (window as any).__audioProcessor = processor;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
   } catch (error: any) {
     console.error('SEND error:', error);
@@ -296,11 +337,20 @@ function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | 
       }, 500);
     };
 
-    clockChannel.onmessage = (e) => {
-      // Receiver echoed back { t: senderT, r: receiverT }
-      // RTT = now - senderT; one-way ≈ RTT/2
+    clockChannel.onmessage = (event: MessageEvent) => {
       try {
-        const msg = JSON.parse(e.data);
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'ping') {
+          // Reply immediately with source's current time
+          clockChannel?.send(JSON.stringify({
+            type: 'pong',
+            sourceTime: Date.now(),
+            pingId: msg.pingId // Echo back so receiver can match request to response
+          }));
+          return;
+        }
+
+        // Receiver echoed back { t: senderT, r: receiverT }
         const rtt = performance.now() - msg.t;
         const oneWayMs = rtt / 2;
         console.log(`[ClockSync] RTT=${rtt.toFixed(1)}ms  one-way≈${oneWayMs.toFixed(1)}ms`);
@@ -520,6 +570,11 @@ function resetSessionState() {
   if (localGain)  { try { localGain.disconnect();  } catch (_) {} localGain = null; }
   if (localDest)  { try { localDest.disconnect();  } catch (_) {} localDest = null; }
   if (audioCtx && audioCtx.state !== 'closed') {
+    const processor = (window as any).__audioProcessor;
+    if (processor) {
+      try { processor.disconnect(); } catch (_) {}
+      (window as any).__audioProcessor = null;
+    }
     audioCtx.close().catch(() => {});
     audioCtx = null;
   }

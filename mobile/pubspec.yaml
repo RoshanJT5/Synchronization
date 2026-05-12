@@ -39,6 +39,7 @@ dependencies:
 
   # Icons
   cupertino_icons: ^1.0.8
+  flutter_pcm_sound: ^3.3.3
 
 dev_dependencies:
   flutter_test:

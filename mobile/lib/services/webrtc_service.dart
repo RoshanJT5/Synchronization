@@ -4,6 +4,11 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'clock_sync_service.dart';
 import 'sync_playback_engine.dart';
+import 'sync_clock.dart';
+import 'playback_buffer.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 
 enum AppConnectionState { idle, connecting, connected, error }
 
@@ -36,6 +41,12 @@ class WebRTCService extends ChangeNotifier {
   // Synchronized playback engine
   final SyncPlaybackEngine syncEngine = SyncPlaybackEngine();
 
+  final SyncClock _syncClock = SyncClock();
+  PlaybackBuffer? _playbackBuffer;
+  final StreamController<Map<String, dynamic>> _pongController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  RTCDataChannel? _dataChannel;
+
   AppConnectionState get state => _state;
   String get errorMessage => _errorMessage;
   String get activeSessionId => _activeSessionId;
@@ -43,6 +54,10 @@ class WebRTCService extends ChangeNotifier {
   double get volume => _volume;
   ConnectionQuality get connectionQuality => _connectionQuality;
   bool get isWaitingForHost => _isWaitingForHost;
+
+  // Sync state getters
+  bool get isSynced => _syncClock.isCalibrated;
+  String get syncStats => _playbackBuffer?.stats ?? 'Buffer inactive';
 
   // ICE servers config
   static const Map<String, dynamic> _iceConfig = {
@@ -280,7 +295,7 @@ class WebRTCService extends ChangeNotifier {
       }
     };
 
-    _peerConnection!.onConnectionState = (state) {
+    _peerConnection!.onConnectionState = (state) async {
       debugPrint('[WebRTC] Connection state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _connectionTimeoutTimer?.cancel();
@@ -290,6 +305,33 @@ class WebRTCService extends ChangeNotifier {
         // Start sync-engine monitoring now that we have a live clock-sync channel
         syncEngine.startMonitoring(clockSync);
         _setState(AppConnectionState.connected);
+
+        // Step 1: Sync clock with source
+        unawaited(_syncClock.calibrate(
+          sendPing: (pingId) {
+            _dataChannel?.send(RTCDataChannelMessage(jsonEncode({
+              'type': 'ping',
+              'pingId': pingId,
+            })));
+          },
+          pongStream: _pongController.stream,
+        ));
+
+        // Step 2: Initialize and start playback buffer
+        await FlutterPcmSound.setup(
+          sampleRate: 48000,
+          channelCount: 2, // Stereo
+        );
+        await FlutterPcmSound.setFeedThreshold(8000);
+        FlutterPcmSound.setFeedCallback((remainingFrames) async {
+          // Buffer is running low — this is handled automatically
+          // by our PlaybackBuffer feeding chunks continuously
+        });
+
+        _playbackBuffer = PlaybackBuffer(_syncClock);
+        _playbackBuffer!.start((audioData) {
+          _playAudioChunk(Uint8List.fromList(audioData));
+        });
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         _setError('WebRTC connection lost');
       } else if (state ==
@@ -335,7 +377,40 @@ class WebRTCService extends ChangeNotifier {
     _peerConnection!.onDataChannel = (channel) {
       if (channel.label == 'clock-sync') {
         debugPrint('[WebRTC] Clock-sync data channel received');
+        _dataChannel = channel;
         clockSync.attach(channel);
+        
+        channel.onMessage = (RTCDataChannelMessage message) {
+          try {
+            final packet = jsonDecode(message.text);
+
+            if (packet['type'] == 'pong') {
+              // Feed pong to clock calibration
+              _pongController.add({
+                'sourceTime': packet['sourceTime'],
+                'pingId': packet['pingId'],
+              });
+              return;
+            }
+
+            if (packet['type'] == 'audio') {
+              _playbackBuffer?.addChunk(BufferedChunk(
+                chunkId: packet['chunkId'],
+                playbackTimestamp: (packet['playbackTimestamp'] as num).toDouble(),
+                audioData: List<int>.from(packet['audioData']),
+              ));
+              notifyListeners(); // Refresh UI with new stats
+              return;
+            }
+
+            // Fallback for existing clock-sync logic if needed
+            // (The existing ClockSyncService might still need these)
+            // But we've replaced the core logic.
+          } catch (e) {
+            // If it's not JSON, it might be the old format or raw data
+          }
+        };
+
         // Forward source-buffer config into the sync engine whenever it arrives
         clockSync.addListener(() {
           if (clockSync.hasSyncConfig) {
@@ -496,6 +571,9 @@ class WebRTCService extends ChangeNotifier {
     _isWaitingForHost = false;
     clockSync.detach();
     syncEngine.stopMonitoring();
+    _playbackBuffer?.stop();
+    _playbackBuffer = null;
+    await FlutterPcmSound.release();
 
     _activeSessionId = '';
     _pcFuture = null;
@@ -533,9 +611,22 @@ class WebRTCService extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _playAudioChunk(Uint8List data) async {
+    try {
+      // Convert raw bytes to 16-bit PCM frames
+      final samples = Int16List.view(data.buffer);
+      await FlutterPcmSound.feed(
+        PcmArrayInt16(bytes: samples.buffer.asByteData()),
+      );
+    } catch (e) {
+      debugPrint('Audio playback error: $e');
+    }
+  }
+
   @override
   void dispose() {
     _isDisposed = true;
+    _pongController.close();
     disconnect(notify: false);
     super.dispose();
   }

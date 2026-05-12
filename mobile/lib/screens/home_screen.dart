@@ -954,6 +954,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               color: AppTheme.accent,
             ),
           ),
+          const SizedBox(height: 6),
+          Text(
+            _webrtc.isSynced
+                ? '🔄 Sync: Active  |  Buffer: 700ms'
+                : '⏳ Syncing clock...',
+            style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
           Text(
             'Audio is playing through your phone speaker.',
@@ -1033,14 +1040,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: syncColor.withValues(alpha: 0.25)),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+          child: Column(
             children: [
-              _statCell('LATENCY', '${latency.toStringAsFixed(0)}ms', syncColor),
-              Container(width: 1, height: 28, color: AppTheme.border),
-              _statCell('JITTER', '${jitter.toStringAsFixed(0)}ms', syncColor),
-              Container(width: 1, height: 28, color: AppTheme.border),
-              _statCell('SYNC', syncLabel, syncColor),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _statCell('LATENCY', '${latency.toStringAsFixed(0)}ms', syncColor),
+                  Container(width: 1, height: 28, color: AppTheme.border),
+                  _statCell('JITTER', '${jitter.toStringAsFixed(0)}ms', syncColor),
+                  Container(width: 1, height: 28, color: AppTheme.border),
+                  _statCell('SYNC', syncLabel, syncColor),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _webrtc.syncStats,
+                style: const TextStyle(
+                  color: AppTheme.textDim,
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                ),
+              ),
             ],
           ),
         );
