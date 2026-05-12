@@ -85,9 +85,9 @@ chrome.runtime.onMessage.addListener((message) => {
 
 async function startSendMode(sessionId: string, streamId: string) {
   try {
+    activeSessionId = sessionId;
     await ensureNetworkingReady();
     resetSessionState();
-    activeSessionId = sessionId;
 
     capturedStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -252,11 +252,14 @@ async function ensureNetworkingReady() {
       timeout: 60000
     });
     socket.on('connect', () => {
-      console.log('Connected to signaling server');
+      console.log('[Offscreen] Connected. Joining session:', activeSessionId);
       if (activeSessionId) {
         socket?.emit('join-session', activeSessionId);
       }
       resolve();
+    });
+    socket.on('connect_error', (err) => {
+      console.error('[Offscreen] Connection error:', err);
     });
     socket.on('peer-joined', ({ peerId }: { peerId: string }) => {
       if (peerId !== socket?.id) {
