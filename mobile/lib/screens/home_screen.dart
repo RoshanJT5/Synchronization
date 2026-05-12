@@ -1020,9 +1020,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (context, _) {
         final latency = _webrtc.clockSync.emaLatencyMs;
         final jitter = _webrtc.clockSync.emaJitterMs;
+        final isPaused = _webrtc.isPaused; // Need to add this getter to webrtc_service
         Color syncColor;
         String syncLabel;
-        if (latency < 30 && jitter < 5) {
+        if (isPaused) {
+          syncColor = Colors.orange;
+          syncLabel = '⏸ Syncing with other devices...';
+        } else if (latency < 30 && jitter < 5) {
           syncColor = AppTheme.green;
           syncLabel = 'PERFECT SYNC';
         } else if (latency < 60 && jitter < 15) {

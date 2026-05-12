@@ -20,6 +20,11 @@ class PlaybackBuffer {
   Timer? _ticker;
   bool _isRunning = false;
   int _lastPlayedChunkId = -1;
+  int? _checkpointChunkId;
+  bool _isPaused = false;
+
+  int get lastPlayedChunkId => _lastPlayedChunkId;
+  bool get isPaused => _isPaused;
 
   // Stats for debugging
   int _totalChunksReceived = 0;
@@ -32,12 +37,19 @@ class PlaybackBuffer {
   void addChunk(BufferedChunk chunk) {
     _totalChunksReceived++;
 
-    // Drop if already played or too old (arrived more than 200ms late)
+    // Mesh Sync: Stop dropping chunks if we are waiting at a checkpoint.
+    // This allows the buffer to fill up while we are paused.
+    if (_isPaused && _queue.length > 300) {
+      _totalChunksDropped++;
+      return;
+    }
+
+    // Drop if already played or too old (arrived more than 500ms late)
     final now = _clock.syncedNow();
     if (chunk.chunkId <= _lastPlayedChunkId) {
       return; // Duplicate, ignore
     }
-    if (chunk.playbackTimestamp < now - 200) {
+    if (chunk.playbackTimestamp < now - 500 && !_isPaused) {
       _totalChunksDropped++;
       print('⚠️ Dropped late chunk ${chunk.chunkId} (${(now - chunk.playbackTimestamp).toStringAsFixed(0)}ms late)');
       return;
@@ -58,10 +70,20 @@ class PlaybackBuffer {
 
     // Check every 5ms whether any chunk's time has arrived
     _ticker = Timer.periodic(Duration(milliseconds: 5), (_) {
+      if (_isPaused) return;
+
       final now = _clock.syncedNow();
 
       while (_queue.isNotEmpty) {
         final next = _queue.first;
+
+        // Mesh Sync: Barrier check
+        if (_checkpointChunkId != null && next.chunkId >= _checkpointChunkId!) {
+          _isPaused = true;
+          _checkpointChunkId = null;
+          print('⏸ Reached checkpoint at ${_lastPlayedChunkId}. Pausing.');
+          break;
+        }
 
         if (next.playbackTimestamp <= now) {
           _queue.removeFirst();
@@ -73,6 +95,19 @@ class PlaybackBuffer {
         }
       }
     });
+  }
+
+  void pauseAtCheckpoint(int chunkId) {
+    _checkpointChunkId = chunkId;
+    print('📍 Sync barrier set at $chunkId');
+  }
+
+  void resume() {
+    if (_isPaused) {
+      _isPaused = false;
+      print('▶️ Sync resumed by coordinator');
+    }
+    _checkpointChunkId = null;
   }
 
   void stop() {

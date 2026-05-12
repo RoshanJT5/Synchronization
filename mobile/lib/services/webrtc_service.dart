@@ -27,6 +27,7 @@ class WebRTCService extends ChangeNotifier {
   double _volume = 1.0;
   ConnectionQuality _connectionQuality = ConnectionQuality.unknown;
   Timer? _statsTimer;
+  Timer? _positionReportTimer;
   Timer? _connectionTimeoutTimer;
   Timer? _waitingForHostTimer;
   Timer? _disconnectGraceTimer;
@@ -57,6 +58,7 @@ class WebRTCService extends ChangeNotifier {
 
   // Sync state getters
   bool get isSynced => _syncClock.isCalibrated;
+  bool get isPaused => _playbackBuffer?.isPaused ?? false;
   String get syncStats => _playbackBuffer?.stats ?? 'Buffer inactive';
 
   // ICE servers config
@@ -332,6 +334,7 @@ class WebRTCService extends ChangeNotifier {
         _playbackBuffer!.start((audioData) {
           _playAudioChunk(Uint8List.fromList(audioData));
         });
+        _startPositionReporting();
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         _setError('WebRTC connection lost');
       } else if (state ==
@@ -400,6 +403,19 @@ class WebRTCService extends ChangeNotifier {
                 audioData: List<int>.from(packet['audioData']),
               ));
               notifyListeners(); // Refresh UI with new stats
+              return;
+            }
+
+            if (packet['type'] == 'wait_at_checkpoint') {
+              final checkpoint = packet['checkpoint'] as int;
+              _playbackBuffer?.pauseAtCheckpoint(checkpoint);
+              notifyListeners();
+              return;
+            }
+
+            if (packet['type'] == 'resume') {
+              _playbackBuffer?.resume();
+              notifyListeners();
               return;
             }
 
@@ -527,6 +543,19 @@ class WebRTCService extends ChangeNotifier {
     });
   }
 
+  void _startPositionReporting() {
+    _positionReportTimer?.cancel();
+    _positionReportTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen &&
+          _playbackBuffer != null) {
+        _dataChannel!.send(RTCDataChannelMessage(jsonEncode({
+          'type': 'position_report',
+          'currentChunkId': _playbackBuffer!.lastPlayedChunkId,
+        })));
+      }
+    });
+  }
+
   void setVolume(double value) {
     if (_isDisposed) return;
     _volume = value.clamp(0.0, 1.0);
@@ -561,6 +590,8 @@ class WebRTCService extends ChangeNotifier {
 
     _statsTimer?.cancel();
     _statsTimer = null;
+    _positionReportTimer?.cancel();
+    _positionReportTimer = null;
     _connectionTimeoutTimer?.cancel();
     _connectionTimeoutTimer = null;
     _waitingForHostTimer?.cancel();

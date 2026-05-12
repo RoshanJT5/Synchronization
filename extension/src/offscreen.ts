@@ -35,6 +35,17 @@ let activeSessionId = '';
 let networkingReady: Promise<void> | null = null;
 let announceTimer: number | null = null;
 
+// ── Receiver Mesh Sync Coordinator ──────────────────────────────────────────
+interface ReceiverState {
+  peerId: string;
+  lastChunkId: number;
+  lastReportTime: number;
+  isWaiting: boolean;
+}
+const receiverStates = new Map<string, ReceiverState>();
+let syncCoordinatorTimer: number | null = null;
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── Synchronized Playback Engine ──────────────────────────────────────────────────
 // Default source buffer: 400 ms — gives receivers enough time to decode and
 // schedule playback before the source monitor plays out loud.
@@ -256,6 +267,7 @@ async function startSendMode(sessionId: string, streamId: string) {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
+    startSyncCoordinator();
     chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
   } catch (error: any) {
     console.error('SEND error:', error);
@@ -354,6 +366,22 @@ function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | 
         const rtt = performance.now() - msg.t;
         const oneWayMs = rtt / 2;
         console.log(`[ClockSync] RTT=${rtt.toFixed(1)}ms  one-way≈${oneWayMs.toFixed(1)}ms`);
+
+        // Handle position reports for Mesh Sync
+        if (msg.type === 'position_report') {
+          const state = receiverStates.get(targetId) || {
+            peerId: targetId,
+            lastChunkId: 0,
+            lastReportTime: 0,
+            isWaiting: false
+          };
+          state.lastChunkId = msg.currentChunkId;
+          state.lastReportTime = Date.now();
+          receiverStates.set(targetId, state);
+
+          // Run sync check every time a report comes in
+          runSyncCoordinator();
+        }
 
         // The source monitor delay = max(syncBufferMs, one-way latency + margin)
         // This ensures the laptop speaker never plays ahead of the receivers.
@@ -575,6 +603,7 @@ function resetSessionState() {
       try { processor.disconnect(); } catch (_) {}
       (window as any).__audioProcessor = null;
     }
+    stopSyncCoordinator();
     audioCtx.close().catch(() => {});
     audioCtx = null;
   }
@@ -665,6 +694,82 @@ function ensureSignalingConnected(sessionId: string) {
     socket.once('connect_error', onConnectError);
     socket.connect();
   });
+}
+
+// ── Sync Coordinator Logic ───────────────────────────────────────────────
+
+function runSyncCoordinator() {
+  if (receiverStates.size < 2) return; // Only sync if multiple receivers
+
+  // 1. Find the "sync floor" (slowest receiver's position)
+  let minChunk = Infinity;
+  for (const state of receiverStates.values()) {
+    // Ignore stale reports (> 5s old)
+    if (Date.now() - state.lastReportTime > 5000) continue;
+    if (state.lastChunkId < minChunk) minChunk = state.lastChunkId;
+  }
+
+  if (minChunk === Infinity) return;
+
+  // 2. Set a barrier 10 chunks (~100ms) ahead of the slowest person
+  const checkpoint = minChunk + 10;
+
+  // 3. Command ahead receivers to wait
+  for (const state of receiverStates.values()) {
+    if (state.lastChunkId > checkpoint + 5 && !state.isWaiting) {
+      console.log(`[SyncCoordinator] Peer ${state.peerId} is ahead. Barrier at ${checkpoint}`);
+      state.isWaiting = true;
+      sendToReceiver(state.peerId, { type: 'wait_at_checkpoint', checkpoint });
+    }
+  }
+
+  // 4. If slowest has reached the checkpoint, release everyone
+  if (minChunk >= checkpoint - 2) {
+    let released = false;
+    for (const state of receiverStates.values()) {
+      if (state.isWaiting) {
+        state.isWaiting = false;
+        released = true;
+      }
+    }
+    if (released) {
+      console.log(`[SyncCoordinator] All caught up at ${minChunk}. Resuming.`);
+      broadcastToAllReceivers({ type: 'resume' });
+    }
+  }
+}
+
+function sendToReceiver(peerId: string, msg: any) {
+  const peer = peers.get(peerId);
+  const ch = (peer as any)?.__clockChannel as RTCDataChannel | undefined;
+  if (ch && ch.readyState === 'open') {
+    ch.send(JSON.stringify(msg));
+  }
+}
+
+function broadcastToAllReceivers(msg: any) {
+  const json = JSON.stringify(msg);
+  for (const peer of peers.values()) {
+    const ch = (peer as any)?.__clockChannel as RTCDataChannel | undefined;
+    if (ch && ch.readyState === 'open') {
+      ch.send(json);
+    }
+  }
+}
+
+function startSyncCoordinator() {
+  if (syncCoordinatorTimer) return;
+  syncCoordinatorTimer = window.setInterval(() => {
+    runSyncCoordinator();
+  }, 2000);
+}
+
+function stopSyncCoordinator() {
+  if (syncCoordinatorTimer) {
+    window.clearInterval(syncCoordinatorTimer);
+    syncCoordinatorTimer = null;
+  }
+  receiverStates.clear();
 }
 
 function playStream(stream: MediaStream) {
