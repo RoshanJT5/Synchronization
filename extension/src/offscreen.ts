@@ -1,4 +1,5 @@
 import { Buffer } from 'buffer';
+import { io, Socket } from 'socket.io-client';
 (window as any).Buffer = Buffer;
 (window as any).global = window;
 (window as any).process = (window as any).process || { env: {} };
@@ -24,7 +25,7 @@ const ICE_SERVERS = [
     credential: 'openrelayproject'
   }
 ];
-let socket: import('socket.io-client').Socket | null = null;
+let socket: Socket | null = null;
 type PeerState = {
   pc: RTCPeerConnection;
   targetId: string;
@@ -245,12 +246,23 @@ function resetSessionState() {
 async function ensureNetworkingReady() {
   if (networkingReady) return networkingReady;
   networkingReady = new Promise((resolve) => {
-    // @ts-ignore
-    const { io } = window;
-    socket = io(SIGNALING_SERVER);
+    socket = io(SIGNALING_SERVER, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      timeout: 60000
+    });
     socket.on('connect', () => {
       console.log('Connected to signaling server');
+      if (activeSessionId) {
+        socket?.emit('join-session', activeSessionId);
+      }
       resolve();
+    });
+    socket.on('peer-joined', ({ peerId }: { peerId: string }) => {
+      if (peerId !== socket?.id) {
+        console.log('Peer joined, creating offer for:', peerId);
+        createOffer(peerId);
+      }
     });
     socket.on('offer', async (data: any) => {
       await handleOffer(data.offer, data.fromId);
@@ -265,6 +277,24 @@ async function ensureNetworkingReady() {
     });
   });
   return networkingReady;
+}
+
+async function createOffer(peerId: string) {
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const clockChannel = pc.createDataChannel('clock-sync', { ordered: true });
+  
+  peers.set(peerId, { pc, targetId: peerId });
+  (pc as any).__clockChannel = clockChannel;
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate && socket) {
+      socket.emit('ice-candidate', { candidate: event.candidate, toId: peerId });
+    }
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket?.emit('offer', { offer, toId: peerId });
 }
 
 async function handleOffer(offer: RTCSessionDescriptionInit, fromId: string) {

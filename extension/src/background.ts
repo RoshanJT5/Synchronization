@@ -118,7 +118,7 @@ function prepareSendSession(sessionId: string) {
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
-    timeout: 20000
+    timeout: 60000
   });
 
   let announceInterval: any;

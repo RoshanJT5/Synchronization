@@ -89,6 +89,7 @@ class WebRTCService extends ChangeNotifier {
       _socket = io.io(url, io.OptionBuilder()
         .setTransports(['websocket', 'polling'])
         .disableAutoConnect()
+        .setTimeout(60000)
         .build());
 
       _socket!.onConnect((_) {
@@ -96,7 +97,7 @@ class WebRTCService extends ChangeNotifier {
         _socket!.emit('join-session', shareCode);
         
         _waitingForHostTimer?.cancel();
-        _waitingForHostTimer = Timer(const Duration(seconds: 5), () {
+        _waitingForHostTimer = Timer(const Duration(seconds: 20), () {
           if (_state == AppConnectionState.connecting && _pc == null) {
             _isWaitingForHost = true;
             notifyListeners();
@@ -128,7 +129,7 @@ class WebRTCService extends ChangeNotifier {
 
       _socket!.connect();
 
-      _connectionTimeoutTimer = Timer(const Duration(seconds: 25), () {
+      _connectionTimeoutTimer = Timer(const Duration(seconds: 60), () {
         if (_state == AppConnectionState.connecting) {
           _setError('Connection timed out. Extension might be offline.');
         }
