@@ -215,6 +215,7 @@ async function startOffscreen(mode: 'SEND' | 'RECEIVE', sessionId: string, strea
   });
 
   const initMessage = {
+    target: 'offscreen',
     type: 'INIT_OFFSCREEN',
     mode,
     sessionId,

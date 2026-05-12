@@ -87,7 +87,7 @@ class WebRTCService extends ChangeNotifier {
 
     try {
       _socket = io.io(url, io.OptionBuilder()
-        .setTransports(['websocket', 'polling'])
+        .setTransports(['websocket'])
         .disableAutoConnect()
         .setTimeout(60000)
         .build());

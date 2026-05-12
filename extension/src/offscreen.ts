@@ -247,7 +247,7 @@ async function ensureNetworkingReady() {
   if (networkingReady) return networkingReady;
   networkingReady = new Promise((resolve) => {
     socket = io(SIGNALING_SERVER, {
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
       reconnection: true,
       timeout: 60000
     });
@@ -260,6 +260,15 @@ async function ensureNetworkingReady() {
     });
     socket.on('connect_error', (err) => {
       console.error('[Offscreen] Connection error:', err);
+    });
+    socket.on('session-peers', ({ peers: peerIds }: { peers: string[] }) => {
+      console.log('[Offscreen] Received session peers:', peerIds);
+      for (const peerId of peerIds) {
+        if (peerId !== socket?.id && !peers.has(peerId)) {
+          console.log('[Offscreen] Initiating offer to existing peer:', peerId);
+          createOffer(peerId);
+        }
+      }
     });
     socket.on('peer-joined', ({ peerId }: { peerId: string }) => {
       if (peerId !== socket?.id) {
