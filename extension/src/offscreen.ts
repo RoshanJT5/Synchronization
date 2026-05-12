@@ -35,6 +35,21 @@ let activeSessionId = '';
 let networkingReady: Promise<void> | null = null;
 let announceTimer: number | null = null;
 
+// ── Synchronized Playback Engine ──────────────────────────────────────────────────
+// Default source buffer: 400 ms — gives receivers enough time to decode and
+// schedule playback before the source monitor plays out loud.
+// Configurable via SET_SYNC_BUFFER message from the extension popup.
+let syncBufferMs = 400;
+
+// Receive-side sync: AudioContext + DelayNode used when this extension is
+// running in RECEIVE mode (extension acting as a remote speaker).
+let rxAudioCtx: AudioContext | null = null;
+let rxDelayNode: DelayNode | null = null;
+let rxSourceNode: MediaStreamAudioSourceNode | null = null;
+let rxDestNode: MediaStreamAudioDestinationNode | null = null;
+let rxAudioEl: HTMLAudioElement | null = null;
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── Source audio passthrough (keeps laptop speakers alive while streaming) ──
 let audioCtx: AudioContext | null = null;
 let sourceNode: MediaStreamAudioSourceNode | null = null;
@@ -67,6 +82,26 @@ chrome.runtime.onMessage.addListener((message) => {
       localGain.gain.setTargetAtTime(sourceMuted ? 0 : 1, audioCtx!.currentTime, 0.05);
     }
     console.log('Source audio muted:', sourceMuted);
+  }
+
+  // Update the source playback buffer (sent from the extension popup UI)
+  if (message.type === 'SET_SYNC_BUFFER') {
+    const newBufferMs = Math.max(0, Math.min(1000, Number(message.bufferMs) || 400));
+    syncBufferMs = newBufferMs;
+    console.log(`[SyncEngine] Source buffer updated: ${syncBufferMs} ms`);
+
+    // Immediately ramp the local monitor delay to match
+    const delayNode = (window as any).__syncDelayNode as DelayNode | undefined;
+    const ctx = (window as any).__syncAudioCtx as AudioContext | undefined;
+    if (delayNode && ctx) {
+      delayNode.delayTime.setTargetAtTime(syncBufferMs / 1000, ctx.currentTime, 0.2);
+    }
+
+    // Broadcast the new config to all connected receivers via clock-sync channels
+    _broadcastSyncConfig();
+
+    // Tell the popup about the change
+    chrome.runtime.sendMessage({ type: 'SYNC_BUFFER_UPDATED', bufferMs: syncBufferMs });
   }
 });
 
@@ -107,10 +142,13 @@ async function startSendMode(sessionId: string, streamId: string) {
     audioCtx = new AudioContext({ latencyHint: 'interactive' });
     sourceNode = audioCtx.createMediaStreamSource(rawStream);
     
-    // Adaptive delay: starts at 40ms, updated by clock-sync RTT measurements
-    // so laptop speakers stay perfectly in sync with the mobile receiver.
-    const delayNode = audioCtx.createDelay(1.0);
-    delayNode.delayTime.value = 0.04; // 40ms initial estimate
+    // Source monitor delay: starts at syncBufferMs (default 400 ms).
+    // This is the KEY sync mechanism — the source delays its own speaker output
+    // by the same amount it tells receivers to buffer, so all outputs fire
+    // at approximately the same wall-clock time.
+    // Clock-sync RTT measurements fine-tune this in real time if needed.
+    const delayNode = audioCtx.createDelay(2.0);
+    delayNode.delayTime.value = syncBufferMs / 1000;
 
     // Expose so clock-sync can update it
     (window as any).__syncDelayNode = delayNode;
@@ -245,8 +283,12 @@ function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | 
       ordered: false,
       maxRetransmits: 0,
     });
+    (peer as any).__clockChannel = clockChannel;
 
     clockChannel.onopen = () => {
+      // Immediately broadcast the current sync config so receivers can buffer correctly.
+      _sendSyncConfig(clockChannel);
+
       clockTimer = window.setInterval(() => {
         if (clockChannel?.readyState === 'open') {
           clockChannel.send(JSON.stringify({ t: performance.now() }));
@@ -263,14 +305,17 @@ function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | 
         const oneWayMs = rtt / 2;
         console.log(`[ClockSync] RTT=${rtt.toFixed(1)}ms  one-way≈${oneWayMs.toFixed(1)}ms`);
 
-        // Update the laptop speaker delay to match measured one-way latency.
-        // Clamp to [10ms, 300ms] to avoid audible artifacts.
+        // The source monitor delay = max(syncBufferMs, one-way latency + margin)
+        // This ensures the laptop speaker never plays ahead of the receivers.
+        const targetDelay = Math.max(
+          syncBufferMs / 1000,
+          Math.max(0.01, Math.min(1.0, (oneWayMs + 50) / 1000))
+        );
         const delayNode = (window as any).__syncDelayNode as DelayNode | undefined;
         const ctx = (window as any).__syncAudioCtx as AudioContext | undefined;
         if (delayNode && ctx) {
-          const targetDelay = Math.max(0.01, Math.min(0.3, oneWayMs / 1000));
-          // Smooth ramp over 200ms to avoid clicks
-          delayNode.delayTime.setTargetAtTime(targetDelay, ctx.currentTime, 0.2);
+          // Smooth ramp over 300ms to avoid audible clicks
+          delayNode.delayTime.setTargetAtTime(targetDelay, ctx.currentTime, 0.3);
         }
       } catch (_) {}
     };
@@ -281,9 +326,22 @@ function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | 
   } else {
     pc.ondatachannel = (e) => {
       if (e.channel.label === 'clock-sync') {
+        (peer as any).__clockChannel = e.channel;
         e.channel.onmessage = (msg) => {
           try {
             const data = JSON.parse(msg.data);
+            
+            if (data.type === 'sync-config') {
+              const bufferMs = Number(data.bufferMs);
+              (window as any).__rxSyncBufferMs = bufferMs;
+              const rxDelay = (window as any).__rxDelayNode as DelayNode | undefined;
+              const rxCtx   = (window as any).__rxAudioCtx  as AudioContext | undefined;
+              if (rxDelay && rxCtx) {
+                rxDelay.delayTime.setTargetAtTime(bufferMs / 1000, rxCtx.currentTime, 0.3);
+              }
+              return;
+            }
+
             // Echo back with our receive timestamp
             if (e.channel.readyState === 'open') {
               e.channel.send(JSON.stringify({ t: data.t, r: performance.now() }));
@@ -555,13 +613,81 @@ function ensureSignalingConnected(sessionId: string) {
 }
 
 function playStream(stream: MediaStream) {
-  if (!audioPlayer) {
-    audioPlayer = document.createElement('audio');
-    audioPlayer.autoplay = true;
-    document.body.appendChild(audioPlayer);
+  // ── Tear down any previous receive-side audio graph ────────────────────────
+  if (rxAudioEl) { rxAudioEl.srcObject = null; rxAudioEl.remove(); rxAudioEl = null; }
+  if (rxSourceNode) { try { rxSourceNode.disconnect(); } catch (_) {} rxSourceNode = null; }
+  if (rxDelayNode)  { try { rxDelayNode.disconnect();  } catch (_) {} rxDelayNode = null; }
+  if (rxDestNode)   { try { rxDestNode.disconnect();   } catch (_) {} rxDestNode = null; }
+  if (rxAudioCtx && rxAudioCtx.state !== 'closed') {
+    rxAudioCtx.close().catch(() => {});
+    rxAudioCtx = null;
   }
-  audioPlayer.srcObject = stream;
-  audioPlayer.play().catch(err => console.error('Audio play failed:', err));
+  if (audioPlayer)  { audioPlayer.srcObject = null; }
+
+  // ── Build receive-side audio graph with sync delay ───────────────────────
+  // stream → rxSourceNode → rxDelayNode → rxDestNode → rxAudioEl → speakers
+  //
+  // rxDelayNode is initialised with the sync-config buffer received from the
+  // source.  It absorbs network jitter so all receivers play in lockstep.
+  const receivedBuffer = (window as any).__rxSyncBufferMs as number | undefined;
+  const delaySeconds = Math.max(0, (receivedBuffer ?? syncBufferMs) / 1000);
+
+  try {
+    rxAudioCtx = new AudioContext({ latencyHint: 'playback' });
+    rxSourceNode = rxAudioCtx.createMediaStreamSource(stream);
+    rxDelayNode  = rxAudioCtx.createDelay(2.0);
+    rxDelayNode.delayTime.value = delaySeconds;
+    rxDestNode   = rxAudioCtx.createMediaStreamDestination();
+
+    rxSourceNode.connect(rxDelayNode);
+    rxDelayNode.connect(rxDestNode);
+
+    rxAudioEl = document.createElement('audio');
+    rxAudioEl.srcObject = rxDestNode.stream;
+    rxAudioEl.autoplay = true;
+    document.body.appendChild(rxAudioEl);
+    rxAudioEl.play().catch(err => console.error('[SyncEngine] RX play failed:', err));
+
+    // Expose so sync-config updates can adjust delay in real time
+    (window as any).__rxDelayNode   = rxDelayNode;
+    (window as any).__rxAudioCtx    = rxAudioCtx;
+
+    console.log(`[SyncEngine] RX audio routed through ${(delaySeconds * 1000).toFixed(0)} ms delay node`);
+  } catch (err) {
+    // Fallback: direct playback without delay if AudioContext fails
+    console.warn('[SyncEngine] AudioContext unavailable, falling back to direct play:', err);
+    if (!audioPlayer) {
+      audioPlayer = document.createElement('audio');
+      audioPlayer.autoplay = true;
+      document.body.appendChild(audioPlayer);
+    }
+    audioPlayer.srcObject = stream;
+    audioPlayer.play().catch(e => console.error('Audio play failed:', e));
+  }
+}
+
+// ── Sync-config helpers ───────────────────────────────────────────────────
+
+/// Send a sync-config message on a specific data channel.
+function _sendSyncConfig(channel: RTCDataChannel) {
+  if (channel.readyState === 'open') {
+    channel.send(JSON.stringify({ type: 'sync-config', bufferMs: syncBufferMs }));
+    console.log(`[SyncEngine] Broadcasted sync-config: bufferMs=${syncBufferMs}`);
+  }
+}
+
+/// Send sync-config to every currently open clock-sync data channel.
+function _broadcastSyncConfig() {
+  for (const [, peer] of peers) {
+    const ch = (peer as any).__clockChannel as RTCDataChannel | undefined;
+    if (ch) _sendSyncConfig(ch);
+  }
+  // Also update receive-side delay if this device is currently a receiver
+  const rxDelay = (window as any).__rxDelayNode as DelayNode | undefined;
+  const rxCtx   = (window as any).__rxAudioCtx  as AudioContext | undefined;
+  if (rxDelay && rxCtx) {
+    rxDelay.delayTime.setTargetAtTime(syncBufferMs / 1000, rxCtx.currentTime, 0.3);
+  }
 }
 
 function ensureNetworkingReady() {

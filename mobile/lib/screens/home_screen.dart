@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../services/webrtc_service.dart';
 import '../services/discovery_service.dart';
 import '../services/mobile_source_service.dart';
+import '../services/sync_playback_engine.dart';
 import '../theme/app_theme.dart';
 import '../widgets/gradient_button.dart';
 
@@ -964,6 +965,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 24),
           _buildSyncStatsCard(),
+          const SizedBox(height: 16),
+          _buildSyncSettingsCard(),
           const SizedBox(height: 20),
           Row(
             children: [
@@ -977,6 +980,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
               const Icon(Icons.volume_up, color: Colors.white54, size: 20),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 35,
+                child: Text(
+                  '${(_webrtc.volume * 100).toInt()}%',
+                  style: const TextStyle(
+                    color: AppTheme.textDim,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 28),
@@ -1025,6 +1041,115 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               _statCell('JITTER', '${jitter.toStringAsFixed(0)}ms', syncColor),
               Container(width: 1, height: 28, color: AppTheme.border),
               _statCell('SYNC', syncLabel, syncColor),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSyncSettingsCard() {
+    return ListenableBuilder(
+      listenable: _webrtc.syncEngine,
+      builder: (context, _) {
+        final engine = _webrtc.syncEngine;
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.card,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'SYNCHRONIZATION',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: engine.syncQuality == SyncQuality.synced 
+                        ? AppTheme.green.withValues(alpha: 0.1) 
+                        : Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      engine.syncQuality.label,
+                      style: TextStyle(
+                        color: engine.syncQuality == SyncQuality.synced 
+                          ? AppTheme.green 
+                          : Colors.orange,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...SyncMode.values.map((m) {
+                final isSelected = engine.mode == m;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () => engine.setMode(m),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppTheme.accent.withValues(alpha: 0.1) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected ? AppTheme.accent.withValues(alpha: 0.3) : Colors.transparent,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                            color: isSelected ? AppTheme.accent : AppTheme.textDim,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  m.label,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : AppTheme.textDim,
+                                    fontSize: 13,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  m.description,
+                                  style: TextStyle(
+                                    color: AppTheme.textDim.withValues(alpha: 0.6),
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ],
           ),
         );

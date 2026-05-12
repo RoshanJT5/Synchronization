@@ -15,6 +15,7 @@ function App() {
   const [error, setError] = useState('');
   // true = laptop speakers are silent, false = laptop keeps playing alongside remotes
   const [sourceMuted, setSourceMuted] = useState(false);
+  const [syncBufferMs, setSyncBufferMs] = useState(400); // Master buffer delay
   const [showQR, setShowQR] = useState(false);
   const [readyPeers, setReadyPeers] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -122,6 +123,11 @@ function App() {
     chrome.runtime.sendMessage({ type: 'SET_SOURCE_MUTE', muted: next });
   };
 
+  const handleSyncBufferChange = (bufferMs: number) => {
+    setSyncBufferMs(bufferMs);
+    chrome.runtime.sendMessage({ type: 'SET_SYNC_BUFFER', bufferMs });
+  };
+
   // Listen for status updates from background/offscreen
   useEffect(() => {
     const listener = (message: any) => {
@@ -135,6 +141,8 @@ function App() {
         if (message.state.sessionId) {
           setSessionId(message.state.sessionId);
         }
+      } else if (message.type === 'SYNC_BUFFER_UPDATED') {
+        setSyncBufferMs(message.bufferMs);
       }
     };
     chrome.runtime.onMessage.addListener(listener);
@@ -252,6 +260,27 @@ function App() {
             </p>
 
             {/* Source audio toggle — only relevant when this device is the sender */}
+            {status === 'CAPTURING' && (
+              <div className="w-full bg-[#16161a] p-4 rounded-xl border border-white/5 mb-4 shadow-inner">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Sync Buffer</span>
+                  <span className="text-xs font-mono text-purple-400 font-bold">{syncBufferMs}ms</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1000"
+                  step="50"
+                  value={syncBufferMs}
+                  onChange={(e) => handleSyncBufferChange(Number(e.target.value))}
+                  className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400 transition-all"
+                />
+                <p className="text-[9px] text-gray-600 mt-2 leading-relaxed">
+                  Higher buffer = better sync, more delay.
+                </p>
+              </div>
+            )}
+
             {status === 'CAPTURING' && (
               <button
                 onClick={handleToggleSourceMute}

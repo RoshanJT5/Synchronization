@@ -3,13 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'clock_sync_service.dart';
+import 'sync_playback_engine.dart';
 
-enum AppConnectionState {
-  idle,
-  connecting,
-  connected,
-  error,
-}
+enum AppConnectionState { idle, connecting, connected, error }
 
 enum ConnectionQuality { excellent, good, poor, unknown }
 
@@ -36,6 +32,9 @@ class WebRTCService extends ChangeNotifier {
 
   // Clock sync
   final ClockSyncService clockSync = ClockSyncService();
+
+  // Synchronized playback engine
+  final SyncPlaybackEngine syncEngine = SyncPlaybackEngine();
 
   AppConnectionState get state => _state;
   String get errorMessage => _errorMessage;
@@ -70,10 +69,7 @@ class WebRTCService extends ChangeNotifier {
   };
 
   static const Map<String, dynamic> _offerSdpConstraints = {
-    'mandatory': {
-      'OfferToReceiveAudio': true,
-      'OfferToReceiveVideo': false,
-    },
+    'mandatory': {'OfferToReceiveAudio': true, 'OfferToReceiveVideo': false},
     'optional': [],
   };
 
@@ -156,7 +152,8 @@ class WebRTCService extends ChangeNotifier {
             payload = Map<String, dynamic>.from(data);
           } else {
             debugPrint(
-                '[Socket] Invalid signal data type: ${data.runtimeType}');
+              '[Socket] Invalid signal data type: ${data.runtimeType}',
+            );
             return;
           }
 
@@ -209,7 +206,8 @@ class WebRTCService extends ChangeNotifier {
 
       final type = sigMap['type'] as String?;
       debugPrint(
-          '[WebRTC] Handling signal type: ${type ?? (sigMap['candidate'] != null ? 'candidate' : 'unknown')} (State: ${_peerConnection?.signalingState})');
+        '[WebRTC] Handling signal type: ${type ?? (sigMap['candidate'] != null ? 'candidate' : 'unknown')} (State: ${_peerConnection?.signalingState})',
+      );
 
       if (type == 'offer') {
         final sdp = sigMap['sdp'] as String;
@@ -221,9 +219,11 @@ class WebRTCService extends ChangeNotifier {
         await _flushPendingRemoteCandidates();
 
         debugPrint(
-            '[WebRTC] Creating answer (Current State: ${_peerConnection!.signalingState})');
-        final answer =
-            await _peerConnection!.createAnswer(_offerSdpConstraints);
+          '[WebRTC] Creating answer (Current State: ${_peerConnection!.signalingState})',
+        );
+        final answer = await _peerConnection!.createAnswer(
+          _offerSdpConstraints,
+        );
 
         debugPrint('[WebRTC] Setting local answer');
         await _peerConnection!.setLocalDescription(answer);
@@ -246,7 +246,8 @@ class WebRTCService extends ChangeNotifier {
 
         if (!_hasRemoteDescription) {
           debugPrint(
-              '[WebRTC] Queueing ICE candidate until remote description is set');
+            '[WebRTC] Queueing ICE candidate until remote description is set',
+          );
           _pendingRemoteCandidates.add(candidate);
         } else {
           await _peerConnection!.addCandidate(candidate);
@@ -286,6 +287,8 @@ class WebRTCService extends ChangeNotifier {
         _waitingForHostTimer?.cancel();
         _isWaitingForHost = false;
         _disconnectGraceTimer?.cancel();
+        // Start sync-engine monitoring now that we have a live clock-sync channel
+        syncEngine.startMonitoring(clockSync);
         _setState(AppConnectionState.connected);
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         _setError('WebRTC connection lost');
@@ -302,6 +305,11 @@ class WebRTCService extends ChangeNotifier {
         if (_audioRenderer != null) {
           _audioRenderer!.srcObject = _remoteStream;
         }
+        // Apply current volume to the new tracks
+        for (var track in _remoteStream!.getAudioTracks()) {
+          track.enabled = _volume > 0;
+          Helper.setVolume(_volume, track);
+        }
         notifyListeners();
       }
     };
@@ -312,16 +320,28 @@ class WebRTCService extends ChangeNotifier {
       if (_audioRenderer != null) {
         _audioRenderer!.srcObject = stream;
       }
+      // Apply current volume to the new tracks
+      for (var track in stream.getAudioTracks()) {
+        track.enabled = _volume > 0;
+        Helper.setVolume(_volume, track);
+      }
       notifyListeners();
     };
 
     // ── Clock-sync data channel ──────────────────────────────────────────
     // The extension (initiator) opens a "clock-sync" data channel.
     // We receive it here and attach it to ClockSyncService.
+    // The channel also carries sync-config messages from the source.
     _peerConnection!.onDataChannel = (channel) {
       if (channel.label == 'clock-sync') {
         debugPrint('[WebRTC] Clock-sync data channel received');
         clockSync.attach(channel);
+        // Forward source-buffer config into the sync engine whenever it arrives
+        clockSync.addListener(() {
+          if (clockSync.hasSyncConfig) {
+            syncEngine.applySourceConfig(bufferMs: clockSync.sourceBufferMs!);
+          }
+        });
       }
     };
     // ─────────────────────────────────────────────────────────────────────
@@ -406,8 +426,8 @@ class WebRTCService extends ChangeNotifier {
         for (final report in stats) {
           if (report.type == 'candidate-pair' &&
               report.values.containsKey('currentRoundTripTime')) {
-            final rtt =
-                (report.values['currentRoundTripTime'] as num).toDouble();
+            final rtt = (report.values['currentRoundTripTime'] as num)
+                .toDouble();
             ConnectionQuality q;
             if (rtt < 0.05) {
               q = ConnectionQuality.excellent;
@@ -435,10 +455,12 @@ class WebRTCService extends ChangeNotifier {
   void setVolume(double value) {
     if (_isDisposed) return;
     _volume = value.clamp(0.0, 1.0);
-    // flutter_webrtc 0.12.x does not expose RTCVideoRenderer.volume.
-    // Apply volume by toggling audio track enabled state (mute = 0.0).
+
+    // Use Helper.setVolume for linear scaling on mobile.
+    // track.enabled provides a reliable absolute mute at 0.0.
     _remoteStream?.getAudioTracks().forEach((track) {
       track.enabled = _volume > 0.0;
+      Helper.setVolume(_volume, track);
     });
     notifyListeners();
   }
@@ -473,6 +495,7 @@ class WebRTCService extends ChangeNotifier {
     _connectionQuality = ConnectionQuality.unknown;
     _isWaitingForHost = false;
     clockSync.detach();
+    syncEngine.stopMonitoring();
 
     _activeSessionId = '';
     _pcFuture = null;
