@@ -106,8 +106,13 @@ class WebRTCService extends ChangeNotifier {
       });
 
       _socket!.on('offer', (data) async {
-        debugPrint('[WebRTC] Received offer from extension');
-        await _handleOffer(data['offer'], data['fromId']);
+        debugPrint('[WebRTC] Received offer from extension. fromId: ${data['fromId']}');
+        try {
+          await _handleOffer(data['offer'], data['fromId']);
+        } catch (e) {
+          debugPrint('[WebRTC] Error handling offer: $e');
+          _setError('Failed to process connection offer');
+        }
       });
 
       _socket!.on('ice-candidate', (data) async {
@@ -175,19 +180,32 @@ class WebRTCService extends ChangeNotifier {
     };
 
     _pc!.onConnectionState = (state) {
-      debugPrint('[WebRTC] Connection state: $state');
+      debugPrint('[WebRTC] Connection state changed to: $state');
+      
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        debugPrint('[WebRTC] REACHED CONNECTED STATE. Updating UI now.');
+        
+        // 1. Update UI IMMEDIATELY
         _setState(AppConnectionState.connected);
         _connectionTimeoutTimer?.cancel();
+        _isWaitingForHost = false;
 
-        _playbackBuffer = PlaybackBuffer(_syncClock);
-        _playbackBuffer!.start((audioData) async {
-          await _playAudioChunk(Uint8List.fromList(audioData));
+        // 2. Initialize sync and audio systems in the background
+        Future.delayed(const Duration(milliseconds: 100), () {
+          debugPrint('[WebRTC] Initializing playback systems post-connection.');
+          _playbackBuffer = PlaybackBuffer(_syncClock);
+          _playbackBuffer!.start((audioData) async {
+            await _playAudioChunk(Uint8List.fromList(audioData));
+          });
+          _syncEngine.startMonitoring(_syncClock);
+          _startPositionReporting();
         });
-        _syncEngine.startMonitoring(_syncClock);
-        _startPositionReporting();
+        
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        debugPrint('[WebRTC] Connection FAILED.');
         _setError('WebRTC connection failed');
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+        debugPrint('[WebRTC] Connection DISCONNECTED.');
       }
     };
 

@@ -26,13 +26,14 @@ const ICE_SERVERS = [
   }
 ];
 let socket: Socket | null = null;
+let networkingReady: Promise<void> | null = null;
+let currentJoinedSession: string | null = null;
 type PeerState = {
   pc: RTCPeerConnection;
   targetId: string;
 };
 const peers = new Map<string, PeerState>();
 let activeSessionId = '';
-let networkingReady: Promise<void> | null = null;
 let announceTimer: number | null = null;
 
 // ── Receiver Mesh Sync Coordinator ──────────────────────────────────────────
@@ -244,54 +245,82 @@ function resetSessionState() {
 }
 
 async function ensureNetworkingReady() {
-  if (networkingReady) return networkingReady;
-  networkingReady = new Promise((resolve) => {
-    socket = io(SIGNALING_SERVER, {
-      transports: ['websocket'],
-      reconnection: true,
-      timeout: 60000
-    });
-    socket.on('connect', () => {
-      console.log('[Offscreen] Connected. Joining session:', activeSessionId);
-      if (activeSessionId) {
-        socket?.emit('join-session', activeSessionId);
-      }
-      resolve();
-    });
-    socket.on('connect_error', (err) => {
-      console.error('[Offscreen] Connection error:', err);
-    });
-    socket.on('session-peers', ({ peers: peerIds }: { peers: string[] }) => {
-      console.log('[Offscreen] Received session peers:', peerIds);
-      for (const peerId of peerIds) {
+  if (networkingReady && socket?.connected && currentJoinedSession === activeSessionId) {
+    return networkingReady;
+  }
+
+  console.log('[Offscreen] Initializing networking for session:', activeSessionId);
+  networkingReady = new Promise((resolve, reject) => {
+    if (!socket) {
+      socket = io(SIGNALING_SERVER, {
+        transports: ['websocket'],
+        reconnection: true,
+        timeout: 60000
+      });
+
+      socket.on('connect', () => {
+        console.log('[Offscreen] Socket.IO Connected. ID:', socket?.id);
+        if (activeSessionId) {
+          console.log('[Offscreen] Joining room:', activeSessionId);
+          socket?.emit('join-session', activeSessionId);
+          currentJoinedSession = activeSessionId;
+        }
+        resolve();
+      });
+
+      socket.on('connect_error', (err) => {
+        console.error('[Offscreen] Socket.IO Connection error:', err);
+        reject(err);
+      });
+
+      socket.on('session-peers', ({ peers: peerIds }: { peers: string[] }) => {
+        console.log('[Offscreen] Session peers received:', peerIds);
+        for (const peerId of peerIds) {
+          if (peerId !== socket?.id && !peers.has(peerId)) {
+            console.log('[Offscreen] Found existing peer, creating offer:', peerId);
+            createOffer(peerId);
+          }
+        }
+      });
+
+      socket.on('peer-joined', ({ peerId }: { peerId: string }) => {
         if (peerId !== socket?.id && !peers.has(peerId)) {
-          console.log('[Offscreen] Initiating offer to existing peer:', peerId);
+          console.log('[Offscreen] New peer joined, creating offer:', peerId);
           createOffer(peerId);
         }
+      });
+
+      socket.on('offer', async (data: any) => {
+        console.log('[Offscreen] Received offer from:', data.fromId);
+        await handleOffer(data.offer, data.fromId);
+      });
+
+      socket.on('answer', async (data: any) => {
+        console.log('[Offscreen] Received answer from:', data.fromId);
+        const peer = peers.get(data.fromId);
+        if (peer) await peer.pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+      });
+
+      socket.on('ice-candidate', async (data: any) => {
+        const peer = peers.get(data.fromId);
+        if (peer) await peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+      });
+    } else {
+      // Socket exists, just re-join
+      if (activeSessionId && currentJoinedSession !== activeSessionId) {
+        console.log('[Offscreen] Re-joining new room:', activeSessionId);
+        socket.emit('join-session', activeSessionId);
+        currentJoinedSession = activeSessionId;
       }
-    });
-    socket.on('peer-joined', ({ peerId }: { peerId: string }) => {
-      if (peerId !== socket?.id) {
-        console.log('Peer joined, creating offer for:', peerId);
-        createOffer(peerId);
-      }
-    });
-    socket.on('offer', async (data: any) => {
-      await handleOffer(data.offer, data.fromId);
-    });
-    socket.on('answer', async (data: any) => {
-      const peer = peers.get(data.fromId);
-      if (peer) await peer.pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-    });
-    socket.on('ice-candidate', async (data: any) => {
-      const peer = peers.get(data.fromId);
-      if (peer) await peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-    });
+      resolve();
+    }
   });
+
   return networkingReady;
 }
 
 async function createOffer(peerId: string) {
+  console.log('[Offscreen] createOffer started for:', peerId);
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
   const clockChannel = pc.createDataChannel('clock-sync', { ordered: true });
   
@@ -304,8 +333,14 @@ async function createOffer(peerId: string) {
     }
   };
 
+  pc.onconnectionstatechange = () => {
+    console.log(`[Offscreen] PC State with ${peerId}:`, pc.connectionState);
+  };
+
+  // Create offer
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
+  console.log('[Offscreen] Sending offer to:', peerId);
   socket?.emit('offer', { offer, toId: peerId });
 }
 
