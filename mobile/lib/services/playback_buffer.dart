@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
-import 'sync_clock.dart';
+import 'dart:typed_data';
+import 'clock_sync_service.dart';
 
 class BufferedChunk {
   final int chunkId;
@@ -14,17 +15,27 @@ class BufferedChunk {
   });
 }
 
+typedef PlaybackCallback = Future<void> Function(List<int> audioData);
+
 class PlaybackBuffer {
-  final SyncClock _clock;
-  final Queue<BufferedChunk> _queue = Queue();
+  final ClockSyncService _clock;
+  PlaybackCallback? _onPlay;
+  final DoubleLinkedQueue<BufferedChunk> _queue = DoubleLinkedQueue();
   Timer? _ticker;
   bool _isRunning = false;
   int _lastPlayedChunkId = -1;
   int? _checkpointChunkId;
   bool _isPaused = false;
+  bool _isFeeding = false; // Serialization lock
+
+  // Drift Correction
+  double _currentDriftMs = 0;
+  double _driftCorrectionFactor = 0;
 
   int get lastPlayedChunkId => _lastPlayedChunkId;
   bool get isPaused => _isPaused;
+  double get currentDriftMs => _currentDriftMs;
+  int get bufferSize => _queue.length;
 
   // Stats for debugging
   int _totalChunksReceived = 0;
@@ -33,80 +44,90 @@ class PlaybackBuffer {
 
   PlaybackBuffer(this._clock);
 
-  /// Add a received chunk to the buffer
-  void addChunk(BufferedChunk chunk) {
+  /// Convenient way to add a chunk without manual BufferedChunk creation
+  void addChunk(Uint8List data, int chunkId, int timestamp) {
+    final chunk = BufferedChunk(
+      chunkId: chunkId,
+      playbackTimestamp: timestamp.toDouble(),
+      audioData: data,
+    );
+    _addChunkInternal(chunk);
+  }
+
+  void _addChunkInternal(BufferedChunk chunk) {
     _totalChunksReceived++;
 
-    // Mesh Sync: Stop dropping chunks if we are waiting at a checkpoint.
-    // This allows the buffer to fill up while we are paused.
-    if (_isPaused && _queue.length > 300) {
+    // 1. Duplicate check
+    if (chunk.chunkId <= _lastPlayedChunkId) return;
+
+    // 2. Buffer capacity check
+    if (_queue.length > 500) {
       _totalChunksDropped++;
-      return;
+      _queue.removeFirst();
     }
 
-    // Drop if already played or too old (arrived more than 500ms late)
+    // 3. Stale chunk check
     final now = _clock.syncedNow();
-    if (chunk.chunkId <= _lastPlayedChunkId) {
-      return; // Duplicate, ignore
-    }
-    if (chunk.playbackTimestamp < now - 500 && !_isPaused) {
+    if (chunk.playbackTimestamp < now - 1000 && !_isPaused) {
       _totalChunksDropped++;
-      print('⚠️ Dropped late chunk ${chunk.chunkId} (${(now - chunk.playbackTimestamp).toStringAsFixed(0)}ms late)');
       return;
     }
 
     // Insert into queue sorted by playbackTimestamp
+    // Optimization: find insertion point instead of full sort
+    _queue.add(chunk);
     final list = _queue.toList();
-    list.add(chunk);
     list.sort((a, b) => a.playbackTimestamp.compareTo(b.playbackTimestamp));
     _queue.clear();
     _queue.addAll(list);
   }
 
-  /// Begin playback loop. [onPlay] is called with audio data when it's time.
-  void start(Function(List<int> audioData) onPlay) {
+  void setCheckpoint(int chunkId) {
+    _checkpointChunkId = chunkId;
+  }
+
+  void start(PlaybackCallback onPlay) {
     if (_isRunning) return;
     _isRunning = true;
+    _onPlay = onPlay;
 
-    // Check every 5ms whether any chunk's time has arrived
-    _ticker = Timer.periodic(Duration(milliseconds: 5), (_) {
-      if (_isPaused) return;
+    _ticker = Timer.periodic(const Duration(milliseconds: 5), (_) async {
+      if (_isPaused || _isFeeding || _queue.isEmpty || _onPlay == null) return;
 
       final now = _clock.syncedNow();
+      final next = _queue.first;
 
-      while (_queue.isNotEmpty) {
-        final next = _queue.first;
+      _currentDriftMs = now - next.playbackTimestamp;
+      if (_currentDriftMs.abs() > 30) {
+        _driftCorrectionFactor = _currentDriftMs > 0 ? 1.0 : -1.0;
+      } else {
+        _driftCorrectionFactor = 0;
+      }
 
-        // Mesh Sync: Barrier check
-        if (_checkpointChunkId != null && next.chunkId >= _checkpointChunkId!) {
-          _isPaused = true;
-          _checkpointChunkId = null;
-          print('⏸ Reached checkpoint at ${_lastPlayedChunkId}. Pausing.');
-          break;
-        }
+      if (_checkpointChunkId != null && next.chunkId >= _checkpointChunkId!) {
+        _isPaused = true;
+        _checkpointChunkId = null;
+        return;
+      }
 
-        if (next.playbackTimestamp <= now) {
+      if (next.playbackTimestamp <= now + _driftCorrectionFactor) {
+        _isFeeding = true; 
+        try {
           _queue.removeFirst();
           _lastPlayedChunkId = next.chunkId;
           _totalChunksPlayed++;
-          onPlay(next.audioData); // 🔊 Play this chunk
-        } else {
-          break; // Next chunk is scheduled in the future, stop for now
+          await _onPlay!(next.audioData); 
+        } catch (e) {
+          // Silent catch to prevent loop crash
+        } finally {
+          _isFeeding = false;
         }
       }
     });
   }
 
-  void pauseAtCheckpoint(int chunkId) {
-    _checkpointChunkId = chunkId;
-    print('📍 Sync barrier set at $chunkId');
-  }
-
   void resume() {
-    if (_isPaused) {
-      _isPaused = false;
-      print('▶️ Sync resumed by coordinator');
-    }
+    _isPaused = false;
     _checkpointChunkId = null;
   }
 
@@ -115,11 +136,10 @@ class PlaybackBuffer {
     _ticker?.cancel();
     _queue.clear();
     _lastPlayedChunkId = -1;
+    _onPlay = null;
   }
 
-  /// How many chunks are waiting in buffer
-  int get bufferSize => _queue.length;
-
-  String get stats =>
-    'Received: $_totalChunksReceived | Played: $_totalChunksPlayed | Dropped: $_totalChunksDropped | Queue: ${_queue.length}';
+  String getDebugInfo() {
+    return 'RX:$_totalChunksReceived PL:$_totalChunksPlayed DR:$_totalChunksDropped Q:${_queue.length} DRIFT:${_currentDriftMs.toStringAsFixed(1)}ms';
+  }
 }

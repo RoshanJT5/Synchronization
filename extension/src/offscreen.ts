@@ -30,7 +30,6 @@ type PeerState = {
   targetId: string;
 };
 const peers = new Map<string, PeerState>();
-let audioPlayer: HTMLAudioElement | null = null;
 let activeSessionId = '';
 let networkingReady: Promise<void> | null = null;
 let announceTimer: number | null = null;
@@ -44,78 +43,42 @@ interface ReceiverState {
 }
 const receiverStates = new Map<string, ReceiverState>();
 let syncCoordinatorTimer: number | null = null;
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── Synchronized Playback Engine ──────────────────────────────────────────────────
-// Default source buffer: 400 ms — gives receivers enough time to decode and
-// schedule playback before the source monitor plays out loud.
-// Configurable via SET_SYNC_BUFFER message from the extension popup.
+// ── Global Playback State ────────────────────────────────────────────────────
 let syncBufferMs = 700;
-
-const SYNC_BUFFER_MS = 700; // All receivers will delay playback by this amount
-let chunkSequence = 0;      // Incrementing packet ID
-
-// Receive-side sync: AudioContext + DelayNode used when this extension is
-// running in RECEIVE mode (extension acting as a remote speaker).
-let rxAudioCtx: AudioContext | null = null;
-let rxDelayNode: DelayNode | null = null;
-let rxSourceNode: MediaStreamAudioSourceNode | null = null;
-let rxDestNode: MediaStreamAudioDestinationNode | null = null;
-let rxAudioEl: HTMLAudioElement | null = null;
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Source audio passthrough (keeps laptop speakers alive while streaming) ──
+let chunkSequence = 0;
 let audioCtx: AudioContext | null = null;
 let sourceNode: MediaStreamAudioSourceNode | null = null;
-let localGain: GainNode | null = null;       // controls local playback volume
-let localDest: MediaStreamAudioDestinationNode | null = null; // feeds local <audio>
-let localAudioEl: HTMLAudioElement | null = null;
-let sourceMuted = false;  // tracks current mute state
-let capturedStream: MediaStream | null = null; // Store to release tracks
+let localDelay: DelayNode | null = null;
+let localGain: GainNode | null = null;
+let sourceMuted = false;
+let capturedStream: MediaStream | null = null;
 
 console.log('Offscreen document initialized');
-
-// Signal to background that we are ready to receive INIT
 chrome.runtime.sendMessage({ type: 'OFFSCREEN_READY' });
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'INIT_OFFSCREEN') {
-    console.log('Received INIT_OFFSCREEN:', message);
     if (message.mode === 'SEND') {
       startSendMode(message.sessionId, message.streamId);
-    } else {
-      startReceiveMode(message.sessionId);
     }
   }
 
-  // Toggle local (source) audio on/off while streaming
-  if (message.type === 'SET_SOURCE_MUTE') {
-    sourceMuted = message.muted;
-    if (localGain) {
-      // Smooth ramp to avoid clicks
-      localGain.gain.setTargetAtTime(sourceMuted ? 0 : 1, audioCtx!.currentTime, 0.05);
+  if (message.type === 'SET_SOURCE_MUTE' || message.type === 'MUTE_SOURCE') {
+    sourceMuted = message.muted !== undefined ? message.muted : message.isMuted;
+    if (localGain && audioCtx) {
+      localGain.gain.setTargetAtTime(sourceMuted ? 0 : 1.0, audioCtx.currentTime, 0.1);
     }
-    console.log('Source audio muted:', sourceMuted);
+    console.log('[Offscreen] Source mute toggled:', sourceMuted);
   }
 
-  // Update the source playback buffer (sent from the extension popup UI)
   if (message.type === 'SET_SYNC_BUFFER') {
-    const newBufferMs = Math.max(0, Math.min(1000, Number(message.bufferMs) || 400));
-    syncBufferMs = newBufferMs;
-    console.log(`[SyncEngine] Source buffer updated: ${syncBufferMs} ms`);
-
-    // Immediately ramp the local monitor delay to match
-    const delayNode = (window as any).__syncDelayNode as DelayNode | undefined;
-    const ctx = (window as any).__syncAudioCtx as AudioContext | undefined;
-    if (delayNode && ctx) {
-      delayNode.delayTime.setTargetAtTime(syncBufferMs / 1000, ctx.currentTime, 0.2);
+    syncBufferMs = message.bufferMs;
+    console.log('[Offscreen] Setting sync buffer to:', syncBufferMs);
+    if (localDelay && audioCtx) {
+      localDelay.delayTime.linearRampToValueAtTime(syncBufferMs / 1000, audioCtx.currentTime + 0.5);
     }
-
-    // Broadcast the new config to all connected receivers via clock-sync channels
     _broadcastSyncConfig();
-
-    // Tell the popup about the change
-    chrome.runtime.sendMessage({ type: 'SYNC_BUFFER_UPDATED', bufferMs: syncBufferMs });
   }
 });
 
@@ -125,7 +88,7 @@ async function startSendMode(sessionId: string, streamId: string) {
     resetSessionState();
     activeSessionId = sessionId;
 
-    const rawStream = await navigator.mediaDevices.getUserMedia({
+    capturedStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         // @ts-ignore
         mandatory: {
@@ -136,599 +99,97 @@ async function startSendMode(sessionId: string, streamId: string) {
           { googAutoGainControl: false },
           { googNoiseSuppression: false },
           { googHighpassFilter: false },
-          { googAudioMirroring: false },
-          { echoCancellation: false },
-          { latency: 0 }
+          { echoCancellation: false }
         ]
       },
       video: false
     });
 
-    capturedStream = rawStream;
-
-    // ── Audio graph ──────────────────────────────────────────────────────
-    // rawStream → sourceNode ─┬─ localGain → localDest → <audio> (laptop speakers)
-    //                         └─ (stream passed directly to WebRTC peers)
-    //
-    // The WebRTC peer uses rawStream directly so remote devices always get
-    // full-volume audio regardless of the local mute toggle.
-    // ─────────────────────────────────────────────────────────────────────
-    // Route: source -> delay -> gain -> laptop speakers
-    // We force 48000Hz to match the Flutter receiver's playback settings
+    // ── Audio Graph ──────────────────────────────────────────────────────
+    // Capture at 48kHz to match receiver
     audioCtx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
-    sourceNode = audioCtx.createMediaStreamSource(rawStream);
+    sourceNode = audioCtx.createMediaStreamSource(capturedStream);
     
-    // Source monitor delay: starts at syncBufferMs (default 400 ms).
-    // This is the KEY sync mechanism — the source delays its own speaker output
-    // by the same amount it tells receivers to buffer, so all outputs fire
-    // at approximately the same wall-clock time.
-    // Clock-sync RTT measurements fine-tune this in real time if needed.
-    const delayNode = audioCtx.createDelay(2.0);
-    delayNode.delayTime.value = syncBufferMs / 1000;
-
-    // Expose so clock-sync can update it
-    (window as any).__syncDelayNode = delayNode;
-    (window as any).__syncAudioCtx = audioCtx;
-
+    localDelay = audioCtx.createDelay(2.0);
+    localDelay.delayTime.value = syncBufferMs / 1000;
+    
     localGain = audioCtx.createGain();
-    localDest = audioCtx.createMediaStreamDestination();
+    localGain.gain.value = sourceMuted ? 0 : 1.0;
 
-    // Start unmuted — laptop keeps playing by default
-    localGain.gain.value = sourceMuted ? 0 : 1;
+    sourceNode.connect(localDelay);
+    localDelay.connect(localGain);
+    localGain.connect(audioCtx.destination);
 
-    // Route: source -> delay -> gain -> laptop speakers
-    sourceNode.connect(delayNode);
-    delayNode.connect(localGain);
-    localGain.connect(localDest);
+    // ── Audio Capture for DataChannel ─────────────────────────────────────
+    const processor = audioCtx.createScriptProcessor(4096, 2, 2);
+    sourceNode.connect(processor);
+    processor.connect(audioCtx.destination);
 
-    // Play the local passthrough so the tab audio comes out of the laptop
-    localAudioEl = document.createElement('audio');
-    localAudioEl.srcObject = localDest.stream;
-    localAudioEl.autoplay = true;
-    document.body.appendChild(localAudioEl);
-    localAudioEl.play().catch(err => console.warn('Local passthrough play failed:', err));
+    processor.onaudioprocess = (e) => {
+      if (peers.size === 0) return;
 
-    // rawStream is what we send to peers — untouched, always full volume
-    const stream = rawStream;
-
-    await ensureSignalingConnected(sessionId);
-
-    const announce = () => {
-      console.log('Announcing session:', sessionId);
-      socket?.emit('announce-session', {
-        sessionId,
-        label: 'This Computer',
-        type: 'computer',
-      });
-    };
-
-    socket?.on('connect', announce);
-    socket?.emit('join-session', sessionId);
-    announce(); // Initial announce
-    startSessionHeartbeat(sessionId, announce);
-
-    socket?.on('peer-joined', ({ peerId }) => {
-      if (activeSessionId !== sessionId) return;
-      if (peerId === socket?.id) return;
-      console.log('Receiver joined session:', peerId);
-      setupPeer(sessionId, true, stream, peerId);
-    });
-
-    socket?.on('session-peers', ({ peers }) => {
-      if (activeSessionId !== sessionId) return;
-      for (const peerId of peers || []) {
-        if (peerId === socket?.id) continue;
-        console.log('Found receiver already in session:', peerId);
-        setupPeer(sessionId, true, stream, peerId);
+      const left = e.inputBuffer.getChannelData(0);
+      const right = e.inputBuffer.getChannelData(1);
+      
+      const interleaved = new Int16Array(left.length * 2);
+      for (let i = 0; i < left.length; i++) {
+        interleaved[i * 2]     = Math.max(-1, Math.min(1, left[i])) * 0x7FFF;
+        interleaved[i * 2 + 1] = Math.max(-1, Math.min(1, right[i])) * 0x7FFF;
       }
-    });
 
-    socket?.on('signal', ({ from, signal }) => {
-      if (activeSessionId !== sessionId) return;
-      const peer = peers.get(from);
-      if (peer) {
-        handlePeerSignal(peer, signal);
-      }
-    });
-
-    // ── Audio Capture for DataChannel ─────────────────────────────────────────
-    // Captures raw PCM data from the tab and broadcasts it to all peers
-    // as timestamped JSON packets via their 'clock-sync' data channels.
-    if (audioCtx && sourceNode) {
-      // Capture 2 channels (stereo)
-      const processor = audioCtx.createScriptProcessor(4096, 2, 2);
-      sourceNode.connect(processor);
-      processor.connect(audioCtx.destination);
-
-      processor.onaudioprocess = (e) => {
-        if (peers.size === 0) return;
-
-        const left = e.inputBuffer.getChannelData(0);
-        const right = e.inputBuffer.getChannelData(1);
-        
-        // Interleave channels: [L0, R0, L1, R1, ...]
-        const interleaved = new Int16Array(left.length * 2);
-        for (let i = 0; i < left.length; i++) {
-          interleaved[i * 2]     = Math.max(-1, Math.min(1, left[i])) * 0x7FFF;
-          interleaved[i * 2 + 1] = Math.max(-1, Math.min(1, right[i])) * 0x7FFF;
-        }
-
-        const syncPacket = {
-          type: 'audio',
-          chunkId: chunkSequence++,
-          playbackTimestamp: Date.now() + SYNC_BUFFER_MS,
-          audioData: Array.from(new Uint8Array(interleaved.buffer)) 
-        };
-
-        const packetJson = JSON.stringify(syncPacket);
-        for (const peer of peers.values()) {
-          const ch = (peer as any).__clockChannel as RTCDataChannel | undefined;
-          if (ch && ch.readyState === 'open') {
-            ch.send(packetJson);
-          }
-        }
+      const syncPacket = {
+        type: 'audio',
+        chunkId: chunkSequence++,
+        playbackTimestamp: Date.now() + syncBufferMs,
+        audioData: Array.from(new Uint8Array(interleaved.buffer)) 
       };
-      (window as any).__audioProcessor = processor;
-    }
-    // ─────────────────────────────────────────────────────────────────────────
+
+      const packetJson = JSON.stringify(syncPacket);
+      for (const peer of peers.values()) {
+        const ch = (peer as any).__clockChannel as RTCDataChannel | undefined;
+        if (ch && ch.readyState === 'open') {
+          ch.send(packetJson);
+        }
+      }
+    };
+    (window as any).__audioProcessor = processor;
 
     startSyncCoordinator();
     chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
   } catch (error: any) {
     console.error('SEND error:', error);
-    chrome.runtime.sendMessage({ type: 'CONNECTION_ERROR', error: error.message });
   }
 }
 
-async function startReceiveMode(sessionId: string) {
-  console.log('Starting RECEIVE mode for session:', sessionId);
-
-  try {
-    await ensureNetworkingReady();
-    resetSessionState();
-    activeSessionId = sessionId;
-
-    await ensureSignalingConnected(sessionId);
-
-    socket?.on('signal', ({ from, signal }) => {
-      if (activeSessionId !== sessionId) return;
-      let peer = peers.get(from);
-      if (!peer) {
-        console.log('First signal from sender received, setting up peer');
-        peer = setupPeer(sessionId, false, null, from);
-      }
-      handlePeerSignal(peer, signal);
-    });
-
-    socket?.emit('join-session', sessionId);
-
-    // Notify UI that the signaling room is joined. WebRTC stream follows when the sender offers.
-    chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
-  } catch (error: any) {
-    console.error('RECEIVE error:', error);
-    chrome.runtime.sendMessage({ type: 'CONNECTION_ERROR', error: error.message });
-  }
-}
-
-function setupPeer(sessionId: string, initiator: boolean, stream: MediaStream | null, targetId: string) {
-  const existingPeer = peers.get(targetId);
-  if (existingPeer && existingPeer.pc.connectionState !== 'closed') {
-    console.log('Peer already exists, keeping current connection:', targetId);
-    return existingPeer;
-  }
-
-  destroyPeer(targetId);
-
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-  const peer: PeerState = { pc, targetId };
-
-  peers.set(targetId, peer);
-
-  stream?.getTracks().forEach((track) => {
-    pc.addTrack(track, stream);
-  });
-
-  // ── Clock-sync data channel ──────────────────────────────────────────────
-  // Sender opens a data channel and sends { t: performance.now() } every 500ms.
-  // Receiver replies with { t: senderT, r: performance.now() }.
-  // This lets the mobile compute: offset = (r - t) / 2  (half-RTT estimate)
-  // and drift-correct its audio scheduling.
-  let clockChannel: RTCDataChannel | null = null;
-  let clockTimer: number | null = null;
-
-  if (initiator) {
-    clockChannel = pc.createDataChannel('clock-sync', {
-      ordered: false,
-      maxRetransmits: 0,
-    });
-    (peer as any).__clockChannel = clockChannel;
-
-    clockChannel.onopen = () => {
-      // Immediately broadcast the current sync config so receivers can buffer correctly.
-      _sendSyncConfig(clockChannel);
-
-      clockTimer = window.setInterval(() => {
-        if (clockChannel?.readyState === 'open') {
-          clockChannel.send(JSON.stringify({ t: performance.now() }));
-        }
-      }, 500);
-    };
-
-    clockChannel.onmessage = (event: MessageEvent) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'ping') {
-          // Reply immediately with source's current time
-          clockChannel?.send(JSON.stringify({
-            type: 'pong',
-            sourceTime: Date.now(),
-            pingId: msg.pingId // Echo back so receiver can match request to response
-          }));
-          return;
-        }
-
-        // Receiver echoed back { t: senderT, r: receiverT }
-        const rtt = performance.now() - msg.t;
-        const oneWayMs = rtt / 2;
-        console.log(`[ClockSync] RTT=${rtt.toFixed(1)}ms  one-way≈${oneWayMs.toFixed(1)}ms`);
-
-        // Handle position reports for Mesh Sync
-        if (msg.type === 'position_report') {
-          const state = receiverStates.get(targetId) || {
-            peerId: targetId,
-            lastChunkId: 0,
-            lastReportTime: 0,
-            isWaiting: false
-          };
-          state.lastChunkId = msg.currentChunkId;
-          state.lastReportTime = Date.now();
-          receiverStates.set(targetId, state);
-
-          // Run sync check every time a report comes in
-          runSyncCoordinator();
-        }
-
-        // The source monitor delay = max(syncBufferMs, one-way latency + margin)
-        // This ensures the laptop speaker never plays ahead of the receivers.
-        const targetDelay = Math.max(
-          syncBufferMs / 1000,
-          Math.max(0.01, Math.min(1.0, (oneWayMs + 50) / 1000))
-        );
-        const delayNode = (window as any).__syncDelayNode as DelayNode | undefined;
-        const ctx = (window as any).__syncAudioCtx as AudioContext | undefined;
-        if (delayNode && ctx) {
-          // Smooth ramp over 300ms to avoid audible clicks
-          delayNode.delayTime.setTargetAtTime(targetDelay, ctx.currentTime, 0.3);
-        }
-      } catch (_) {}
-    };
-
-    clockChannel.onclose = () => {
-      if (clockTimer !== null) { window.clearInterval(clockTimer); clockTimer = null; }
-    };
-  } else {
-    pc.ondatachannel = (e) => {
-      if (e.channel.label === 'clock-sync') {
-        (peer as any).__clockChannel = e.channel;
-        e.channel.onmessage = (msg) => {
-          try {
-            const data = JSON.parse(msg.data);
-            
-            if (data.type === 'sync-config') {
-              const bufferMs = Number(data.bufferMs);
-              (window as any).__rxSyncBufferMs = bufferMs;
-              const rxDelay = (window as any).__rxDelayNode as DelayNode | undefined;
-              const rxCtx   = (window as any).__rxAudioCtx  as AudioContext | undefined;
-              if (rxDelay && rxCtx) {
-                rxDelay.delayTime.setTargetAtTime(bufferMs / 1000, rxCtx.currentTime, 0.3);
-              }
-              return;
-            }
-
-            // Echo back with our receive timestamp
-            if (e.channel.readyState === 'open') {
-              e.channel.send(JSON.stringify({ t: data.t, r: performance.now() }));
-            }
-          } catch (_) {}
-        };
-      }
-    };
-  }
-  // ─────────────────────────────────────────────────────────────────────────
-
-  pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      socket?.emit('signal', {
-        sessionId,
-        signal: event.candidate.toJSON(),
-        to: targetId
-      });
+function _broadcastSyncConfig() {
+  const msg = JSON.stringify({ type: 'sync-config', bufferMs: syncBufferMs });
+  for (const peer of peers.values()) {
+    const ch = (peer as any).__clockChannel as RTCDataChannel | undefined;
+    if (ch && ch.readyState === 'open') {
+      ch.send(msg);
     }
-  };
-
-  pc.ontrack = (event) => {
-    const [remoteStream] = event.streams;
-    if (remoteStream) {
-      console.log('WebRTC Stream Received!');
-      playStream(remoteStream);
-    }
-  };
-
-  pc.onconnectionstatechange = () => {
-    console.log('WebRTC connection state:', pc.connectionState);
-    if (pc.connectionState === 'connected') {
-      chrome.runtime.sendMessage({ type: 'CONNECTION_SUCCESS' });
-    } else if (pc.connectionState === 'failed') {
-      if (clockTimer !== null) { window.clearInterval(clockTimer); clockTimer = null; }
-      peers.delete(targetId);
-      chrome.runtime.sendMessage({
-        type: 'CONNECTION_ERROR',
-        error: 'WebRTC connection failed before audio could start.'
-      });
-    } else if (pc.connectionState === 'closed') {
-      if (clockTimer !== null) { window.clearInterval(clockTimer); clockTimer = null; }
-      peers.delete(targetId);
-    }
-  };
-
-  pc.oniceconnectionstatechange = () => {
-    console.log('WebRTC ICE state:', pc.iceConnectionState);
-  };
-
-  if (initiator) {
-    createAndSendOffer(peer, sessionId).catch((error) => {
-      console.error('Offer creation failed:', error);
-      chrome.runtime.sendMessage({
-        type: 'CONNECTION_ERROR',
-        error: error?.message || 'Could not create WebRTC offer.'
-      });
-    });
-  }
-
-  return peer;
-}
-
-async function createAndSendOffer(peer: PeerState, sessionId: string) {
-  const offer = await peer.pc.createOffer({
-    offerToReceiveAudio: false,
-    offerToReceiveVideo: false
-  });
-
-  // ── Patch SDP for minimum latency ────────────────────────────────────────
-  // 1. Force Opus codec with lowest possible ptime (10ms frames vs default 20ms)
-  // 2. Set maxplaybackrate to 48000 (full fidelity)
-  // 3. Disable DTX (discontinuous transmission) — prevents silence gaps
-  // 4. Set stereo=1 for music quality
-  let sdp = offer.sdp || '';
-  sdp = sdp.replace(
-    /a=fmtp:(\d+) (.*opus.*)/gi,
-    (match, pt, params) => {
-      const existing = new Map(
-        params.split(';').map((p: string) => {
-          const [k, v] = p.trim().split('=');
-          return [k.trim(), v?.trim() ?? '1'];
-        })
-      );
-      existing.set('ptime', '10');
-      existing.set('maxptime', '10');
-      existing.set('useinbandfec', '1');
-      existing.set('usedtx', '0');
-      existing.set('stereo', '1');
-      existing.set('maxplaybackrate', '48000');
-      existing.set('sprop-maxcapturerate', '48000');
-      return `a=fmtp:${pt} ${Array.from(existing.entries()).map(([k, v]) => `${k}=${v}`).join(';')}`;
-    }
-  );
-  // ─────────────────────────────────────────────────────────────────────────
-
-  await peer.pc.setLocalDescription(new RTCSessionDescription({ type: 'offer', sdp }));
-  socket?.emit('signal', {
-    sessionId,
-    signal: {
-      type: 'offer',
-      sdp
-    },
-    to: peer.targetId
-  });
-}
-
-async function handlePeerSignal(peer: PeerState, signal: any) {
-  if (!signal || peer.pc.connectionState === 'closed') return;
-
-  if (signal.type === 'offer' || signal.type === 'answer') {
-    await peer.pc.setRemoteDescription(new RTCSessionDescription(signal));
-
-    if (signal.type === 'offer') {
-      const answer = await peer.pc.createAnswer();
-      // Patch answer SDP for low-latency Opus (same as offer)
-      let sdp = answer.sdp || '';
-      sdp = sdp.replace(
-        /a=fmtp:(\d+) (.*opus.*)/gi,
-        (match: string, pt: string, params: string) => {
-          const existing = new Map(
-            params.split(';').map((p: string) => {
-              const [k, v] = p.trim().split('=');
-              return [k.trim(), v?.trim() ?? '1'];
-            })
-          );
-          existing.set('ptime', '10');
-          existing.set('maxptime', '10');
-          existing.set('useinbandfec', '1');
-          existing.set('usedtx', '0');
-          existing.set('stereo', '1');
-          existing.set('maxplaybackrate', '48000');
-          existing.set('sprop-maxcapturerate', '48000');
-          return `a=fmtp:${pt} ${Array.from(existing.entries()).map(([k, v]) => `${k}=${v}`).join(';')}`;
-        }
-      );
-      await peer.pc.setLocalDescription(new RTCSessionDescription({ type: 'answer', sdp }));
-      socket?.emit('signal', {
-        sessionId: activeSessionId,
-        signal: { type: 'answer', sdp },
-        to: peer.targetId
-      });
-    }
-    return;
-  }
-
-  if (signal.candidate) {
-    await peer.pc.addIceCandidate(new RTCIceCandidate(signal));
   }
 }
-
-function resetSessionState() {
-  // End the announced session so it disappears from mobile discovery
-  if (activeSessionId && socket?.connected) {
-    socket.emit('end-session', { sessionId: activeSessionId });
-  }
-
-  stopSessionHeartbeat();
-  socket?.off('peer-joined');
-  socket?.off('session-peers');
-  socket?.off('signal');
-  socket?.off('connect');
-  destroyAllPeers();
-
-  // Tear down local audio passthrough
-  if (capturedStream) {
-    capturedStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
-    capturedStream = null;
-  }
-  if (localAudioEl) {
-    localAudioEl.srcObject = null;
-    localAudioEl.remove();
-    localAudioEl = null;
-  }
-  if (sourceNode) { try { sourceNode.disconnect(); } catch (_) {} sourceNode = null; }
-  if (localGain)  { try { localGain.disconnect();  } catch (_) {} localGain = null; }
-  if (localDest)  { try { localDest.disconnect();  } catch (_) {} localDest = null; }
-  if (audioCtx && audioCtx.state !== 'closed') {
-    const processor = (window as any).__audioProcessor;
-    if (processor) {
-      try { processor.disconnect(); } catch (_) {}
-      (window as any).__audioProcessor = null;
-    }
-    stopSyncCoordinator();
-    audioCtx.close().catch(() => {});
-    audioCtx = null;
-  }
-}
-
-function destroyPeer(peerId: string) {
-  const peer = peers.get(peerId);
-  if (peer) {
-    try { peer.pc.close(); } catch (e) { }
-    peers.delete(peerId);
-  }
-}
-
-function destroyAllPeers() {
-  for (const peerId of peers.keys()) {
-    destroyPeer(peerId);
-  }
-}
-
-function startSessionHeartbeat(sessionId: string, announce: () => void) {
-  stopSessionHeartbeat();
-  announceTimer = window.setInterval(() => {
-    if (activeSessionId !== sessionId) return;
-
-    if (socket?.connected) {
-      socket.emit('session-heartbeat', { sessionId });
-      socket.emit('announce-session', {
-        sessionId,
-        label: 'This Computer',
-        type: 'computer',
-      });
-    } else {
-      socket?.connect();
-    }
-  }, 7000);
-
-  // Re-announce occasionally so a restarted signaling server can rebuild its
-  // discovery list without needing the user to restart capture.
-  window.setTimeout(() => {
-    if (activeSessionId === sessionId && socket?.connected) {
-      announce();
-    }
-  }, 1000);
-}
-
-function stopSessionHeartbeat() {
-  if (announceTimer !== null) {
-    window.clearInterval(announceTimer);
-    announceTimer = null;
-  }
-}
-
-function ensureSignalingConnected(sessionId: string) {
-  return new Promise<void>((resolve, reject) => {
-    if (!socket) {
-      reject(new Error('Signaling client is not ready.'));
-      return;
-    }
-
-    if (socket.connected) {
-      resolve();
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      cleanup();
-      reject(new Error(`Could not connect to signaling server at ${SIGNALING_SERVER}. Is it running?`));
-    }, 10000);
-
-    const cleanup = () => {
-      window.clearTimeout(timeout);
-      socket.off('connect', onConnect);
-      socket.off('connect_error', onConnectError);
-    };
-
-    const onConnect = () => {
-      cleanup();
-      console.log('Connected to signaling server for session:', sessionId);
-      resolve();
-    };
-
-    const onConnectError = (error: Error) => {
-      cleanup();
-      reject(new Error(error.message || `Could not connect to ${SIGNALING_SERVER}`));
-    };
-
-    socket.once('connect', onConnect);
-    socket.once('connect_error', onConnectError);
-    socket.connect();
-  });
-}
-
-// ── Sync Coordinator Logic ───────────────────────────────────────────────
 
 function runSyncCoordinator() {
-  if (receiverStates.size < 2) return; // Only sync if multiple receivers
+  if (receiverStates.size < 2) return;
 
-  // 1. Find the "sync floor" (slowest receiver's position)
   let minChunk = Infinity;
   for (const state of receiverStates.values()) {
-    // Ignore stale reports (> 5s old)
     if (Date.now() - state.lastReportTime > 5000) continue;
     if (state.lastChunkId < minChunk) minChunk = state.lastChunkId;
   }
 
   if (minChunk === Infinity) return;
+  const checkpoint = minChunk + 20;
 
-  // 2. Set a barrier 10 chunks (~100ms) ahead of the slowest person
-  const checkpoint = minChunk + 10;
-
-  // 3. Command ahead receivers to wait
   for (const state of receiverStates.values()) {
-    if (state.lastChunkId > checkpoint + 5 && !state.isWaiting) {
-      console.log(`[SyncCoordinator] Peer ${state.peerId} is ahead. Barrier at ${checkpoint}`);
+    if (state.lastChunkId > checkpoint + 10 && !state.isWaiting) {
       state.isWaiting = true;
       sendToReceiver(state.peerId, { type: 'wait_at_checkpoint', checkpoint });
     }
   }
 
-  // 4. If slowest has reached the checkpoint, release everyone
   if (minChunk >= checkpoint - 2) {
     let released = false;
     for (const state of receiverStates.values()) {
@@ -738,7 +199,6 @@ function runSyncCoordinator() {
       }
     }
     if (released) {
-      console.log(`[SyncCoordinator] All caught up at ${minChunk}. Resuming.`);
       broadcastToAllReceivers({ type: 'resume' });
     }
   }
@@ -747,26 +207,20 @@ function runSyncCoordinator() {
 function sendToReceiver(peerId: string, msg: any) {
   const peer = peers.get(peerId);
   const ch = (peer as any)?.__clockChannel as RTCDataChannel | undefined;
-  if (ch && ch.readyState === 'open') {
-    ch.send(JSON.stringify(msg));
-  }
+  if (ch && ch.readyState === 'open') ch.send(JSON.stringify(msg));
 }
 
 function broadcastToAllReceivers(msg: any) {
   const json = JSON.stringify(msg);
   for (const peer of peers.values()) {
     const ch = (peer as any)?.__clockChannel as RTCDataChannel | undefined;
-    if (ch && ch.readyState === 'open') {
-      ch.send(json);
-    }
+    if (ch && ch.readyState === 'open') ch.send(json);
   }
 }
 
 function startSyncCoordinator() {
   if (syncCoordinatorTimer) return;
-  syncCoordinatorTimer = window.setInterval(() => {
-    runSyncCoordinator();
-  }, 2000);
+  syncCoordinatorTimer = window.setInterval(runSyncCoordinator, 2000);
 }
 
 function stopSyncCoordinator() {
@@ -777,102 +231,76 @@ function stopSyncCoordinator() {
   receiverStates.clear();
 }
 
-function playStream(stream: MediaStream) {
-  // ── Tear down any previous receive-side audio graph ────────────────────────
-  if (rxAudioEl) { rxAudioEl.srcObject = null; rxAudioEl.remove(); rxAudioEl = null; }
-  if (rxSourceNode) { try { rxSourceNode.disconnect(); } catch (_) {} rxSourceNode = null; }
-  if (rxDelayNode)  { try { rxDelayNode.disconnect();  } catch (_) {} rxDelayNode = null; }
-  if (rxDestNode)   { try { rxDestNode.disconnect();   } catch (_) {} rxDestNode = null; }
-  if (rxAudioCtx && rxAudioCtx.state !== 'closed') {
-    rxAudioCtx.close().catch(() => {});
-    rxAudioCtx = null;
+function resetSessionState() {
+  stopSyncCoordinator();
+  if (audioCtx) {
+    audioCtx.close().catch(() => {});
+    audioCtx = null;
   }
-  if (audioPlayer)  { audioPlayer.srcObject = null; }
-
-  // ── Build receive-side audio graph with sync delay ───────────────────────
-  // stream → rxSourceNode → rxDelayNode → rxDestNode → rxAudioEl → speakers
-  //
-  // rxDelayNode is initialised with the sync-config buffer received from the
-  // source.  It absorbs network jitter so all receivers play in lockstep.
-  const receivedBuffer = (window as any).__rxSyncBufferMs as number | undefined;
-  const delaySeconds = Math.max(0, (receivedBuffer ?? syncBufferMs) / 1000);
-
-  try {
-    rxAudioCtx = new AudioContext({ latencyHint: 'playback' });
-    rxSourceNode = rxAudioCtx.createMediaStreamSource(stream);
-    rxDelayNode  = rxAudioCtx.createDelay(2.0);
-    rxDelayNode.delayTime.value = delaySeconds;
-    rxDestNode   = rxAudioCtx.createMediaStreamDestination();
-
-    rxSourceNode.connect(rxDelayNode);
-    rxDelayNode.connect(rxDestNode);
-
-    rxAudioEl = document.createElement('audio');
-    rxAudioEl.srcObject = rxDestNode.stream;
-    rxAudioEl.autoplay = true;
-    document.body.appendChild(rxAudioEl);
-    rxAudioEl.play().catch(err => console.error('[SyncEngine] RX play failed:', err));
-
-    // Expose so sync-config updates can adjust delay in real time
-    (window as any).__rxDelayNode   = rxDelayNode;
-    (window as any).__rxAudioCtx    = rxAudioCtx;
-
-    console.log(`[SyncEngine] RX audio routed through ${(delaySeconds * 1000).toFixed(0)} ms delay node`);
-  } catch (err) {
-    // Fallback: direct playback without delay if AudioContext fails
-    console.warn('[SyncEngine] AudioContext unavailable, falling back to direct play:', err);
-    if (!audioPlayer) {
-      audioPlayer = document.createElement('audio');
-      audioPlayer.autoplay = true;
-      document.body.appendChild(audioPlayer);
-    }
-    audioPlayer.srcObject = stream;
-    audioPlayer.play().catch(e => console.error('Audio play failed:', e));
-  }
+  peers.forEach(peer => peer.pc.close());
+  peers.clear();
+  chunkSequence = 0;
 }
 
-// ── Sync-config helpers ───────────────────────────────────────────────────
-
-/// Send a sync-config message on a specific data channel.
-function _sendSyncConfig(channel: RTCDataChannel) {
-  if (channel.readyState === 'open') {
-    channel.send(JSON.stringify({ type: 'sync-config', bufferMs: syncBufferMs }));
-    console.log(`[SyncEngine] Broadcasted sync-config: bufferMs=${syncBufferMs}`);
-  }
-}
-
-/// Send sync-config to every currently open clock-sync data channel.
-function _broadcastSyncConfig() {
-  for (const [, peer] of peers) {
-    const ch = (peer as any).__clockChannel as RTCDataChannel | undefined;
-    if (ch) _sendSyncConfig(ch);
-  }
-  // Also update receive-side delay if this device is currently a receiver
-  const rxDelay = (window as any).__rxDelayNode as DelayNode | undefined;
-  const rxCtx   = (window as any).__rxAudioCtx  as AudioContext | undefined;
-  if (rxDelay && rxCtx) {
-    rxDelay.delayTime.setTargetAtTime(syncBufferMs / 1000, rxCtx.currentTime, 0.3);
-  }
-}
-
-function ensureNetworkingReady() {
-  if (networkingReady) {
-    return networkingReady;
-  }
-
-  networkingReady = Promise.all([
-    import('socket.io-client')
-  ]).then(([socketModule]) => {
-    socket = socketModule.io(SIGNALING_SERVER, {
-      autoConnect: false,
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000,
-      transports: ['websocket', 'polling']
+async function ensureNetworkingReady() {
+  if (networkingReady) return networkingReady;
+  networkingReady = new Promise((resolve) => {
+    // @ts-ignore
+    const { io } = window;
+    socket = io(SIGNALING_SERVER);
+    socket.on('connect', () => {
+      console.log('Connected to signaling server');
+      resolve();
+    });
+    socket.on('offer', async (data: any) => {
+      await handleOffer(data.offer, data.fromId);
+    });
+    socket.on('answer', async (data: any) => {
+      const peer = peers.get(data.fromId);
+      if (peer) await peer.pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+    });
+    socket.on('ice-candidate', async (data: any) => {
+      const peer = peers.get(data.fromId);
+      if (peer) await peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
     });
   });
-
   return networkingReady;
+}
+
+async function handleOffer(offer: RTCSessionDescriptionInit, fromId: string) {
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  peers.set(fromId, { pc, targetId: fromId });
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate && socket) {
+      socket.emit('ice-candidate', { candidate: event.candidate, toId: fromId });
+    }
+  };
+
+  pc.ondatachannel = (event) => {
+    const ch = event.channel;
+    if (ch.label === 'clock-sync') {
+      (pc as any).__clockChannel = ch;
+      ch.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.t) {
+          const rtt = performance.now() - msg.t;
+          if (msg.type === 'position_report') {
+            const state = receiverStates.get(fromId) || { peerId: fromId, lastChunkId: 0, lastReportTime: 0, isWaiting: false };
+            state.lastChunkId = msg.currentChunkId;
+            state.lastReportTime = Date.now();
+            receiverStates.set(fromId, state);
+            runSyncCoordinator();
+          }
+          // Echo pong
+          if (ch.readyState === 'open') ch.send(JSON.stringify({ t: msg.t, r: performance.now() }));
+        }
+      };
+    }
+  };
+
+  await pc.setRemoteDescription(new RTCSessionDescription(offer));
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  socket!.emit('answer', { answer, toId: fromId });
 }

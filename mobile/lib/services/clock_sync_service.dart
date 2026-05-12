@@ -24,6 +24,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 class ClockSyncService extends ChangeNotifier {
   RTCDataChannel? _channel;
   Timer? _statsTimer;
+  double _offsetMs = 0.0;
 
   // Exponential moving average of one-way latency (ms)
   double _emaLatency = 40.0; // start with a 40 ms prior
@@ -106,6 +107,27 @@ class ClockSyncService extends ChangeNotifier {
     } catch (e) {
       debugPrint('[ClockSync] Parse error: $e');
     }
+  }
+
+  void handlePing(double senderT) {
+    // We already handle this in _handleMessage if attached, 
+    // but this allows manual use.
+    // Logic: Sender T received at local R
+  }
+
+  void handlePong(double senderT, double receiverR) {
+    final now = DateTime.now().millisecondsSinceEpoch.toDouble();
+    final rtt = now - senderT;
+    
+    // NTP formula: offset = senderT - receiverR + (RTT / 2)
+    // But we want: senderT = receiverR + offset
+    _offsetMs = senderT - receiverR + (rtt / 2);
+    
+    updateRtt(rtt / 1000.0);
+  }
+
+  double syncedNow() {
+    return DateTime.now().millisecondsSinceEpoch.toDouble() + _offsetMs;
   }
 
   double? _lastReceiverR;

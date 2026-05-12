@@ -21,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late DiscoveryService _discovery;
   late MobileSourceService _source;
   bool _isScanning = false;
+  bool _sourceMuted = false;
   final TextEditingController _urlController = TextEditingController();
 
   @override
@@ -56,6 +57,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         !_discovery.isConnecting) {
       _discovery.startDiscovery();
     }
+  }
+
+  void _toggleSourceMute(bool value) {
+    setState(() {
+      _sourceMuted = value;
+    });
+    // Send to source via WebRTC data channel
+    _webrtc.sendDataChannelMessage({
+      'type': 'SET_SOURCE_MUTE',
+      'muted': value,
+    });
   }
 
   @override
@@ -171,6 +183,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       AppConnectionState.idle => _buildIdleView(),
       AppConnectionState.connecting => _buildConnectingView(),
       AppConnectionState.connected => _buildConnectedView(),
+      AppConnectionState.reconnecting => _buildConnectingView(),
       AppConnectionState.error => _buildErrorView(),
     };
   }
@@ -1020,50 +1033,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (context, _) {
         final latency = _webrtc.clockSync.emaLatencyMs;
         final jitter = _webrtc.clockSync.emaJitterMs;
-        final isPaused = _webrtc.isPaused; // Need to add this getter to webrtc_service
+        final isPaused = _webrtc.isPaused;
+        final drift = _webrtc.currentDriftMs;
+        final bufferSize = _webrtc.bufferSize;
+
         Color syncColor;
         String syncLabel;
+        String statusDetail;
+
         if (isPaused) {
           syncColor = Colors.orange;
           syncLabel = '⏸ Syncing with other devices...';
-        } else if (latency < 30 && jitter < 5) {
+          statusDetail = 'Waiting at barrier';
+        } else if (drift.abs() < 25 && jitter < 10) {
           syncColor = AppTheme.green;
-          syncLabel = 'PERFECT SYNC';
-        } else if (latency < 60 && jitter < 15) {
+          syncLabel = '🟢 Excellent Sync';
+          statusDetail = 'Stable playback';
+        } else if (drift.abs() < 80) {
           syncColor = Colors.amber;
-          syncLabel = 'GOOD SYNC';
+          syncLabel = '🟡 Minor Drift';
+          statusDetail = 'Smoothing playback...';
         } else {
           syncColor = Colors.redAccent;
-          syncLabel = 'SYNCING...';
+          syncLabel = '🔴 Re-Synchronizing';
+          statusDetail = 'Adjusting buffer...';
         }
         return Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: AppTheme.card,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: syncColor.withValues(alpha: 0.25)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: syncColor.withOpacity(0.2)),
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(syncLabel,
+                      style: AppTheme.bodySmall.copyWith(
+                        color: syncColor,
+                        fontWeight: FontWeight.bold,
+                      )),
+                  Text(statusDetail,
+                      style: AppTheme.bodySmall.copyWith(
+                        color: Colors.white38,
+                        fontSize: 10,
+                      )),
+                ],
+              ),
+              const SizedBox(height: 14),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _statCell('LATENCY', '${latency.toStringAsFixed(0)}ms', syncColor),
-                  Container(width: 1, height: 28, color: AppTheme.border),
-                  _statCell('JITTER', '${jitter.toStringAsFixed(0)}ms', syncColor),
-                  Container(width: 1, height: 28, color: AppTheme.border),
-                  _statCell('SYNC', syncLabel, syncColor),
+                  _statCell('DRIFT', '${drift.toStringAsFixed(0)}ms', 
+                      drift.abs() > 80 ? Colors.redAccent : Colors.white70),
+                  Container(width: 1, height: 24, color: AppTheme.border),
+                  _statCell('BUFFER', '$bufferSize', 
+                      bufferSize < 10 ? Colors.orange : Colors.white70),
+                  Container(width: 1, height: 24, color: AppTheme.border),
+                  _statCell('LATENCY', '${latency.toStringAsFixed(0)}ms', Colors.white70),
                 ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                _webrtc.syncStats,
-                style: const TextStyle(
-                  color: AppTheme.textDim,
-                  fontSize: 10,
-                  fontFamily: 'monospace',
-                ),
               ),
             ],
           ),
@@ -1174,6 +1206,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 );
               }).toList(),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Mute Source Speaker',
+                          style: AppTheme.bodySmall.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          )),
+                      Text('Reduce echo during testing',
+                          style: AppTheme.bodySmall.copyWith(
+                            color: Colors.white38,
+                            fontSize: 10,
+                          )),
+                    ],
+                  ),
+                  Switch.adaptive(
+                    value: _sourceMuted,
+                    activeColor: AppTheme.accent,
+                    onChanged: _toggleSourceMute,
+                  ),
+                ],
+              ),
             ],
           ),
         );

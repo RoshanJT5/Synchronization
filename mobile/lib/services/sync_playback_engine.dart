@@ -76,6 +76,8 @@ extension SyncQualityExt on SyncQuality {
 ///   - (Future) Adjusting the renderer's `jitterBufferDelay` if/when
 ///     flutter_webrtc exposes that API.
 class SyncPlaybackEngine extends ChangeNotifier {
+  SyncPlaybackEngine();
+
   SyncMode _mode = SyncMode.balanced;
   SyncQuality _syncQuality = SyncQuality.syncing;
   Timer? _monitorTimer;

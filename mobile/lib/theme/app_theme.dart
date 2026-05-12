@@ -13,6 +13,9 @@ class AppTheme {
   static const Color green = Color(0xFF22C55E);
   static const Color red = Color(0xFFEF4444);
 
+  static const TextStyle bodyMedium = TextStyle(color: textDim, fontSize: 14);
+  static const TextStyle bodySmall = TextStyle(color: textDim, fontSize: 12);
+
   static ThemeData dark() {
     return ThemeData(
       useMaterial3: true,
