@@ -101,7 +101,7 @@ class HostSessionController extends ChangeNotifier {
 
   void startPeriodicSync() {
     _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _syncTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_player.isPlaying) {
         _broadcast(SyncCommand(
           action: SyncAction.syncCheck,
@@ -134,7 +134,7 @@ class HostSessionController extends ChangeNotifier {
       if (command.action != SyncAction.syncResponse) return;
       final drift =
           (_player.position.inMilliseconds - command.positionMs).abs();
-      if (drift > 1500) {
+      if (drift > 700) {
         _broadcast(SyncCommand(
           action: SyncAction.seek,
           positionMs: _player.position.inMilliseconds,

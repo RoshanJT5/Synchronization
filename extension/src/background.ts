@@ -25,10 +25,11 @@ let announceTimer: number | null = null;
 let offscreenReady = false;
 let pendingInit: unknown = null;
 let readyPeerIds = new Set<string>();
+const stateReady = restoreState();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'GET_STATE') {
-    sendResponse(state);
+    stateReady.then(() => sendResponse(state));
     return true;
   }
 
@@ -196,4 +197,33 @@ function updateState(next: Partial<ExtensionState>) {
   state = { ...state, ...next };
   chrome.storage.local.set({ [STATE_STORAGE_KEY]: state });
   chrome.runtime.sendMessage({ type: 'STATE_UPDATED', state }).catch(() => {});
+}
+
+async function restoreState() {
+  const stored = await chrome.storage.local.get(STATE_STORAGE_KEY);
+  const restored = stored[STATE_STORAGE_KEY] as ExtensionState | undefined;
+  if (!restored) return;
+
+  state = {
+    ...state,
+    ...restored,
+    sourceMuted: Boolean(restored.sourceMuted),
+    readyPeers: restored.readyPeers || 0,
+  };
+
+  if (state.status === 'STREAMING' || state.status === 'CONNECTING') {
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT' as chrome.runtime.ContextType],
+    });
+    if (contexts.length === 0) {
+      state = {
+        isActive: false,
+        sessionId: '',
+        status: 'IDLE',
+        readyPeers: 0,
+        sourceMuted: false,
+      };
+      chrome.storage.local.set({ [STATE_STORAGE_KEY]: state });
+    }
+  }
 }

@@ -22,6 +22,7 @@ function App() {
       setReadyPeers(response?.readyPeers || 0);
       setError(response?.error || '');
       setSourceMuted(Boolean(response?.sourceMuted));
+      setShowQR(response?.status !== 'STREAMING');
       generateQR(id);
       if (!response?.sessionId || response?.status === 'IDLE') {
         chrome.runtime.sendMessage({
@@ -43,6 +44,7 @@ function App() {
       setReadyPeers(message.state.readyPeers || 0);
       setError(message.state.error || '');
       setSourceMuted(Boolean(message.state.sourceMuted));
+      if (message.state.status === 'STREAMING') setShowQR(false);
       if (message.state.sessionId) setSessionId(message.state.sessionId);
     };
     chrome.runtime.onMessage.addListener(listener);
@@ -96,6 +98,7 @@ function App() {
         sessionId,
         streamId,
       });
+      setShowQR(false);
     });
   };
 
