@@ -10,6 +10,7 @@ class GuestSessionController extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
   RTCDataChannel? _hostChannel;
   bool _isLoaded = false;
+  bool _hostIsPlaying = false;
   String? _streamUrl;
 
   Stream<Duration> get positionStream => _player.positionStream;
@@ -17,6 +18,7 @@ class GuestSessionController extends ChangeNotifier {
   Duration? get duration => _player.duration;
   bool get isPlaying => _player.playing;
   bool get isLoaded => _isLoaded;
+  bool get hostIsPlaying => _hostIsPlaying;
   String? get streamUrl => _streamUrl;
 
   void setHostChannel(RTCDataChannel channel) {
@@ -42,6 +44,7 @@ class GuestSessionController extends ChangeNotifier {
           break;
         case SyncAction.play:
           if (!_isLoaded) break;
+          _hostIsPlaying = true;
           await _player.seek(
             Duration(milliseconds: command.positionMs + transitMs),
           );
@@ -49,12 +52,15 @@ class GuestSessionController extends ChangeNotifier {
           break;
         case SyncAction.pause:
           if (!_isLoaded) break;
+          _hostIsPlaying = false;
           await _player.pause();
           await _player.seek(Duration(milliseconds: command.positionMs));
+          await _player.pause();
           break;
         case SyncAction.seek:
           if (!_isLoaded) break;
           await _player.seek(Duration(milliseconds: command.positionMs));
+          if (!_hostIsPlaying) await _player.pause();
           break;
         case SyncAction.syncCheck:
           if (!_isLoaded) break;
@@ -68,7 +74,8 @@ class GuestSessionController extends ChangeNotifier {
           ));
           if (drift > maxDriftMs) {
             await _player.seek(Duration(milliseconds: expectedMs));
-            if (!_player.playing) await _player.play();
+            if (_hostIsPlaying && !_player.playing) await _player.play();
+            if (!_hostIsPlaying && _player.playing) await _player.pause();
           }
           break;
         case SyncAction.syncResponse:

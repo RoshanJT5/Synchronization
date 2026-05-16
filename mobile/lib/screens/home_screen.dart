@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:synchronization/services/discovery_service.dart';
 import 'package:synchronization/services/file_service.dart';
 import 'package:synchronization/services/guest_session_controller.dart';
 import 'package:synchronization/services/host_session_controller.dart';
@@ -33,6 +34,16 @@ class _HomeScreenState extends State<HomeScreen> {
   double _volume = 1.0;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.enableDiscovery) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<DiscoveryService>().startDiscovery();
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _codeController.dispose();
     super.dispose();
@@ -59,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
 
       final webrtc = context.read<WebRTCService>();
+      context.read<DiscoveryService>().stopDiscovery();
       webrtc.initializeHost(controller);
       await webrtc.createHostSession();
       setState(() {
@@ -84,6 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final controller = GuestSessionController();
       if (!mounted) return;
       final webrtc = context.read<WebRTCService>();
+      context.read<DiscoveryService>().stopDiscovery();
       webrtc.initializeGuest(controller);
       await webrtc.connect(sessionId);
       setState(() {
@@ -113,9 +126,10 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       if (!input.startsWith('http')) return input.trim().toUpperCase();
       final uri = Uri.parse(input);
-      final pathId = uri.pathSegments.length >= 2 && uri.pathSegments.first == 'c'
-          ? uri.pathSegments[1]
-          : null;
+      final pathId =
+          uri.pathSegments.length >= 2 && uri.pathSegments.first == 'c'
+              ? uri.pathSegments[1]
+              : null;
       return (uri.queryParameters['id'] ?? pathId ?? '').trim().toUpperCase();
     } catch (_) {
       return input.trim().toUpperCase();
@@ -131,6 +145,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedFile = null;
       _codeController.clear();
     });
+    if (widget.enableDiscovery) {
+      context.read<DiscoveryService>().startDiscovery();
+    }
   }
 
   void _showSnack(String msg) {
@@ -241,11 +258,13 @@ class _HomeScreenState extends State<HomeScreen> {
           _PrimaryButton(
             label: _isBusy ? 'STARTING...' : 'START SESSION',
             icon: Icons.rocket_launch,
-            onPressed: _isBusy || _selectedFile == null ? null : _startHostSession,
+            onPressed:
+                _isBusy || _selectedFile == null ? null : _startHostSession,
           ),
           if (webrtc.state == AppConnectionState.error) ...[
             const SizedBox(height: 12),
-            Text(webrtc.errorMessage, style: const TextStyle(color: AppTheme.red)),
+            Text(webrtc.errorMessage,
+                style: const TextStyle(color: AppTheme.red)),
           ],
         ],
       ),
@@ -319,7 +338,8 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           const SizedBox(height: 14),
-          const _StatusPill(icon: Icons.settings_input_antenna, text: 'Stream: Active'),
+          const _StatusPill(
+              icon: Icons.settings_input_antenna, text: 'Stream: Active'),
           const Spacer(),
           _SecondaryButton(
             label: 'END SESSION',
@@ -333,12 +353,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildGuestJoin(WebRTCService webrtc) {
+    final discovery = context.watch<DiscoveryService>();
     return _Page(
       title: 'JOIN SESSION',
       onBack: () => setState(() => _mode = _ScreenMode.welcome),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const SizedBox(height: 18),
+          _DiscoveredSessions(
+            sessions: discovery.sessions,
+            isLoading: discovery.isConnecting,
+            onRefresh: () => discovery.startDiscovery(),
+            onJoin: (session) {
+              _codeController.text = session.sessionId;
+              _joinSession(session.sessionId);
+            },
+          ),
           const SizedBox(height: 18),
           _SecondaryButton(
             label: 'SCAN QR CODE',
@@ -353,14 +384,16 @@ class _HomeScreenState extends State<HomeScreen> {
           TextField(
             controller: _codeController,
             textCapitalization: TextCapitalization.characters,
-            style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
+            style:
+                const TextStyle(color: Colors.white, fontFamily: 'monospace'),
             decoration: const InputDecoration(hintText: 'Enter session code'),
           ),
           const SizedBox(height: 12),
           _PrimaryButton(
             label: _isBusy ? 'CONNECTING...' : 'CONNECT',
             icon: Icons.link,
-            onPressed: _isBusy ? null : () => _joinSession(_codeController.text),
+            onPressed:
+                _isBusy ? null : () => _joinSession(_codeController.text),
           ),
           const SizedBox(height: 18),
           const _InfoCard(
@@ -369,7 +402,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           if (webrtc.state == AppConnectionState.error) ...[
             const SizedBox(height: 12),
-            Text(webrtc.errorMessage, style: const TextStyle(color: AppTheme.red)),
+            Text(webrtc.errorMessage,
+                style: const TextStyle(color: AppTheme.red)),
           ],
         ],
       ),
@@ -378,21 +412,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildGuestActive(WebRTCService webrtc) {
     final controller = _guestController ?? webrtc.guestController;
+    final isBrowserAudio =
+        webrtc.hasRemoteAudio && controller?.isLoaded != true;
     return _Page(
       title: 'CONNECTED TO HOST',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _StatusPill(
-            icon: controller?.isLoaded == true
+            icon: controller?.isLoaded == true || isBrowserAudio
                 ? Icons.check_circle
                 : Icons.hourglass_top,
-            text: controller?.isLoaded == true
-                ? 'Receiving stream'
-                : 'Waiting for stream...',
+            text: isBrowserAudio
+                ? 'Browser audio connected'
+                : controller?.isLoaded == true
+                    ? 'Receiving phone stream'
+                    : 'Waiting for stream...',
           ),
           const SizedBox(height: 24),
-          if (controller != null) _GuestPlayerPanel(controller: controller),
+          if (controller != null && controller.isLoaded)
+            _GuestPlayerPanel(controller: controller)
+          else
+            const _InfoCard(
+              text:
+                  'Browser extension audio is playing through the WebRTC connection. Playback is controlled from the browser tab.',
+            ),
           const SizedBox(height: 18),
           _VolumeSlider(
             value: _volume,
@@ -499,6 +543,119 @@ class _GuestPlayerPanel extends StatelessWidget {
   }
 }
 
+class _DiscoveredSessions extends StatelessWidget {
+  const _DiscoveredSessions({
+    required this.sessions,
+    required this.isLoading,
+    required this.onRefresh,
+    required this.onJoin,
+  });
+
+  final List<DiscoveredSession> sessions;
+  final bool isLoading;
+  final VoidCallback onRefresh;
+  final ValueChanged<DiscoveredSession> onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    if (sessions.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          border: Border.all(color: AppTheme.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isLoading ? Icons.search : Icons.devices,
+              color: AppTheme.accent,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                isLoading
+                    ? 'Looking for nearby hosts...'
+                    : 'No nearby hosts found',
+                style: const TextStyle(color: AppTheme.textDim),
+              ),
+            ),
+            IconButton(
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh, color: AppTheme.accent),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Nearby hosts',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 10),
+        ...sessions.map(
+          (session) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              onTap: () => onJoin(session),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  border: Border.all(color: AppTheme.border),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      session.isMobileSource
+                          ? Icons.smartphone
+                          : Icons.computer,
+                      color: AppTheme.accent,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            session.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            session.sessionId,
+                            style: const TextStyle(
+                              color: AppTheme.textDim,
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: AppTheme.textDim),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TimelinePanel extends StatelessWidget {
   const _TimelinePanel({
     required this.title,
@@ -559,13 +716,16 @@ class _TimelinePanel extends StatelessWidget {
                 max: maxMs,
                 activeColor: AppTheme.accent,
                 inactiveColor: Colors.white12,
-                onChanged: readOnly ? null : (next) => onSeek?.call(next.round()),
+                onChanged:
+                    readOnly ? null : (next) => onSeek?.call(next.round()),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(_fmt(pos), style: const TextStyle(color: AppTheme.textDim)),
-                  Text(_fmt(total), style: const TextStyle(color: AppTheme.textDim)),
+                  Text(_fmt(pos),
+                      style: const TextStyle(color: AppTheme.textDim)),
+                  Text(_fmt(total),
+                      style: const TextStyle(color: AppTheme.textDim)),
                 ],
               ),
             ],
@@ -645,7 +805,9 @@ class _FileCard extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            file == null ? Icons.insert_drive_file_outlined : Icons.check_circle,
+            file == null
+                ? Icons.insert_drive_file_outlined
+                : Icons.check_circle,
             color: file == null ? AppTheme.textDim : AppTheme.green,
           ),
           const SizedBox(width: 12),

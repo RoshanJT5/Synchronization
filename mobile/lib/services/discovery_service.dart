@@ -8,7 +8,7 @@ class DiscoveredSession {
   final String label;
   final int announcedAt;
 
-  /// 'computer' (Chrome extension) or 'mobile-source' (phone streaming mic).
+  /// 'computer' (Chrome extension) or 'mobile-host' (phone LAN stream).
   final String type;
 
   const DiscoveredSession({
@@ -18,7 +18,7 @@ class DiscoveredSession {
     this.type = 'computer',
   });
 
-  bool get isMobileSource => type == 'mobile-source';
+  bool get isMobileSource => type == 'mobile-source' || type == 'mobile-host';
 
   @override
   bool operator ==(Object other) =>

@@ -34,6 +34,8 @@ class WebRTCService extends ChangeNotifier {
 
   io.Socket? _socket;
   final Map<String, RTCPeerConnection> _peers = {};
+  final List<RTCVideoRenderer> _remoteAudioRenderers = [];
+  bool _hasRemoteAudio = false;
   Timer? _connectionTimeoutTimer;
   Timer? _heartbeatTimer;
 
@@ -49,14 +51,19 @@ class WebRTCService extends ChangeNotifier {
   AppConnectionState get state => _state;
   String get errorMessage => _errorMessage;
   String get activeSessionId => _activeSessionId;
-  bool get isWaitingForHost => _state == AppConnectionState.connecting && !isHost;
+  bool get isWaitingForHost =>
+      _state == AppConnectionState.connecting && !isHost;
   bool get isSynced => _state == AppConnectionState.connected;
-  bool get isPaused =>
-      isHost ? !(hostController?.isPlaying ?? false) : !(guestController?.isPlaying ?? false);
+  bool get hasRemoteAudio => _hasRemoteAudio;
+  bool get isPaused => isHost
+      ? !(hostController?.isPlaying ?? false)
+      : !(guestController?.isPlaying ?? false);
   double get volume => 1.0;
   int get guestCount => hostController?.guestCount ?? 0;
   ConnectionQuality get connectionQuality =>
-      _state == AppConnectionState.connected ? ConnectionQuality.excellent : ConnectionQuality.unknown;
+      _state == AppConnectionState.connected
+          ? ConnectionQuality.excellent
+          : ConnectionQuality.unknown;
   double get currentDriftMs => 0;
   int get bufferSize => 0;
   String get syncStats => '';
@@ -235,7 +242,7 @@ class WebRTCService extends ChangeNotifier {
         RTCSessionDescription(signal['sdp'] as String?, 'offer'),
       );
       final answer = await pc.createAnswer({
-        'offerToReceiveAudio': false,
+        'offerToReceiveAudio': true,
         'offerToReceiveVideo': false,
       });
       await pc.setLocalDescription(answer);
@@ -289,6 +296,12 @@ class WebRTCService extends ChangeNotifier {
         notifyListeners();
       }
     };
+
+    pc.onTrack = (event) {
+      if (event.track.kind == 'audio') {
+        _attachRemoteAudio(event);
+      }
+    };
   }
 
   void _wireDataChannel(RTCDataChannel channel) {
@@ -311,6 +324,26 @@ class WebRTCService extends ChangeNotifier {
     };
   }
 
+  void _attachRemoteAudio(RTCTrackEvent event) {
+    final stream = event.streams.isNotEmpty ? event.streams.first : null;
+    if (stream == null) return;
+
+    Future<void>(() async {
+      try {
+        final renderer = RTCVideoRenderer();
+        await renderer.initialize();
+        renderer.srcObject = stream;
+        _remoteAudioRenderers.add(renderer);
+        _hasRemoteAudio = true;
+        debugPrint('[WebRTC] Remote extension audio track attached');
+        _connectionTimeoutTimer?.cancel();
+        _setState(AppConnectionState.connected);
+      } catch (e) {
+        debugPrint('[WebRTC] Failed to attach remote audio: $e');
+      }
+    });
+  }
+
   void disconnect({bool notify = true, bool keepControllers = false}) {
     _connectionTimeoutTimer?.cancel();
     _heartbeatTimer?.cancel();
@@ -324,6 +357,12 @@ class WebRTCService extends ChangeNotifier {
       pc.close();
     }
     _peers.clear();
+    for (final renderer in _remoteAudioRenderers) {
+      renderer.srcObject = null;
+      renderer.dispose();
+    }
+    _remoteAudioRenderers.clear();
+    _hasRemoteAudio = false;
     if (!keepControllers) {
       hostController?.dispose();
       guestController?.dispose();

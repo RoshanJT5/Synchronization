@@ -2,13 +2,18 @@
   "manifest_version": 3,
   "name": "Synchronization",
   "version": "1.0",
-  "description": "Open the Synchronization mobile app to host or join synced local playback.",
+  "description": "Sync browser or phone audio to nearby mobile devices.",
   "icons": {
     "16": "app_icon.jpg",
     "48": "app_icon.jpg",
     "128": "app_icon.jpg"
   },
-  "permissions": [],
+  "permissions": [
+    "tabCapture",
+    "activeTab",
+    "storage",
+    "offscreen"
+  ],
   "host_permissions": [
     "https://synchronization-807q.onrender.com/*",
     "wss://synchronization-807q.onrender.com/*"

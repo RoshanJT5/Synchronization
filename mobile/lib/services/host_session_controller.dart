@@ -14,6 +14,7 @@ class HostSessionController extends ChangeNotifier {
   final NetworkService _networkService = NetworkService();
   final List<RTCDataChannel> _guestChannels = [];
   Timer? _syncTimer;
+  SyncCommand? _lastPlaybackCommand;
 
   String? _streamUrl;
   PlatformFile? _file;
@@ -25,8 +26,8 @@ class HostSessionController extends ChangeNotifier {
   String? get streamUrl => _streamUrl;
   PlatformFile? get file => _file;
   int get guestCount => _guestChannels
-      .where((channel) =>
-          channel.state == RTCDataChannelState.RTCDataChannelOpen)
+      .where(
+          (channel) => channel.state == RTCDataChannelState.RTCDataChannelOpen)
       .length;
 
   Future<String> setupSession(PlatformFile file) async {
@@ -57,12 +58,18 @@ class HostSessionController extends ChangeNotifier {
       notifyListeners();
     };
     _sendStreamReady(channel);
+    final last = _lastPlaybackCommand;
+    if (last != null) {
+      Future<void>.delayed(const Duration(milliseconds: 150), () {
+        _sendToChannel(channel, last);
+      });
+    }
     notifyListeners();
   }
 
   Future<void> play() async {
     await _player.play();
-    _broadcast(SyncCommand(
+    _broadcastPlayback(SyncCommand(
       action: SyncAction.play,
       positionMs: _player.position.inMilliseconds,
       sentAtMs: DateTime.now().millisecondsSinceEpoch,
@@ -72,7 +79,7 @@ class HostSessionController extends ChangeNotifier {
 
   Future<void> pause() async {
     await _player.pause();
-    _broadcast(SyncCommand(
+    _broadcastPlayback(SyncCommand(
       action: SyncAction.pause,
       positionMs: _player.position.inMilliseconds,
       sentAtMs: DateTime.now().millisecondsSinceEpoch,
@@ -82,7 +89,7 @@ class HostSessionController extends ChangeNotifier {
 
   Future<void> seekTo(int positionMs) async {
     await _player.seekTo(positionMs);
-    _broadcast(SyncCommand(
+    _broadcastPlayback(SyncCommand(
       action: SyncAction.seek,
       positionMs: positionMs,
       sentAtMs: DateTime.now().millisecondsSinceEpoch,
@@ -107,22 +114,26 @@ class HostSessionController extends ChangeNotifier {
 
   void _sendStreamReady(RTCDataChannel channel) {
     final url = _streamUrl;
-    if (url == null || channel.state != RTCDataChannelState.RTCDataChannelOpen) {
+    if (url == null ||
+        channel.state != RTCDataChannelState.RTCDataChannelOpen) {
       return;
     }
-    channel.send(RTCDataChannelMessage(SyncCommand(
-      action: SyncAction.streamReady,
-      positionMs: _player.position.inMilliseconds,
-      sentAtMs: DateTime.now().millisecondsSinceEpoch,
-      streamUrl: url,
-    ).toJson()));
+    _sendToChannel(
+        channel,
+        SyncCommand(
+          action: SyncAction.streamReady,
+          positionMs: _player.position.inMilliseconds,
+          sentAtMs: DateTime.now().millisecondsSinceEpoch,
+          streamUrl: url,
+        ));
   }
 
   void _handleGuestMessage(String raw) {
     try {
       final command = SyncCommand.fromJson(raw);
       if (command.action != SyncAction.syncResponse) return;
-      final drift = (_player.position.inMilliseconds - command.positionMs).abs();
+      final drift =
+          (_player.position.inMilliseconds - command.positionMs).abs();
       if (drift > 1500) {
         _broadcast(SyncCommand(
           action: SyncAction.seek,
@@ -141,6 +152,23 @@ class HostSessionController extends ChangeNotifier {
       if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
         channel.send(RTCDataChannelMessage(json));
       }
+    }
+  }
+
+  void _broadcastPlayback(SyncCommand command) {
+    _lastPlaybackCommand = command;
+    _broadcast(command);
+
+    // A short replay protects pause/seek/play from DataChannel open races and
+    // transient packet loss around mobile network changes.
+    Future<void>.delayed(const Duration(milliseconds: 120), () {
+      _broadcast(command);
+    });
+  }
+
+  void _sendToChannel(RTCDataChannel channel, SyncCommand command) {
+    if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
+      channel.send(RTCDataChannelMessage(command.toJson()));
     }
   }
 
