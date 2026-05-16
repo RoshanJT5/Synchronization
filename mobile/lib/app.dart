@@ -5,7 +5,7 @@ import 'screens/home_screen.dart';
 import 'services/webrtc_service.dart';
 import 'services/discovery_service.dart';
 import 'services/deep_link_service.dart';
-import 'services/mobile_source_service.dart';
+import 'services/guest_session_controller.dart';
 
 class SynchronizationApp extends StatelessWidget {
   const SynchronizationApp({super.key, this.enableDiscovery = true});
@@ -18,7 +18,6 @@ class SynchronizationApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => WebRTCService()),
         ChangeNotifierProvider(create: (_) => DiscoveryService()),
-        ChangeNotifierProvider(create: (_) => MobileSourceService()),
       ],
       child: MaterialApp(
         title: 'Synchronization',
@@ -51,6 +50,7 @@ class _DeepLinkWrapperState extends State<_DeepLinkWrapper> {
     _deepLinkService.onDeepLink = (sessionId, serverUrl) {
       // Connect as soon as a deep link arrives, regardless of current state
       final webrtc = context.read<WebRTCService>();
+      webrtc.initializeGuest(GuestSessionController());
       webrtc.connect(sessionId, serverUrl);
     };
     _deepLinkService.init();

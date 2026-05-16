@@ -9,8 +9,10 @@
     <!-- Camera permission for QR scanner -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Audio permissions for WebRTC playback -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Local media picker/playback permissions -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- Keep audio playing in background -->

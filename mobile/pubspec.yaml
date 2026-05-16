@@ -1,5 +1,5 @@
 name: synchronization
-description: Use your phone as a wireless speaker for your browser audio.
+description: Synchronized local media playback across phones.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -25,8 +25,16 @@ dependencies:
   # Deep link handling
   app_links: ^6.4.1
 
-  # Audio session management (keeps audio alive in background)
+  # Local media playback
   audio_session: ^0.1.25
+  just_audio: ^0.9.40
+  video_player: ^2.8.6
+  file_picker: ^8.0.0+1
+  qr_flutter: ^4.1.0
+  shelf: ^1.4.1
+  shelf_router: ^1.1.4
+  network_info_plus: ^5.0.0
+  path_provider: ^2.1.0
 
   # Wakelock (keep screen on while streaming)
   wakelock_plus: ^1.5.2
@@ -39,7 +47,6 @@ dependencies:
 
   # Icons
   cupertino_icons: ^1.0.8
-  flutter_pcm_sound: ^3.3.3
 
 dev_dependencies:
   flutter_test:

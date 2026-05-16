@@ -1,330 +1,378 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
-import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
-import 'package:synchronization/services/playback_buffer.dart';
-import 'package:synchronization/services/clock_sync_service.dart';
-import 'package:synchronization/services/sync_playback_engine.dart';
+import 'package:synchronization/services/guest_session_controller.dart';
+import 'package:synchronization/services/host_session_controller.dart';
 
-enum AppConnectionState {
-  idle,
-  connecting,
-  connected,
-  reconnecting,
-  error
-}
+enum AppConnectionState { idle, connecting, connected, reconnecting, error }
 
 enum ConnectionQuality { excellent, good, poor, unknown }
 
 class WebRTCService extends ChangeNotifier {
-  static const String _signalingServer = 'https://synchronization-807q.onrender.com';
-  
+  static const String _signalingServer =
+      'https://synchronization-807q.onrender.com';
+
+  static const Map<String, dynamic> _iceConfig = {
+    'iceServers': [
+      {'urls': 'stun:stun.l.google.com:19302'},
+      {'urls': 'stun:stun1.l.google.com:19302'},
+      {
+        'urls': 'turn:openrelay.metered.ca:443?transport=udp',
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      {
+        'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+    ],
+  };
+
   io.Socket? _socket;
-  RTCPeerConnection? _pc;
-  RTCDataChannel? _dataChannel;
-  PlaybackBuffer? _playbackBuffer;
-  late ClockSyncService _syncClock;
-  late SyncPlaybackEngine _syncEngine;
-  
+  final Map<String, RTCPeerConnection> _peers = {};
+  Timer? _connectionTimeoutTimer;
+  Timer? _heartbeatTimer;
+
+  HostSessionController? hostController;
+  GuestSessionController? guestController;
+
   AppConnectionState _state = AppConnectionState.idle;
   String _errorMessage = '';
   String _activeSessionId = '';
   bool _isDisposed = false;
-  bool _isWaitingForHost = false;
-  bool _isPaused = false;
-  double _volume = 1.0;
-  
-  Timer? _connectionTimeoutTimer;
-  Timer? _waitingForHostTimer;
-  Timer? _disconnectGraceTimer;
+  bool isHost = false;
 
-  final StreamController<int> _pongController = StreamController<int>.broadcast();
-
-  // Getters
   AppConnectionState get state => _state;
   String get errorMessage => _errorMessage;
-  bool get isWaitingForHost => _isWaitingForHost;
-  bool get isPaused => _isPaused;
-  ClockSyncService get clockSync => _syncClock;
-  SyncPlaybackEngine get syncEngine => _syncEngine;
-  double get volume => _volume;
   String get activeSessionId => _activeSessionId;
-  bool get isSynced => _playbackBuffer != null && _playbackBuffer!.currentDriftMs.abs() < 50;
-  
-  void setVolume(double v) {
-    _volume = v.clamp(0.0, 1.0);
-    notifyListeners();
-  }
-  
-  ConnectionQuality get connectionQuality {
-    if (_state != AppConnectionState.connected) return ConnectionQuality.unknown;
-    final jitter = _syncClock.emaJitterMs;
-    if (jitter < 15) return ConnectionQuality.excellent;
-    if (jitter < 40) return ConnectionQuality.good;
-    return ConnectionQuality.poor;
-  }
-  
-  // Stats for UI
-  double get currentDriftMs => _playbackBuffer?.currentDriftMs ?? 0;
-  int get bufferSize => _playbackBuffer?.bufferSize ?? 0;
-  String get syncStats => _playbackBuffer?.getDebugInfo() ?? '';
+  bool get isWaitingForHost => _state == AppConnectionState.connecting && !isHost;
+  bool get isSynced => _state == AppConnectionState.connected;
+  bool get isPaused =>
+      isHost ? !(hostController?.isPlaying ?? false) : !(guestController?.isPlaying ?? false);
+  double get volume => 1.0;
+  int get guestCount => hostController?.guestCount ?? 0;
+  ConnectionQuality get connectionQuality =>
+      _state == AppConnectionState.connected ? ConnectionQuality.excellent : ConnectionQuality.unknown;
+  double get currentDriftMs => 0;
+  int get bufferSize => 0;
+  String get syncStats => '';
 
-  WebRTCService() {
-    _syncClock = ClockSyncService();
-    _syncEngine = SyncPlaybackEngine();
+  void initializeHost(HostSessionController controller) {
+    hostController?.removeListener(notifyListeners);
+    hostController = controller..addListener(notifyListeners);
+    guestController = null;
+    isHost = true;
+  }
+
+  void initializeGuest(GuestSessionController controller) {
+    guestController?.removeListener(notifyListeners);
+    guestController = controller..addListener(notifyListeners);
+    hostController = null;
+    isHost = false;
+  }
+
+  Future<String> createHostSession({String? serverUrl}) async {
+    final sessionId = _generateSessionId();
+    await host(sessionId, serverUrl: serverUrl);
+    return sessionId;
+  }
+
+  Future<void> host(String sessionId, {String? serverUrl}) async {
+    isHost = true;
+    _activeSessionId = sessionId.toUpperCase();
+    _setState(AppConnectionState.connecting);
+    await _connectSocket(serverUrl ?? _signalingServer);
   }
 
   Future<void> connect(String shareCode, [String? serverUrl]) async {
-    if (_state == AppConnectionState.connected) return;
-    
-    final url = serverUrl ?? _signalingServer;
-    _activeSessionId = shareCode;
+    isHost = false;
+    _activeSessionId = _extractSessionId(shareCode).toUpperCase();
     _setState(AppConnectionState.connecting);
-    _isWaitingForHost = false;
+    await _connectSocket(serverUrl ?? _signalingServer);
+  }
 
-    try {
-      _socket = io.io(url, io.OptionBuilder()
-        .setTransports(['websocket'])
-        .disableAutoConnect()
-        .setTimeout(60000)
-        .build());
+  Future<void> setVolume(double value) async {
+    if (isHost) {
+      await hostController?.setVolume(value);
+    } else {
+      await guestController?.setVolume(value);
+    }
+    notifyListeners();
+  }
 
-      _socket!.onConnect((_) {
-        debugPrint('[WebRTC] Socket connected, joining room: $shareCode');
-        _socket!.emit('join-session', shareCode);
-        
-        _waitingForHostTimer?.cancel();
-        _waitingForHostTimer = Timer(const Duration(seconds: 20), () {
-          if (_state == AppConnectionState.connecting && _pc == null) {
-            _isWaitingForHost = true;
-            notifyListeners();
-          }
-        });
+  Future<void> _connectSocket(String url) async {
+    disconnect(notify: false, keepControllers: true);
+
+    final completer = Completer<void>();
+    _socket = io.io(
+      url,
+      io.OptionBuilder()
+          .setTransports(['websocket', 'polling'])
+          .disableAutoConnect()
+          .enableReconnection()
+          .setReconnectionAttempts(20)
+          .setReconnectionDelay(1000)
+          .setReconnectionDelayMax(8000)
+          .setTimeout(30000)
+          .build(),
+    );
+
+    _socket!.onConnect((_) {
+      debugPrint('[WebRTC] Socket connected, joining $_activeSessionId');
+      _socket?.emit('join-session', _activeSessionId);
+      if (isHost) _announceHost();
+      if (!completer.isCompleted) completer.complete();
+    });
+
+    _socket!.on('session-peers', (data) {
+      if (!isHost) return;
+      final peers = _extractList(data, 'peers') ?? [];
+      for (final peerId in peers.whereType<String>()) {
+        if (peerId != _socket?.id) _createOffer(peerId);
+      }
+    });
+
+    _socket!.on('peer-joined', (data) {
+      if (!isHost) return;
+      final peerId = _extractString(data, 'peerId');
+      if (peerId != null && peerId != _socket?.id) _createOffer(peerId);
+    });
+
+    _socket!.on('signal', (data) async {
+      final from = _extractString(data, 'from');
+      final signal = _extractMap(data, 'signal');
+      if (from == null || signal == null) return;
+      try {
+        await _handleSignal(from, signal);
+      } catch (e) {
+        debugPrint('[WebRTC] Signal error: $e');
+        _setError('Failed to process WebRTC signal');
+      }
+    });
+
+    _socket!.onConnectError((e) {
+      debugPrint('[WebRTC] Socket connect error: $e');
+      if (!completer.isCompleted) {
+        completer.completeError(Exception('Could not reach signaling server'));
+      }
+    });
+
+    _socket!.onDisconnect((_) {
+      if (!_isDisposed && _state == AppConnectionState.connected) {
+        _setState(AppConnectionState.reconnecting);
+      }
+    });
+
+    _socket!.connect();
+    _connectionTimeoutTimer?.cancel();
+    _connectionTimeoutTimer = Timer(const Duration(seconds: 60), () {
+      if (_state == AppConnectionState.connecting) {
+        _setError(isHost
+            ? 'Session created, but no guests connected yet.'
+            : 'Connection timed out. Check the session code.');
+      }
+    });
+
+    await completer.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => throw Exception('Connection timed out'),
+    );
+  }
+
+  void _announceHost() {
+    _socket?.emit('announce-session', {
+      'sessionId': _activeSessionId,
+      'label': 'Host Phone',
+      'type': 'mobile-host',
+    });
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 7), (_) {
+      _socket?.emit('session-heartbeat', {'sessionId': _activeSessionId});
+      _socket?.emit('announce-session', {
+        'sessionId': _activeSessionId,
+        'label': 'Host Phone',
+        'type': 'mobile-host',
       });
+    });
+  }
 
-      _socket!.on('offer', (data) async {
-        debugPrint('[WebRTC] Received offer from extension. fromId: ${data['fromId']}');
-        try {
-          await _handleOffer(data['offer'], data['fromId']);
-        } catch (e) {
-          debugPrint('[WebRTC] Error handling offer: $e');
-          _setError('Failed to process connection offer');
-        }
+  Future<void> _createOffer(String peerId) async {
+    if (_peers.containsKey(peerId)) return;
+    final pc = await createPeerConnection(_iceConfig);
+    _peers[peerId] = pc;
+    final channel = await pc.createDataChannel(
+      'sync',
+      RTCDataChannelInit()..ordered = true,
+    );
+    _wirePeer(peerId, pc);
+    _wireDataChannel(channel);
+
+    final offer = await pc.createOffer({
+      'offerToReceiveAudio': false,
+      'offerToReceiveVideo': false,
+    });
+    await pc.setLocalDescription(offer);
+    _socket?.emit('signal', {
+      'sessionId': _activeSessionId,
+      'signal': {'type': offer.type, 'sdp': offer.sdp},
+      'to': peerId,
+    });
+  }
+
+  Future<void> _handleSignal(String fromId, Map<String, dynamic> signal) async {
+    final type = signal['type'] as String?;
+
+    if (type == 'offer') {
+      final pc = await createPeerConnection(_iceConfig);
+      _peers[fromId] = pc;
+      _wirePeer(fromId, pc);
+      pc.onDataChannel = _wireDataChannel;
+      await pc.setRemoteDescription(
+        RTCSessionDescription(signal['sdp'] as String?, 'offer'),
+      );
+      final answer = await pc.createAnswer({
+        'offerToReceiveAudio': false,
+        'offerToReceiveVideo': false,
       });
-
-      _socket!.on('ice-candidate', (data) async {
-        if (_pc != null) {
-          await _pc!.addCandidate(RTCIceCandidate(
-            data['candidate']['candidate'],
-            data['candidate']['sdpMid'],
-            data['candidate']['sdpMLineIndex'],
-          ));
-        }
+      await pc.setLocalDescription(answer);
+      _socket?.emit('signal', {
+        'sessionId': _activeSessionId,
+        'signal': {'type': answer.type, 'sdp': answer.sdp},
+        'to': fromId,
       });
+      return;
+    }
 
-      _socket!.onDisconnect((_) {
-        debugPrint('[WebRTC] Socket disconnected');
-        if (!_isDisposed && _state == AppConnectionState.connected) {
-          _setState(AppConnectionState.reconnecting);
-        }
-      });
+    final pc = _peers[fromId];
+    if (pc == null) return;
 
-      _socket!.connect();
-
-      _connectionTimeoutTimer = Timer(const Duration(seconds: 60), () {
-        if (_state == AppConnectionState.connecting) {
-          _setError('Connection timed out. Extension might be offline.');
-        }
-      });
-
-    } catch (e) {
-      _setError(e.toString());
+    if (type == 'answer') {
+      await pc.setRemoteDescription(
+        RTCSessionDescription(signal['sdp'] as String?, 'answer'),
+      );
+    } else if (signal['candidate'] != null) {
+      await pc.addCandidate(RTCIceCandidate(
+        signal['candidate'] as String?,
+        signal['sdpMid'] as String?,
+        (signal['sdpMLineIndex'] as num?)?.toInt(),
+      ));
     }
   }
 
-  Future<void> _handleOffer(dynamic offerData, String fromId) async {
-    _waitingForHostTimer?.cancel();
-    _isWaitingForHost = false;
-
-    _pc = await createPeerConnection({
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-        {'urls': 'stun:stun1.l.google.com:19302'},
-        {
-          'urls': 'turn:openrelay.metered.ca:443?transport=udp',
-          'username': 'openrelayproject',
-          'credential': 'openrelayproject'
-        },
-        {
-          'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
-          'username': 'openrelayproject',
-          'credential': 'openrelayproject'
-        }
-      ]
-    });
-
-    _pc!.onIceCandidate = (candidate) {
+  void _wirePeer(String peerId, RTCPeerConnection pc) {
+    pc.onIceCandidate = (candidate) {
       if (candidate.candidate != null) {
-        _socket?.emit('ice-candidate', {
-          'candidate': {
+        _socket?.emit('signal', {
+          'sessionId': _activeSessionId,
+          'signal': {
             'candidate': candidate.candidate,
             'sdpMid': candidate.sdpMid,
             'sdpMLineIndex': candidate.sdpMLineIndex,
           },
-          'toId': fromId,
+          'to': peerId,
         });
       }
     };
 
-    _pc!.onConnectionState = (state) {
-      debugPrint('[WebRTC] Connection state changed to: $state');
-      
+    pc.onConnectionState = (state) {
+      debugPrint('[WebRTC] Peer $peerId state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-        debugPrint('[WebRTC] REACHED CONNECTED STATE. Updating UI now.');
-        
-        // 1. Update UI IMMEDIATELY
-        _setState(AppConnectionState.connected);
         _connectionTimeoutTimer?.cancel();
-        _isWaitingForHost = false;
-
-        // 2. Initialize sync and audio systems in the background
-        Future.delayed(const Duration(milliseconds: 100), () {
-          debugPrint('[WebRTC] Initializing playback systems post-connection.');
-          _playbackBuffer = PlaybackBuffer(_syncClock);
-          _playbackBuffer!.start((audioData) async {
-            await _playAudioChunk(Uint8List.fromList(audioData));
-          });
-          _syncEngine.startMonitoring(_syncClock);
-          _startPositionReporting();
-        });
-        
-      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
-        debugPrint('[WebRTC] Connection FAILED.');
-        _setError('WebRTC connection failed');
-      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-        debugPrint('[WebRTC] Connection DISCONNECTED.');
+        _setState(AppConnectionState.connected);
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+        _peers.remove(peerId);
+        notifyListeners();
       }
     };
-
-    _pc!.onDataChannel = (channel) {
-      if (channel.label == 'clock-sync') {
-        _dataChannel = channel;
-        _dataChannel!.onMessage = (message) {
-          _handleDataMessage(message.text);
-        };
-      }
-    };
-
-    await _pc!.setRemoteDescription(RTCSessionDescription(offerData['sdp'], offerData['type']));
-    final answer = await _pc!.createAnswer();
-    await _pc!.setLocalDescription(answer);
-
-    _socket?.emit('answer', {
-      'answer': {'sdp': answer.sdp, 'type': answer.type},
-      'toId': fromId,
-    });
   }
 
-  void _handleDataMessage(String text) {
-    try {
-      final msg = jsonDecode(text);
-      
-      // Clock sync ping/pong
-      if (msg['t'] != null) {
-        if (msg['r'] != null) {
-          // pong from source
-          _syncClock.handlePong(msg['t'], msg['r']);
+  void _wireDataChannel(RTCDataChannel channel) {
+    if (isHost) {
+      hostController?.onGuestConnected(channel);
+    } else {
+      guestController?.setHostChannel(channel);
+    }
+    channel.onDataChannelState = (state) {
+      if (state == RTCDataChannelState.RTCDataChannelOpen) {
+        if (isHost) {
+          hostController?.onGuestConnected(channel);
         } else {
-          // ping from source, echo back
-          sendDataChannelMessage({'t': msg['t'], 'r': DateTime.now().millisecondsSinceEpoch});
+          guestController?.setHostChannel(channel);
         }
-        return;
+        _connectionTimeoutTimer?.cancel();
+        _setState(AppConnectionState.connected);
       }
-
-      if (msg['type'] == 'audio') {
-        final List<dynamic> audioData = msg['audioData'];
-        final int chunkId = msg['chunkId'];
-        final int timestamp = msg['playbackTimestamp'];
-        
-        _playbackBuffer?.addChunk(
-          Uint8List.fromList(audioData.cast<int>()),
-          chunkId,
-          timestamp,
-        );
-      } else if (msg['type'] == 'sync-config') {
-        _syncEngine.applySourceConfig(bufferMs: (msg['bufferMs'] as num).toDouble());
-      } else if (msg['type'] == 'wait_at_checkpoint') {
-        _playbackBuffer?.setCheckpoint(msg['checkpoint']);
-      } else if (msg['type'] == 'resume') {
-        _playbackBuffer?.resume();
-      }
-    } catch (e) {
-      debugPrint('Data channel error: $e');
-    }
+      notifyListeners();
+    };
   }
 
-  void _startPositionReporting() {
-    Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (_isDisposed || _state != AppConnectionState.connected) {
-        timer.cancel();
-        return;
-      }
-      if (_playbackBuffer != null) {
-        sendDataChannelMessage({
-          'type': 'position_report',
-          'currentChunkId': _playbackBuffer!.lastPlayedChunkId,
-          't': DateTime.now().millisecondsSinceEpoch,
-        });
-      }
-    });
-  }
-
-  void sendDataChannelMessage(Map<String, dynamic> msg) {
-    if (_dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
-      _dataChannel!.send(RTCDataChannelMessage(jsonEncode(msg)));
-    }
-  }
-
-  void disconnect({bool notify = true}) {
-    debugPrint('[WebRTC] Disconnecting...');
-    
+  void disconnect({bool notify = true, bool keepControllers = false}) {
     _connectionTimeoutTimer?.cancel();
-    _waitingForHostTimer?.cancel();
-    _disconnectGraceTimer?.cancel();
-    
+    _heartbeatTimer?.cancel();
+    if (isHost && _activeSessionId.isNotEmpty) {
+      _socket?.emit('end-session', {'sessionId': _activeSessionId});
+    }
     _socket?.disconnect();
     _socket?.dispose();
     _socket = null;
-    
-    _pc?.close();
-    _pc = null;
-    
-    _syncEngine.stopMonitoring();
-    _dataChannel = null;
-    _playbackBuffer?.stop();
-    _playbackBuffer = null;
-    
+    for (final pc in _peers.values) {
+      pc.close();
+    }
+    _peers.clear();
+    if (!keepControllers) {
+      hostController?.dispose();
+      guestController?.dispose();
+      hostController = null;
+      guestController = null;
+      _activeSessionId = '';
+      isHost = false;
+    }
     if (notify) _setState(AppConnectionState.idle);
   }
 
-  Future<void> _playAudioChunk(Uint8List data) async {
-    try {
-      final samples = Int16List.view(data.buffer);
-      
-      // Manual volume scaling if volume < 1.0
-      if (_volume < 0.99) {
-        for (int i = 0; i < samples.length; i++) {
-          samples[i] = (samples[i] * _volume).toInt();
-        }
-      }
-      
-      await FlutterPcmSound.feed(PcmArrayInt16(bytes: samples.buffer.asByteData()));
-    } catch (e) {
-      debugPrint('Audio playback error: $e');
+  String _generateSessionId() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final rng = Random.secure();
+    return List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
+  }
+
+  String _extractSessionId(String input) {
+    if (!input.startsWith('http')) return input;
+    final uri = Uri.parse(input);
+    final pathId = uri.pathSegments.length >= 2 && uri.pathSegments.first == 'c'
+        ? uri.pathSegments[1]
+        : null;
+    return uri.queryParameters['id'] ?? pathId ?? '';
+  }
+
+  String? _extractString(dynamic data, String key) {
+    if (data is List && data.isNotEmpty && data.first is Map) {
+      return (data.first as Map)[key] as String?;
     }
+    if (data is Map) return data[key] as String?;
+    return null;
+  }
+
+  List? _extractList(dynamic data, String key) {
+    if (data is List && data.isNotEmpty && data.first is Map) {
+      return (data.first as Map)[key] as List?;
+    }
+    if (data is Map) return data[key] as List?;
+    return null;
+  }
+
+  Map<String, dynamic>? _extractMap(dynamic data, String key) {
+    final value = data is List && data.isNotEmpty && data.first is Map
+        ? (data.first as Map)[key]
+        : data is Map
+            ? data[key]
+            : null;
+    return value is Map ? Map<String, dynamic>.from(value) : null;
   }
 
   void _setState(AppConnectionState s) {
@@ -344,7 +392,6 @@ class WebRTCService extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
-    _pongController.close();
     disconnect(notify: false);
     super.dispose();
   }
