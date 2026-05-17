@@ -6,9 +6,11 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:synchronization/services/discovery_service.dart';
 import 'package:synchronization/services/file_service.dart';
 import 'package:synchronization/services/guest_session_controller.dart';
+import 'package:synchronization/services/host_media_player.dart';
 import 'package:synchronization/services/host_session_controller.dart';
 import 'package:synchronization/services/webrtc_service.dart';
 import 'package:synchronization/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 enum _ScreenMode { welcome, hostSetup, hostActive, guestJoin, guestActive }
 
@@ -29,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   HostSessionController? _hostController;
   GuestSessionController? _guestController;
   PlatformFile? _selectedFile;
+  HostPlaybackMode _hostPlaybackMode = HostPlaybackMode.audioOnly;
   bool _isScanning = false;
   bool _isBusy = false;
   double _volume = 1.0;
@@ -52,7 +55,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _pickFile() async {
     final file = await _fileService.pickMediaFile();
     if (file == null) return;
-    setState(() => _selectedFile = file);
+    setState(() {
+      _selectedFile = file;
+      if (!_isVideoFile(file)) _hostPlaybackMode = HostPlaybackMode.audioOnly;
+    });
   }
 
   Future<void> _startHostSession() async {
@@ -65,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isBusy = true);
     try {
       final controller = HostSessionController();
-      await controller.setupSession(file);
+      await controller.setupSession(file, playbackMode: _hostPlaybackMode);
       controller.startPeriodicSync();
       if (!mounted) return;
 
@@ -143,6 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _hostController = null;
       _guestController = null;
       _selectedFile = null;
+      _hostPlaybackMode = HostPlaybackMode.audioOnly;
       _codeController.clear();
     });
     if (widget.enableDiscovery) {
@@ -152,6 +159,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  bool _isVideoFile(PlatformFile file) {
+    final name = file.name.toLowerCase();
+    return ['.mp4', '.mkv', '.avi', '.mov'].any(name.endsWith);
   }
 
   @override
@@ -243,6 +255,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 14),
           _FileCard(file: _selectedFile),
+          if (_selectedFile != null && _isVideoFile(_selectedFile!)) ...[
+            const SizedBox(height: 18),
+            _PlaybackModePicker(
+              value: _hostPlaybackMode,
+              onChanged: (mode) => setState(() => _hostPlaybackMode = mode),
+            ),
+          ],
           const SizedBox(height: 18),
           _SecondaryButton(
             label: 'PICK FILE',
@@ -275,6 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final controller = _hostController ?? webrtc.hostController;
     return _Page(
       title: 'SESSION ACTIVE',
+      onBack: _leaveSession,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -416,6 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
         webrtc.hasRemoteAudio && controller?.isLoaded != true;
     return _Page(
       title: 'CONNECTED TO HOST',
+      onBack: _leaveSession,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -507,21 +528,71 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _HostPlayerPanel extends StatelessWidget {
+class _HostPlayerPanel extends StatefulWidget {
   const _HostPlayerPanel({required this.controller, required this.onSeek});
 
   final HostSessionController controller;
   final ValueChanged<int> onSeek;
 
   @override
+  State<_HostPlayerPanel> createState() => _HostPlayerPanelState();
+}
+
+class _HostPlayerPanelState extends State<_HostPlayerPanel> {
+  @override
+  void initState() {
+    super.initState();
+    // Listen to VideoPlayerController changes so the widget rebuilds
+    // when initialization completes and when play/pause state changes.
+    widget.controller.videoController?.addListener(_onVideoChange);
+  }
+
+  @override
+  void didUpdateWidget(_HostPlayerPanel old) {
+    super.didUpdateWidget(old);
+    if (old.controller.videoController != widget.controller.videoController) {
+      old.controller.videoController?.removeListener(_onVideoChange);
+      widget.controller.videoController?.addListener(_onVideoChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.videoController?.removeListener(_onVideoChange);
+    super.dispose();
+  }
+
+  void _onVideoChange() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return _TimelinePanel(
-      title: controller.file?.name ?? 'Selected media',
-      positionStream: controller.positionStream,
-      position: controller.position,
-      duration: controller.duration,
-      readOnly: false,
-      onSeek: onSeek,
+    final videoController = widget.controller.videoController;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.controller.isVideoPlayback &&
+            videoController != null &&
+            videoController.value.isInitialized) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: AspectRatio(
+              aspectRatio: videoController.value.aspectRatio,
+              child: VideoPlayer(videoController),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        _TimelinePanel(
+          title: widget.controller.file?.name ?? 'Selected media',
+          positionStream: widget.controller.positionStream,
+          position: widget.controller.position,
+          duration: widget.controller.duration,
+          readOnly: false,
+          onSeek: widget.onSeek,
+        ),
+      ],
     );
   }
 }
@@ -780,8 +851,93 @@ class _Page extends StatelessWidget {
                 const SizedBox(width: 48),
               ],
             ),
-          Expanded(child: child),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(child: child),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlaybackModePicker extends StatelessWidget {
+  const _PlaybackModePicker({required this.value, required this.onChanged});
+
+  final HostPlaybackMode value;
+  final ValueChanged<HostPlaybackMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ModeSegment(
+              label: 'Audio only',
+              icon: Icons.volume_up,
+              selected: value == HostPlaybackMode.audioOnly,
+              onPressed: () => onChanged(HostPlaybackMode.audioOnly),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _ModeSegment(
+              label: 'Video + audio',
+              icon: Icons.movie,
+              selected: value == HostPlaybackMode.videoWithAudio,
+              onPressed: () => onChanged(HostPlaybackMode.videoWithAudio),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeSegment extends StatelessWidget {
+  const _ModeSegment({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      style: TextButton.styleFrom(
+        backgroundColor: selected ? AppTheme.accent : Colors.transparent,
+        foregroundColor: selected ? Colors.white : AppTheme.textDim,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
     );
   }

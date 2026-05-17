@@ -7,6 +7,7 @@ import 'package:synchronization/models/sync_command.dart';
 import 'package:synchronization/services/host_media_player.dart';
 import 'package:synchronization/services/network_service.dart';
 import 'package:synchronization/services/stream_server.dart';
+import 'package:video_player/video_player.dart';
 
 class HostSessionController extends ChangeNotifier {
   final HostMediaPlayer _player = HostMediaPlayer();
@@ -16,13 +17,16 @@ class HostSessionController extends ChangeNotifier {
   Timer? _syncTimer;
   SyncCommand? _lastPlaybackCommand;
 
-  String? _streamUrl;
+  String? _streamUrl;   // full /stream URL (used by host for its own playback)
+  String? _audioUrl;    // /audio URL sent to guests (always audio-only)
   PlatformFile? _file;
 
   Stream<Duration> get positionStream => _player.positionStream;
   Duration get position => _player.position;
   Duration? get duration => _player.duration;
   bool get isPlaying => _player.isPlaying;
+  bool get isVideoPlayback => _player.isVideoPlayback;
+  VideoPlayerController? get videoController => _player.videoController;
   String? get streamUrl => _streamUrl;
   PlatformFile? get file => _file;
   int get guestCount => _guestChannels
@@ -30,7 +34,10 @@ class HostSessionController extends ChangeNotifier {
           (channel) => channel.state == RTCDataChannelState.RTCDataChannelOpen)
       .length;
 
-  Future<String> setupSession(PlatformFile file) async {
+  Future<String> setupSession(
+    PlatformFile file, {
+    HostPlaybackMode playbackMode = HostPlaybackMode.audioOnly,
+  }) async {
     if (file.path == null) {
       throw Exception('Could not read selected file path.');
     }
@@ -43,7 +50,9 @@ class HostSessionController extends ChangeNotifier {
     }
 
     _streamUrl = await _streamServer.start(file.path!, localIp);
-    await _player.loadFile(file.path!);
+    // Replace the host IP in the audio URL so guests can reach it.
+    _audioUrl = _streamUrl?.replaceFirst('/stream', '/audio');
+    await _player.loadFile(file.path!, mode: playbackMode);
     notifyListeners();
     return _streamUrl!;
   }
@@ -113,7 +122,8 @@ class HostSessionController extends ChangeNotifier {
   }
 
   void _sendStreamReady(RTCDataChannel channel) {
-    final url = _streamUrl;
+    // Send the /audio URL to guests — they always play audio-only.
+    final url = _audioUrl;
     if (url == null ||
         channel.state != RTCDataChannelState.RTCDataChannelOpen) {
       return;

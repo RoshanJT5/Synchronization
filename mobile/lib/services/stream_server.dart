@@ -18,7 +18,8 @@ class StreamServer {
 
     final router = Router()
       ..get('/ping', (shelf.Request request) => shelf.Response.ok('pong'))
-      ..get('/stream', _handleStream);
+      ..get('/stream', _handleStream)
+      ..get('/audio', _handleAudio); // audio-only endpoint for guest devices
 
     final handler = const shelf.Pipeline()
         .addMiddleware(_corsMiddleware())
@@ -28,7 +29,32 @@ class StreamServer {
     return 'http://$localIp:$port/stream';
   }
 
+  /// URL for guest audio-only playback (works for both MP3 and MP4 sources).
+  String? get audioUrl {
+    final server = _server;
+    if (server == null || _filePath == null) return null;
+    final host = server.address.address == '0.0.0.0'
+        ? 'localhost'
+        : server.address.address;
+    return 'http://$host:$port/audio';
+  }
+
   Future<shelf.Response> _handleStream(shelf.Request request) async {
+    return _serveFile(request, _mimeType);
+  }
+
+  /// Serves the same file but always with an audio-compatible MIME type.
+  /// For MP4/MKV/AVI sources, this tells ExoPlayer/just_audio to treat it
+  /// as audio-only so guests never get a video track.
+  Future<shelf.Response> _handleAudio(shelf.Request request) async {
+    final audioMime = _getAudioMimeType(_filePath ?? '');
+    return _serveFile(request, audioMime);
+  }
+
+  Future<shelf.Response> _serveFile(
+    shelf.Request request,
+    String? contentType,
+  ) async {
     final path = _filePath;
     if (path == null) return shelf.Response.notFound('No file selected');
 
@@ -38,13 +64,18 @@ class StreamServer {
     final fileSize = await file.length();
     final rangeHeader = request.headers['range'];
     if (rangeHeader != null) {
-      return _handleRangeRequest(file, fileSize, rangeHeader);
+      return _handleRangeRequest(
+        file,
+        fileSize,
+        rangeHeader,
+        contentType: contentType,
+      );
     }
 
     return shelf.Response.ok(
       file.openRead(),
       headers: {
-        'Content-Type': _mimeType ?? 'application/octet-stream',
+        'Content-Type': contentType ?? 'application/octet-stream',
         'Content-Length': '$fileSize',
         'Accept-Ranges': 'bytes',
         'Cache-Control': 'no-cache',
@@ -56,8 +87,9 @@ class StreamServer {
   shelf.Response _handleRangeRequest(
     File file,
     int fileSize,
-    String rangeHeader,
-  ) {
+    String rangeHeader, {
+    String? contentType,
+  }) {
     final match = RegExp(r'bytes=(\d+)-(\d*)').firstMatch(rangeHeader);
     if (match == null) return shelf.Response(416, body: 'Invalid range');
 
@@ -72,7 +104,7 @@ class StreamServer {
       206,
       body: file.openRead(start, end + 1),
       headers: {
-        'Content-Type': _mimeType ?? 'application/octet-stream',
+        'Content-Type': contentType ?? _mimeType ?? 'application/octet-stream',
         'Content-Range': 'bytes $start-$end/$fileSize',
         'Content-Length': '$length',
         'Accept-Ranges': 'bytes',
@@ -114,6 +146,21 @@ class StreamServer {
       'mov': 'video/quicktime',
     };
     return types[ext] ?? 'application/octet-stream';
+  }
+
+  /// Returns an audio-compatible MIME type for any file.
+  /// Video containers (mp4/mkv/etc.) are mapped to audio/mp4 so that
+  /// ExoPlayer on guest devices treats them as audio-only streams.
+  String _getAudioMimeType(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    const videoToAudio = {
+      'mp4': 'audio/mp4',
+      'mkv': 'audio/mp4',
+      'avi': 'audio/mp4',
+      'mov': 'audio/mp4',
+    };
+    if (videoToAudio.containsKey(ext)) return videoToAudio[ext]!;
+    return _getMimeType(path); // mp3/wav/aac etc. already audio
   }
 
   Future<void> stop() async {
