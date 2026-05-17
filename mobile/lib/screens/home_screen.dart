@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -34,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   HostPlaybackMode _hostPlaybackMode = HostPlaybackMode.audioOnly;
   bool _isScanning = false;
   bool _isBusy = false;
+  bool _isFullscreen = false;
   double _volume = 1.0;
 
   @override
@@ -166,6 +169,24 @@ class _HomeScreenState extends State<HomeScreen> {
     return ['.mp4', '.mkv', '.avi', '.mov'].any(name.endsWith);
   }
 
+  void _enterFullscreen() {
+    setState(() => _isFullscreen = true);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  void _exitFullscreen() {
+    setState(() => _isFullscreen = false);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -196,6 +217,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           if (_isScanning) _buildScannerOverlay(),
+          if (_isFullscreen && _hostController != null)
+            _FullscreenVideoOverlay(
+              controller: _hostController!,
+              onExit: _exitFullscreen,
+            ),
         ],
       ),
     );
@@ -309,6 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _HostPlayerPanel(
               controller: controller,
               onSeek: (ms) => controller.seekTo(ms),
+              onFullscreen: controller.isVideoPlayback ? _enterFullscreen : null,
             ),
           const SizedBox(height: 14),
           Row(
@@ -529,10 +556,15 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _HostPlayerPanel extends StatefulWidget {
-  const _HostPlayerPanel({required this.controller, required this.onSeek});
+  const _HostPlayerPanel({
+    required this.controller,
+    required this.onSeek,
+    this.onFullscreen,
+  });
 
   final HostSessionController controller;
   final ValueChanged<int> onSeek;
+  final VoidCallback? onFullscreen;
 
   @override
   State<_HostPlayerPanel> createState() => _HostPlayerPanelState();
@@ -575,12 +607,31 @@ class _HostPlayerPanelState extends State<_HostPlayerPanel> {
         if (widget.controller.isVideoPlayback &&
             videoController != null &&
             videoController.value.isInitialized) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: AspectRatio(
-              aspectRatio: videoController.value.aspectRatio,
-              child: VideoPlayer(videoController),
-            ),
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: AspectRatio(
+                  aspectRatio: videoController.value.aspectRatio,
+                  child: VideoPlayer(videoController),
+                ),
+              ),
+              if (widget.onFullscreen != null)
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: IconButton(
+                    onPressed: widget.onFullscreen,
+                    icon: const Icon(Icons.fullscreen, color: Colors.white),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black54,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 14),
         ],
@@ -1202,6 +1253,206 @@ class _RoundButton extends StatelessWidget {
           foregroundColor: Colors.white,
           disabledBackgroundColor: AppTheme.surface.withValues(alpha: 0.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fullscreen video overlay — immersive movie-watching experience
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FullscreenVideoOverlay extends StatefulWidget {
+  const _FullscreenVideoOverlay({
+    required this.controller,
+    required this.onExit,
+  });
+
+  final HostSessionController controller;
+  final VoidCallback onExit;
+
+  @override
+  State<_FullscreenVideoOverlay> createState() =>
+      _FullscreenVideoOverlayState();
+}
+
+class _FullscreenVideoOverlayState extends State<_FullscreenVideoOverlay> {
+  bool _showControls = true;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.videoController?.addListener(_onVideoTick);
+    _scheduleHide();
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    widget.controller.videoController?.removeListener(_onVideoTick);
+    super.dispose();
+  }
+
+  void _onVideoTick() {
+    if (mounted) setState(() {});
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _showControls = false);
+    });
+  }
+
+  void _toggleControls() {
+    setState(() => _showControls = !_showControls);
+    if (_showControls) _scheduleHide();
+  }
+
+  String _fmt(Duration d) {
+    final hours = d.inHours;
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vc = widget.controller.videoController;
+    if (vc == null || !vc.value.isInitialized) {
+      return const SizedBox.expand(
+        child: ColoredBox(color: Colors.black),
+      );
+    }
+
+    final position = vc.value.position;
+    final duration = vc.value.duration;
+    final maxMs =
+        duration.inMilliseconds <= 0 ? 1.0 : duration.inMilliseconds.toDouble();
+    final posMs = position.inMilliseconds.clamp(0, maxMs.toInt()).toDouble();
+
+    return GestureDetector(
+      onTap: _toggleControls,
+      child: Container(
+        color: Colors.black,
+        child: Stack(
+          children: [
+            // ── Video ─────────────────────────────────────────────────────
+            Center(
+              child: AspectRatio(
+                aspectRatio: vc.value.aspectRatio,
+                child: VideoPlayer(vc),
+              ),
+            ),
+
+            // ── Controls overlay ──────────────────────────────────────────
+            if (_showControls)
+              Container(
+                color: Colors.black38,
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      // Top bar: exit fullscreen
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              onPressed: widget.onExit,
+                              icon: const Icon(Icons.fullscreen_exit,
+                                  color: Colors.white, size: 28),
+                            ),
+                            Expanded(
+                              child: Text(
+                                widget.controller.file?.name ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Center: play/pause + skip
+                      const Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            onPressed: () => widget.controller.seekTo(
+                              (position.inMilliseconds - 10000)
+                                  .clamp(0, 1 << 31),
+                            ),
+                            icon: const Icon(Icons.replay_10,
+                                color: Colors.white, size: 36),
+                          ),
+                          const SizedBox(width: 32),
+                          IconButton(
+                            onPressed: () {
+                              vc.value.isPlaying
+                                  ? widget.controller.pause()
+                                  : widget.controller.play();
+                            },
+                            icon: Icon(
+                              vc.value.isPlaying
+                                  ? Icons.pause_circle_filled
+                                  : Icons.play_circle_filled,
+                              color: Colors.white,
+                              size: 56,
+                            ),
+                          ),
+                          const SizedBox(width: 32),
+                          IconButton(
+                            onPressed: () => widget.controller.seekTo(
+                              position.inMilliseconds + 10000,
+                            ),
+                            icon: const Icon(Icons.forward_10,
+                                color: Colors.white, size: 36),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+
+                      // Bottom: seek bar + times
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            Text(_fmt(position),
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 12)),
+                            Expanded(
+                              child: Slider(
+                                value: posMs,
+                                max: maxMs,
+                                activeColor: AppTheme.accent,
+                                inactiveColor: Colors.white24,
+                                onChanged: (val) {
+                                  widget.controller.seekTo(val.round());
+                                  _scheduleHide();
+                                },
+                              ),
+                            ),
+                            Text(_fmt(duration),
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
