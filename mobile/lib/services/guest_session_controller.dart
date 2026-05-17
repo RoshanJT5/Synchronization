@@ -11,6 +11,7 @@ class GuestSessionController extends ChangeNotifier {
   RTCDataChannel? _hostChannel;
   bool _isLoaded = false;
   bool _hostIsPlaying = false;
+  double _volume = 1.0;
   String? _streamUrl;
   SyncCommand? _pendingCommand;
 
@@ -28,7 +29,8 @@ class GuestSessionController extends ChangeNotifier {
   }
 
   Future<void> setVolume(double volume) async {
-    await _player.setVolume(volume.clamp(0.0, 1.0));
+    _volume = volume.clamp(0.0, 1.0);
+    await _player.setVolume(_volume);
   }
 
   Future<void> _handleHostCommand(String raw) async {
@@ -108,7 +110,7 @@ class GuestSessionController extends ChangeNotifier {
     await session.configure(AudioSessionConfiguration.music());
     await session.setActive(true);
     _streamUrl = url;
-    await _player.setVolume(1.0);
+    await _player.setVolume(_volume);
     await _player.setUrl(
       url,
       initialPosition: Duration(

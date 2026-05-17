@@ -334,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
             value: _volume,
             onChanged: (value) {
               setState(() => _volume = value);
-              controller?.setVolume(value);
+              webrtc.setVolume(value);
             },
           ),
           const SizedBox(height: 14),
@@ -442,7 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
             value: _volume,
             onChanged: (value) {
               setState(() => _volume = value);
-              controller?.setVolume(value);
+              webrtc.setVolume(value);
             },
           ),
           const SizedBox(height: 16),

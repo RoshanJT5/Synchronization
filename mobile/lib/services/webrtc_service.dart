@@ -35,6 +35,7 @@ class WebRTCService extends ChangeNotifier {
   io.Socket? _socket;
   final Map<String, RTCPeerConnection> _peers = {};
   final List<RTCVideoRenderer> _remoteAudioRenderers = [];
+  final List<MediaStreamTrack> _remoteAudioTracks = [];
   bool _hasRemoteAudio = false;
   Timer? _connectionTimeoutTimer;
   Timer? _heartbeatTimer;
@@ -47,6 +48,7 @@ class WebRTCService extends ChangeNotifier {
   String _activeSessionId = '';
   bool _isDisposed = false;
   bool isHost = false;
+  double _volume = 1.0;
 
   AppConnectionState get state => _state;
   String get errorMessage => _errorMessage;
@@ -58,7 +60,7 @@ class WebRTCService extends ChangeNotifier {
   bool get isPaused => isHost
       ? !(hostController?.isPlaying ?? false)
       : !(guestController?.isPlaying ?? false);
-  double get volume => 1.0;
+  double get volume => _volume;
   int get guestCount => hostController?.guestCount ?? 0;
   ConnectionQuality get connectionQuality =>
       _state == AppConnectionState.connected
@@ -103,10 +105,14 @@ class WebRTCService extends ChangeNotifier {
   }
 
   Future<void> setVolume(double value) async {
+    _volume = value.clamp(0.0, 1.0);
     if (isHost) {
-      await hostController?.setVolume(value);
+      await hostController?.setVolume(_volume);
     } else {
-      await guestController?.setVolume(value);
+      await guestController?.setVolume(_volume);
+      for (final track in _remoteAudioTracks) {
+        await Helper.setVolume(_volume, track);
+      }
     }
     notifyListeners();
   }
@@ -333,6 +339,12 @@ class WebRTCService extends ChangeNotifier {
         final renderer = RTCVideoRenderer();
         await renderer.initialize();
         renderer.srcObject = stream;
+        for (final track in stream.getAudioTracks()) {
+          if (!_remoteAudioTracks.contains(track)) {
+            _remoteAudioTracks.add(track);
+            await Helper.setVolume(_volume, track);
+          }
+        }
         _remoteAudioRenderers.add(renderer);
         _hasRemoteAudio = true;
         debugPrint('[WebRTC] Remote extension audio track attached');
@@ -362,6 +374,7 @@ class WebRTCService extends ChangeNotifier {
       renderer.dispose();
     }
     _remoteAudioRenderers.clear();
+    _remoteAudioTracks.clear();
     _hasRemoteAudio = false;
     if (!keepControllers) {
       hostController?.dispose();
