@@ -77,6 +77,7 @@ class GuestSessionController extends ChangeNotifier {
           break;
         case SyncAction.syncCheck:
           if (!_isLoaded) break;
+          _hostIsPlaying = true;
           final expectedMs = command.positionMs + transitMs;
           final actualMs = _player.position.inMilliseconds;
           final drift = (actualMs - expectedMs).abs();
@@ -87,9 +88,8 @@ class GuestSessionController extends ChangeNotifier {
           ));
           if (drift > maxDriftMs) {
             await _player.seek(Duration(milliseconds: expectedMs));
-            if (_hostIsPlaying && !_player.playing) await _player.play();
-            if (!_hostIsPlaying && _player.playing) await _player.pause();
           }
+          if (!_player.playing) await _player.play();
           break;
         case SyncAction.syncResponse:
           break;
@@ -106,7 +106,9 @@ class GuestSessionController extends ChangeNotifier {
   }) async {
     final session = await AudioSession.instance;
     await session.configure(AudioSessionConfiguration.music());
+    await session.setActive(true);
     _streamUrl = url;
+    await _player.setVolume(1.0);
     await _player.setUrl(
       url,
       initialPosition: Duration(

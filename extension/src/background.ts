@@ -80,6 +80,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     });
   }
 
+  if (message.type === 'EXTENSION_PEER_COUNT') {
+    updateState({ readyPeers: Number(message.count) || 0 });
+  }
+
   return false;
 });
 

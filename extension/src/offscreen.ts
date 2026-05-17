@@ -80,7 +80,8 @@ async function startHost(sessionId: string, streamId: string) {
         label: 'Browser Extension',
         type: 'computer',
       });
-      chrome.runtime.sendMessage({ type: 'EXTENSION_HOST_STARTED' });
+    chrome.runtime.sendMessage({ type: 'EXTENSION_HOST_STARTED' });
+    notifyPeerCount();
     });
 
     socket.on('session-peers', ({ peers: peerIds }) => {
@@ -130,6 +131,7 @@ async function createOffer(peerId: string) {
 
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
   peers.set(peerId, pc);
+  notifyPeerCount();
 
   for (const track of capturedStream.getAudioTracks()) {
     pc.addTrack(track, capturedStream);
@@ -160,12 +162,16 @@ async function createOffer(peerId: string) {
   };
 
   pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected') {
+      notifyPeerCount();
+    }
     if (
       pc.connectionState === 'failed' ||
       pc.connectionState === 'closed' ||
       pc.connectionState === 'disconnected'
     ) {
       peers.delete(peerId);
+      notifyPeerCount();
     }
   };
 
@@ -184,6 +190,7 @@ async function createOffer(peerId: string) {
 function stopHost() {
   for (const peer of peers.values()) peer.close();
   peers.clear();
+  notifyPeerCount();
 
   capturedStream?.getTracks().forEach((track) => track.stop());
   capturedStream = null;
@@ -198,6 +205,13 @@ function stopHost() {
   socket?.removeAllListeners();
   socket?.disconnect();
   socket = null;
+}
+
+function notifyPeerCount() {
+  chrome.runtime.sendMessage({
+    type: 'EXTENSION_PEER_COUNT',
+    count: peers.size,
+  }).catch(() => {});
 }
 
 function setSourceMuted(muted: boolean) {
