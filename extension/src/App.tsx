@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import { Volume2, VolumeX } from 'lucide-react';
 
 const CONNECT_PAGE_URL = 'https://synchronization-807q.onrender.com/c';
 
@@ -190,11 +191,7 @@ function App() {
             }`}
           >
             <span className="flex items-center gap-2 text-sm font-semibold">
-              <img 
-                src={sourceMuted ? '/icons8-no-audio-50.png' : '/icons8-audio.gif'} 
-                alt={sourceMuted ? 'Muted' : 'Playing'} 
-                className="w-5 h-5" 
-              />
+              {sourceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
               {sourceMuted ? 'Source muted' : 'Source playing'}
             </span>
             <span
