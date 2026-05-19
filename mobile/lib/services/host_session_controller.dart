@@ -71,10 +71,19 @@ class HostSessionController extends ChangeNotifier {
       throw Exception('Could not read selected file path.');
     }
     _file = file;
-    final localIp = await _networkService.getLocalIP();
+
+    // Try to get local IP — retry once after a short delay in case the
+    // hotspot or network interface is still initializing.
+    var localIp = await _networkService.getLocalIP();
+    if (localIp == null || localIp.isEmpty) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      localIp = await _networkService.getLocalIP();
+    }
     if (localIp == null || localIp.isEmpty) {
       throw Exception(
-        'Not connected to WiFi. Connect to WiFi or create a hotspot first.',
+        'No local network detected. '
+        'Connect both devices to the same WiFi, '
+        'or turn on Mobile Hotspot and connect the other device to it.',
       );
     }
 

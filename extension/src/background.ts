@@ -136,6 +136,40 @@ function prepareSession(sessionId: string) {
   });
 }
 
+/**
+ * Check whether an offscreen document already exists.
+ * Uses chrome.runtime.getContexts() on Chrome 116+; falls back to
+ * attempting to create the document and catching the "already exists" error
+ * on older browsers (e.g. Chrome on Windows 7).
+ */
+async function hasOffscreenDocument(): Promise<boolean> {
+  // chrome.runtime.getContexts is available from Chrome 116+
+  if (typeof chrome.runtime.getContexts === 'function') {
+    try {
+      const contexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT' as chrome.runtime.ContextType],
+      });
+      return contexts.length > 0;
+    } catch {
+      // API exists but threw — fall through to fallback
+    }
+  }
+
+  // Fallback for Chrome < 116: probe by trying to send a message.
+  // If offscreenReady flag is set, the document was created in this session.
+  if (offscreenReady) return true;
+
+  // Last resort: try getViews (MV2 remnant, unlikely to help but safe)
+  try {
+    const views = (chrome.extension as any)?.getViews?.({ type: 'popup' });
+    // If we get here without error, no reliable check; assume no doc.
+    void views;
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
 async function startExtensionHost(sessionId: string, streamId: string) {
   stopLobby();
   updateState({
@@ -152,22 +186,32 @@ async function startExtensionHost(sessionId: string, streamId: string) {
     streamId,
   };
 
-  const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT' as chrome.runtime.ContextType],
-  });
-
-  if (existingContexts.length > 0) {
+  if (await hasOffscreenDocument()) {
     chrome.runtime.sendMessage(initMessage);
     return;
   }
 
   pendingInit = initMessage;
   offscreenReady = false;
-  await chrome.offscreen.createDocument({
-    url: 'offscreen.html',
-    reasons: ['USER_MEDIA' as chrome.offscreen.Reason],
-    justification: 'Capturing tab audio for Synchronization mobile receivers.',
-  });
+  try {
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['USER_MEDIA' as chrome.offscreen.Reason],
+      justification: 'Capturing tab audio for Synchronization mobile receivers.',
+    });
+  } catch (e: any) {
+    // On older Chrome, createDocument may throw if the doc already exists.
+    // In that case, just send the init message directly.
+    if (
+      e?.message?.includes?.('already') ||
+      e?.message?.includes?.('single offscreen')
+    ) {
+      pendingInit = null;
+      chrome.runtime.sendMessage(initMessage);
+    } else {
+      throw e;
+    }
+  }
 }
 
 function stopAll() {
@@ -216,10 +260,8 @@ async function restoreState() {
   };
 
   if (state.status === 'STREAMING' || state.status === 'CONNECTING') {
-    const contexts = await chrome.runtime.getContexts({
-      contextTypes: ['OFFSCREEN_DOCUMENT' as chrome.runtime.ContextType],
-    });
-    if (contexts.length === 0) {
+    const hasDoc = await hasOffscreenDocument();
+    if (!hasDoc) {
       state = {
         isActive: false,
         sessionId: '',

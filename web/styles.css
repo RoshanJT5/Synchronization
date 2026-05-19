@@ -81,8 +81,10 @@ a {
 }
 
 .brand-logo {
-  height: 65px;
-  width: 400px;
+  max-height: 65px;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
   border-radius: 8px;
   object-fit: contain;
 }
@@ -126,7 +128,7 @@ nav a:hover {
 }
 
 h1 {
-  font-size: clamp(48px, 10vw, 96px);
+  font-size: clamp(36px, 10vw, 96px);
   font-weight: 900;
   letter-spacing: -3px;
   line-height: 0.9;
@@ -147,6 +149,8 @@ h1 {
   display: flex;
   gap: 16px;
   margin-bottom: 60px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .download-note {
@@ -312,9 +316,56 @@ footer {
   font-size: 14px;
 }
 
+/* Documentation Section */
+.docs-section {
+  padding: 80px 5vw;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid var(--border);
+}
+
+.docs-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.docs-container h2 {
+  font-size: 40px;
+  font-weight: 800;
+  margin-bottom: 40px;
+  text-align: center;
+}
+
+.doc-block {
+  margin-bottom: 32px;
+  background: var(--card);
+  padding: 32px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+}
+
+.doc-block h3 {
+  color: var(--accent);
+  margin-bottom: 16px;
+  font-size: 20px;
+}
+
+.doc-block p, .doc-block li {
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.doc-block ol {
+  padding-left: 20px;
+}
+
 @media (max-width: 900px) {
   .connect-panel, .grid {
     grid-template-columns: 1fr;
+  }
+  .connect-panel {
+    padding: 40px 5vw;
+    gap: 30px;
   }
   .hero {
     padding-top: 60px;
@@ -324,5 +375,22 @@ footer {
     flex-direction: column;
     padding: 20px;
     gap: 20px;
+  }
+}
+
+@media (max-width: 600px) {
+  footer {
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+  }
+  .actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  .actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
