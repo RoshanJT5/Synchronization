@@ -903,17 +903,16 @@ class _Page extends StatelessWidget {
               ],
             ),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints:
-                        BoxConstraints(minHeight: constraints.maxHeight),
-                    child: IntrinsicHeight(child: child),
-                  ),
-                );
-              },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: child,
+                ),
+              ],
             ),
           ),
         ],

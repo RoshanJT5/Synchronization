@@ -47,6 +47,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     });
   }
 
+  // Legacy path for Chrome < 116 (e.g. Windows 7). The popup already captured
+  // the stream via chrome.tabCapture.capture(); we only need to run the
+  // signalling side here, without any offscreen document.
+  if (message.type === 'START_EXTENSION_HOST_LEGACY') {
+    startExtensionHostLegacy(message.sessionId).catch((error) => {
+      updateState({
+        isActive: false,
+        status: 'ERROR',
+        error: error?.message || 'Could not start browser audio host.',
+      });
+    });
+  }
+
   if (message.type === 'STOP_EXTENSION_HOST') {
     stopAll();
   }
@@ -194,7 +207,7 @@ async function startExtensionHost(sessionId: string, streamId: string) {
   pendingInit = initMessage;
   offscreenReady = false;
   try {
-    await chrome.offscreen.createDocument({
+    await (chrome as any).offscreen.createDocument({
       url: 'offscreen.html',
       reasons: ['USER_MEDIA' as chrome.offscreen.Reason],
       justification: 'Capturing tab audio for Synchronization mobile receivers.',
@@ -214,10 +227,41 @@ async function startExtensionHost(sessionId: string, streamId: string) {
   }
 }
 
+/**
+ * Legacy host startup for Chrome < 116 (e.g. Windows 7).
+ * The popup already captured the tab audio via chrome.tabCapture.capture().
+ * Here we only need to connect the signalling socket and mark the state as
+ * streaming — the actual WebRTC peer connections are initiated by offscreen.ts
+ * if it exists, but on legacy Chrome we just mark as STREAMING and let the
+ * popup-side stream keep audio alive.
+ */
+async function startExtensionHostLegacy(sessionId: string) {
+  stopLobby();
+  updateState({
+    isActive: true,
+    sessionId,
+    status: 'CONNECTING',
+    error: undefined,
+  });
+
+  // Reuse the same signalling socket that prepareSession() set up so we can
+  // still emit peer count updates. If it's already connected just emit the
+  // host announcement; otherwise connect now.
+  if (!lobbySocket || !lobbySocket.connected) {
+    prepareSession(sessionId);
+  }
+
+  // Mark as STREAMING immediately — the popup holds the MediaStream.
+  updateState({ isActive: true, status: 'STREAMING', error: undefined });
+}
+
 function stopAll() {
   stopLobby();
   chrome.runtime.sendMessage({ type: 'STOP_EXTENSION_HOST' }).catch(() => {});
-  chrome.offscreen.closeDocument().catch(() => {});
+  // chrome.offscreen is only available on Chrome 116+.
+  if (typeof (chrome as any).offscreen !== 'undefined') {
+    (chrome as any).offscreen.closeDocument().catch(() => {});
+  }
   offscreenReady = false;
   pendingInit = null;
   readyPeerIds.clear();

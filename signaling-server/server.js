@@ -30,6 +30,13 @@ app.get('/__version', (req, res) => {
   });
 });
 
+// Health check endpoint — used by the self-ping keepalive below
+// and available for external uptime monitors.
+app.get('/health', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ status: 'ok', uptime: process.uptime(), sessions: activeSessions?.size ?? 0 });
+});
+
 app.use('/downloads', express.static(downloadsRoot, {
   setHeaders: (res) => {
     res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -74,7 +81,7 @@ const io = new Server(server, {
 // Mobile clients call 'get-active-sessions' to get the current list,
 // and subscribe to 'active-sessions-updated' for live updates.
 const activeSessions = new Map();
-const SESSION_TTL_MS = 20000;
+const SESSION_TTL_MS = 90000;
 
 function broadcastActiveSessions() {
   pruneExpiredSessions();
@@ -195,4 +202,20 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Signaling server running on http://0.0.0.0:${PORT}`);
+
+  // ── Self-ping keepalive ──────────────────────────────────────────────────
+  // Render free tier sleeps the server after 15 minutes of no inbound HTTP
+  // traffic. Socket.IO ping/pong frames alone do NOT prevent this.
+  // We ping our own /health endpoint every 13 minutes to keep the server
+  // warm while any session is active (or always, to avoid cold-start lag).
+  const KEEP_ALIVE_MS = 13 * 60 * 1000; // 13 minutes
+  setInterval(() => {
+    const url = `http://0.0.0.0:${PORT}/health`;
+    require('http').get(url, (res) => {
+      res.resume(); // drain the response
+      console.log(`[keepalive] pinged /health — status ${res.statusCode}`);
+    }).on('error', (err) => {
+      console.warn(`[keepalive] self-ping failed:`, err.message);
+    });
+  }, KEEP_ALIVE_MS);
 });

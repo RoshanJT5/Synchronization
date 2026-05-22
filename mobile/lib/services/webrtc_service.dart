@@ -39,6 +39,7 @@ class WebRTCService extends ChangeNotifier {
   bool _hasRemoteAudio = false;
   Timer? _connectionTimeoutTimer;
   Timer? _heartbeatTimer;
+  Timer? _socketHeartbeatTimer;
 
   HostSessionController? hostController;
   GuestSessionController? guestController;
@@ -127,7 +128,7 @@ class WebRTCService extends ChangeNotifier {
           .setTransports(['websocket', 'polling'])
           .disableAutoConnect()
           .enableReconnection()
-          .setReconnectionAttempts(20)
+          .setReconnectionAttempts(9999999)
           .setReconnectionDelay(1000)
           .setReconnectionDelayMax(8000)
           .setTimeout(30000)
@@ -139,6 +140,16 @@ class WebRTCService extends ChangeNotifier {
       _socket?.emit('join-session', _activeSessionId);
       if (isHost) _announceHost();
       if (!completer.isCompleted) completer.complete();
+
+      // Socket-level keepalive: emit a heartbeat every 30 seconds so the
+      // signalling server stays warm (prevents Render free tier from sleeping)
+      // and the session doesn't get pruned by the server's TTL logic.
+      _socketHeartbeatTimer?.cancel();
+      _socketHeartbeatTimer =
+          Timer.periodic(const Duration(seconds: 30), (_) {
+        _socket?.emit(
+            'session-heartbeat', {'sessionId': _activeSessionId});
+      });
     });
 
     _socket!.on('session-peers', (data) {
@@ -296,8 +307,13 @@ class WebRTCService extends ChangeNotifier {
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _connectionTimeoutTimer?.cancel();
         _setState(AppConnectionState.connected);
-      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-          state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+      } else if (state ==
+              RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        // Attempt ICE restart instead of silently dropping the peer.
+        _attemptIceRestart(peerId, pc);
+      } else if (state ==
+          RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
         _peers.remove(peerId);
         notifyListeners();
       }
@@ -359,6 +375,7 @@ class WebRTCService extends ChangeNotifier {
   void disconnect({bool notify = true, bool keepControllers = false}) {
     _connectionTimeoutTimer?.cancel();
     _heartbeatTimer?.cancel();
+    _socketHeartbeatTimer?.cancel();
     if (isHost && _activeSessionId.isNotEmpty) {
       _socket?.emit('end-session', {'sessionId': _activeSessionId});
     }
@@ -400,6 +417,31 @@ class WebRTCService extends ChangeNotifier {
         ? uri.pathSegments[1]
         : null;
     return uri.queryParameters['id'] ?? pathId ?? '';
+  }
+
+  /// Attempt an ICE restart for a peer whose connection went to
+  /// `disconnected` or `failed`. If the restart itself fails, the peer
+  /// is removed as a last resort.
+  Future<void> _attemptIceRestart(
+      String peerId, RTCPeerConnection pc) async {
+    debugPrint('[WebRTC] Attempting ICE restart for peer $peerId');
+    try {
+      final offer = await pc.createOffer({
+        'iceRestart': true,
+        'offerToReceiveAudio': !isHost,
+        'offerToReceiveVideo': false,
+      });
+      await pc.setLocalDescription(offer);
+      _socket?.emit('signal', {
+        'sessionId': _activeSessionId,
+        'signal': {'type': offer.type, 'sdp': offer.sdp},
+        'to': peerId,
+      });
+    } catch (e) {
+      debugPrint('[WebRTC] ICE restart failed for $peerId: $e');
+      _peers.remove(peerId);
+      notifyListeners();
+    }
   }
 
   String? _extractString(dynamic data, String key) {

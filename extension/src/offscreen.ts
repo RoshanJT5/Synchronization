@@ -27,6 +27,7 @@ let capturedStream: MediaStream | null = null;
 let audioContext: AudioContext | null = null;
 let localGain: GainNode | null = null;
 let peers = new Map<string, RTCPeerConnection>();
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
 chrome.runtime.sendMessage({ type: 'OFFSCREEN_READY' });
 
@@ -82,6 +83,19 @@ async function startHost(sessionId: string, streamId: string) {
       });
     chrome.runtime.sendMessage({ type: 'EXTENSION_HOST_STARTED' });
     notifyPeerCount();
+
+    // Periodic heartbeat keeps the signalling server aware this session is
+    // alive AND generates inbound traffic that prevents Render free tier
+    // from sleeping after 15 minutes of "inactivity".
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(() => {
+      socket?.emit('session-heartbeat', { sessionId: activeSessionId });
+      socket?.emit('announce-session', {
+        sessionId: activeSessionId,
+        label: 'Browser Extension',
+        type: 'computer',
+      });
+    }, 30_000); // every 30 seconds
     });
 
     socket.on('session-peers', ({ peers: peerIds }) => {
@@ -165,11 +179,25 @@ async function createOffer(peerId: string) {
     if (pc.connectionState === 'connected') {
       notifyPeerCount();
     }
-    if (
-      pc.connectionState === 'failed' ||
-      pc.connectionState === 'closed' ||
-      pc.connectionState === 'disconnected'
-    ) {
+    // ICE restart: attempt to re-negotiate instead of silently dropping.
+    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      (async () => {
+        try {
+          const restartOffer = await pc.createOffer({ iceRestart: true });
+          await pc.setLocalDescription(restartOffer);
+          socket?.emit('signal', {
+            sessionId: activeSessionId,
+            signal: { type: restartOffer.type, sdp: restartOffer.sdp },
+            to: peerId,
+          });
+        } catch {
+          // ICE restart failed — remove the peer as a last resort.
+          peers.delete(peerId);
+          notifyPeerCount();
+        }
+      })();
+    }
+    if (pc.connectionState === 'closed') {
       peers.delete(peerId);
       notifyPeerCount();
     }
@@ -191,6 +219,11 @@ function stopHost() {
   for (const peer of peers.values()) peer.close();
   peers.clear();
   notifyPeerCount();
+
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
 
   capturedStream?.getTracks().forEach((track) => track.stop());
   capturedStream = null;

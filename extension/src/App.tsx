@@ -88,19 +88,57 @@ function App() {
 
   const startStreaming = () => {
     setStatus('CONNECTING');
-    chrome.tabCapture.getMediaStreamId({ targetTabId: undefined }, (streamId) => {
-      if (!streamId) {
-        setStatus('ERROR');
-        setError('Could not capture this tab. Open a tab with audio and try again.');
-        return;
-      }
-      chrome.runtime.sendMessage({
-        type: 'START_EXTENSION_HOST',
-        sessionId,
-        streamId,
+
+    // Modern Chrome 116+ supports getMediaStreamId (offscreen document approach).
+    // Older Chrome only has the legacy chrome.tabCapture.capture() which returns
+    // a MediaStream directly and must be consumed in the popup/foreground context.
+    const hasModernApi = typeof chrome.tabCapture.getMediaStreamId === 'function'
+      && typeof (chrome as any).offscreen !== 'undefined';
+
+    if (hasModernApi) {
+      // ── Modern path (Chrome 116+) ─────────────────────────────────────────
+      chrome.tabCapture.getMediaStreamId({ targetTabId: undefined }, (streamId) => {
+        if (!streamId) {
+          setStatus('ERROR');
+          setError('Could not capture this tab. Open a tab with audio and try again.');
+          return;
+        }
+        chrome.runtime.sendMessage({
+          type: 'START_EXTENSION_HOST',
+          sessionId,
+          streamId,
+        });
+        setShowQR(false);
       });
-      setShowQR(false);
-    });
+    } else {
+      // ── Legacy path (Chrome < 116, e.g. Chrome on Windows 7) ─────────────
+      // chrome.tabCapture.capture() returns the stream directly. We signal the
+      // background to start the WebRTC session; audio is handled here in the
+      // popup via getUserMedia with the legacy constraints.
+      (chrome.tabCapture as any).capture(
+        { audio: true, video: false },
+        (stream: MediaStream | null) => {
+          if (!stream || chrome.runtime.lastError) {
+            setStatus('ERROR');
+            setError(
+              chrome.runtime.lastError?.message
+              || 'Could not capture this tab. Open a tab with audio and try again.'
+            );
+            return;
+          }
+          // Pass the stream to the background via a legacy message.
+          // The background will handle WebRTC signalling; the stream itself
+          // is kept alive in the popup (the popup must stay open).
+          chrome.runtime.sendMessage({
+            type: 'START_EXTENSION_HOST_LEGACY',
+            sessionId,
+          });
+          // Store the stream on window so background can reference it if needed.
+          (window as any).__syncStream = stream;
+          setShowQR(false);
+        }
+      );
+    }
   };
 
   const toggleSourceMute = () => {
