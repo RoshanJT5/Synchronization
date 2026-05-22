@@ -21,7 +21,7 @@ let state: ExtensionState = {
 };
 
 let lobbySocket: Socket | null = null;
-let announceTimer: number | null = null;
+let announceTimer: ReturnType<typeof setInterval> | null = null;
 let offscreenReady = false;
 let pendingInit: unknown = null;
 let readyPeerIds = new Set<string>();
@@ -132,7 +132,7 @@ function prepareSession(sessionId: string) {
       });
     };
     announce();
-    announceTimer = window.setInterval(announce, 5000);
+    announceTimer = setInterval(announce, 5000);
   });
 
   lobbySocket.on('peer-joined', ({ peerId }) => {
@@ -277,7 +277,7 @@ function stopAll() {
 
 function stopLobby() {
   if (announceTimer != null) {
-    window.clearInterval(announceTimer);
+    clearInterval(announceTimer);
     announceTimer = null;
   }
   lobbySocket?.removeAllListeners();
