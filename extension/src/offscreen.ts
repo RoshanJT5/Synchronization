@@ -108,11 +108,6 @@ async function startHost(sessionId: string, streamId: string) {
       if (peerId && peerId !== socket?.id) createOffer(peerId);
     });
 
-    socket.on('answer', async (data) => {
-      const peer = peers.get(data.fromId);
-      if (peer) await peer.setRemoteDescription(new RTCSessionDescription(data.answer));
-    });
-
     socket.on('signal', async (data) => {
       const peer = peers.get(data.from);
       if (!peer || !data.signal) return;
@@ -126,11 +121,6 @@ async function startHost(sessionId: string, streamId: string) {
       } else if (data.signal.candidate) {
         await peer.addIceCandidate(new RTCIceCandidate(data.signal));
       }
-    });
-
-    socket.on('ice-candidate', async (data) => {
-      const peer = peers.get(data.fromId);
-      if (peer) await peer.addIceCandidate(new RTCIceCandidate(data.candidate));
     });
   } catch (error: any) {
     chrome.runtime.sendMessage({

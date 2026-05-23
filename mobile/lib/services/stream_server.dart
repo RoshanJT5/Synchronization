@@ -5,7 +5,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 class StreamServer {
-  static const int port = 8080;
+  static const List<int> _portCandidates = [8080, 8081, 8082, 8083, 8084, 8085];
 
   HttpServer? _server;
   String? _filePath;
@@ -25,8 +25,19 @@ class StreamServer {
         .addMiddleware(_corsMiddleware())
         .addHandler(router.call);
 
-    _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
-    return 'http://$localIp:$port/stream';
+    // Try each candidate port until one is available.
+    for (final port in _portCandidates) {
+      try {
+        _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
+        return 'http://$localIp:$port/stream';
+      } on SocketException {
+        // Port in use — try the next one.
+        continue;
+      }
+    }
+    throw Exception(
+      'Could not start stream server — ports ${_portCandidates.first}-${_portCandidates.last} are all in use.',
+    );
   }
 
   /// URL for guest audio-only playback (works for both MP3 and MP4 sources).
@@ -36,7 +47,7 @@ class StreamServer {
     final host = server.address.address == '0.0.0.0'
         ? 'localhost'
         : server.address.address;
-    return 'http://$host:$port/audio';
+    return 'http://$host:${server.port}/audio';
   }
 
   Future<shelf.Response> _handleStream(shelf.Request request) async {

@@ -65,7 +65,7 @@ class DiscoveryService extends ChangeNotifier {
           .setTransports(['websocket', 'polling'])
           .disableAutoConnect()
           .enableReconnection()
-          .setReconnectionAttempts(15)
+          .setReconnectionAttempts(9999999)
           .setReconnectionDelay(1000)
           .setReconnectionDelayMax(8000)
           .setTimeout(30000)

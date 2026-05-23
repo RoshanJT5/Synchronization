@@ -267,13 +267,17 @@ class HostSessionController extends ChangeNotifier {
     }
   }
 
+  Timer? _pendingReplayTimer;
+
   void _broadcastPlayback(SyncCommand command) {
     _lastPlaybackCommand = command;
     _broadcast(command);
 
-    // A short replay protects pause/seek/play from DataChannel open races and
-    // transient packet loss around mobile network changes.
-    Future<void>.delayed(const Duration(milliseconds: 100), () {
+    // Cancel any previous pending replay to avoid stale commands (e.g. a
+    // play replay firing after the user quickly tapped pause).
+    _pendingReplayTimer?.cancel();
+    _pendingReplayTimer =
+        Timer(const Duration(milliseconds: 100), () {
       _broadcast(command);
     });
   }
@@ -288,6 +292,7 @@ class HostSessionController extends ChangeNotifier {
   void dispose() {
     _syncTimer?.cancel();
     _pingTimer?.cancel();
+    _pendingReplayTimer?.cancel();
     _streamServer.stop();
     _player.dispose();
     _guestChannels.clear();
