@@ -387,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 14),
           const _StatusPill(
               icon: Icons.settings_input_antenna, text: 'Stream: Active'),
-          const Spacer(),
+          const SizedBox(height: 24),
           _SecondaryButton(
             label: 'END SESSION',
             icon: Icons.link_off,
@@ -495,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
           const _StatusPill(icon: Icons.sync, text: 'Sync: In Sync'),
-          const Spacer(),
+          const SizedBox(height: 24),
           _SecondaryButton(
             label: 'LEAVE SESSION',
             icon: Icons.exit_to_app,
@@ -905,18 +905,20 @@ class _Page extends StatelessWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                return SingleChildScrollView(
+                return CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(
-                    parent: BouncingScrollPhysics(),
+                    parent: ClampingScrollPhysics(),
                   ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: child,
+                      ),
                     ),
-                    child: IntrinsicHeight(
-                      child: child,
-                    ),
-                  ),
+                  ],
                 );
               },
             ),
