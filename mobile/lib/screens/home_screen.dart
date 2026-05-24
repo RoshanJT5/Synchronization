@@ -321,80 +321,84 @@ class _HomeScreenState extends State<HomeScreen> {
     return _Page(
       title: 'SESSION ACTIVE',
       onBack: _leaveSession,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _StatusPill(
-            icon: Icons.group,
-            text: '${webrtc.guestCount} guests connected',
-          ),
-          const SizedBox(height: 16),
-          _QrPanel(sessionId: webrtc.activeSessionId),
-          const SizedBox(height: 16),
-          if (controller != null)
-            _HostPlayerPanel(
-              controller: controller,
-              onSeek: (ms) => controller.seekTo(ms),
-              onFullscreen: controller.isVideoPlayback ? _enterFullscreen : null,
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _StatusPill(
+              icon: Icons.group,
+              text: '${webrtc.guestCount} guests connected',
             ),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _RoundButton(
-                icon: Icons.replay_10,
-                onPressed: controller == null
-                    ? null
-                    : () => controller.seekTo(
-                          (controller.position.inMilliseconds - 10000)
-                              .clamp(0, 1 << 31),
-                        ),
+            const SizedBox(height: 16),
+            _QrPanel(sessionId: webrtc.activeSessionId),
+            const SizedBox(height: 16),
+            if (controller != null)
+              _HostPlayerPanel(
+                controller: controller,
+                onSeek: (ms) => controller.seekTo(ms),
+                onFullscreen: controller.isVideoPlayback ? _enterFullscreen : null,
               ),
-              const SizedBox(width: 18),
-              _RoundButton(
-                icon: controller?.isPlaying == true
-                    ? Icons.pause
-                    : Icons.play_arrow,
-                large: true,
-                onPressed: controller == null
-                    ? null
-                    : () {
-                        controller.isPlaying
-                            ? controller.pause()
-                            : controller.play();
-                        setState(() {});
-                      },
-              ),
-              const SizedBox(width: 18),
-              _RoundButton(
-                icon: Icons.forward_10,
-                onPressed: controller == null
-                    ? null
-                    : () => controller.seekTo(
-                          controller.position.inMilliseconds + 10000,
-                        ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          _VolumeSlider(
-            value: _volume,
-            onChanged: (value) {
-              setState(() => _volume = value);
-              webrtc.setVolume(value);
-            },
-          ),
-          const SizedBox(height: 14),
-          const _StatusPill(
-              icon: Icons.settings_input_antenna, text: 'Stream: Active'),
-          const SizedBox(height: 24),
-          _SecondaryButton(
-            label: 'END SESSION',
-            icon: Icons.link_off,
-            danger: true,
-            onPressed: _leaveSession,
-          ),
-        ],
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _RoundButton(
+                  icon: Icons.replay_10,
+                  onPressed: controller == null
+                      ? null
+                      : () => controller.seekTo(
+                            (controller.position.inMilliseconds - 10000)
+                                .clamp(0, 1 << 31),
+                          ),
+                ),
+                const SizedBox(width: 18),
+                _RoundButton(
+                  icon: controller?.isPlaying == true
+                      ? Icons.pause
+                      : Icons.play_arrow,
+                  large: true,
+                  onPressed: controller == null
+                      ? null
+                      : () {
+                          controller.isPlaying
+                              ? controller.pause()
+                              : controller.play();
+                          setState(() {});
+                        },
+                ),
+                const SizedBox(width: 18),
+                _RoundButton(
+                  icon: Icons.forward_10,
+                  onPressed: controller == null
+                      ? null
+                      : () => controller.seekTo(
+                            controller.position.inMilliseconds + 10000,
+                          ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _VolumeSlider(
+              value: _volume,
+              onChanged: (value) {
+                setState(() => _volume = value);
+                webrtc.setVolume(value);
+              },
+            ),
+            const SizedBox(height: 14),
+            const _StatusPill(
+                icon: Icons.settings_input_antenna, text: 'Stream: Active'),
+            const SizedBox(height: 24),
+            _SecondaryButton(
+              label: 'END SESSION',
+              icon: Icons.link_off,
+              danger: true,
+              onPressed: _leaveSession,
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
@@ -903,24 +907,16 @@ class _Page extends StatelessWidget {
               ],
             ),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: ClampingScrollPhysics(),
-                  ),
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: child,
-                      ),
-                    ),
-                  ],
-                );
-              },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: child,
+                ),
+              ],
             ),
           ),
         ],
