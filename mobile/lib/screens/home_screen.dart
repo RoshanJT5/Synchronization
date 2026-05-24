@@ -38,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isBusy = false;
   bool _isFullscreen = false;
   double _volume = 1.0;
+  WebRTCService? _webrtc;
 
   @override
   void initState() {
@@ -50,10 +51,37 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final webrtc = context.read<WebRTCService>();
+    if (_webrtc == webrtc) return;
+    _webrtc?.removeListener(_handleWebRtcChange);
+    _webrtc = webrtc..addListener(_handleWebRtcChange);
+  }
+
+  @override
   void dispose() {
+    _webrtc?.removeListener(_handleWebRtcChange);
     _codeController.dispose();
     super.dispose();
   }
+
+  void _handleWebRtcChange() {
+    final webrtc = _webrtc;
+    if (!mounted || webrtc == null) return;
+    final guestController = webrtc.guestController;
+    final shouldShowGuest =
+        !webrtc.isHost &&
+        guestController != null &&
+        (_mode == _ScreenMode.welcome || _mode == _ScreenMode.guestJoin);
+    if (shouldShowGuest) {
+      setState(() {
+        _guestController = guestController;
+        _mode = _ScreenMode.guestActive;
+      });
+    }
+  }
+
 
   Future<void> _pickFile() async {
     final file = await _fileService.pickMediaFile();
@@ -318,87 +346,86 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHostActive(WebRTCService webrtc) {
     final controller = _hostController ?? webrtc.hostController;
+    final bottomSafeSpace = MediaQuery.viewPaddingOf(context).bottom;
     return _Page(
       title: 'SESSION ACTIVE',
       onBack: _leaveSession,
-      child: SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _StatusPill(
-              icon: Icons.group,
-              text: '${webrtc.guestCount} guests connected',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _StatusPill(
+            icon: Icons.group,
+            text: '${webrtc.guestCount} guests connected',
+          ),
+          const SizedBox(height: 16),
+          _QrPanel(sessionId: webrtc.activeSessionId),
+          const SizedBox(height: 16),
+          if (controller != null)
+            _HostPlayerPanel(
+              controller: controller,
+              onSeek: (ms) => controller.seekTo(ms),
+              onFullscreen:
+                  controller.isVideoPlayback ? _enterFullscreen : null,
             ),
-            const SizedBox(height: 16),
-            _QrPanel(sessionId: webrtc.activeSessionId),
-            const SizedBox(height: 16),
-            if (controller != null)
-              _HostPlayerPanel(
-                controller: controller,
-                onSeek: (ms) => controller.seekTo(ms),
-                onFullscreen: controller.isVideoPlayback ? _enterFullscreen : null,
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _RoundButton(
+                icon: Icons.replay_10,
+                onPressed: controller == null
+                    ? null
+                    : () => controller.seekTo(
+                          (controller.position.inMilliseconds - 10000)
+                              .clamp(0, 1 << 31),
+                        ),
               ),
-            const SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _RoundButton(
-                  icon: Icons.replay_10,
-                  onPressed: controller == null
-                      ? null
-                      : () => controller.seekTo(
-                            (controller.position.inMilliseconds - 10000)
-                                .clamp(0, 1 << 31),
-                          ),
-                ),
-                const SizedBox(width: 18),
-                _RoundButton(
-                  icon: controller?.isPlaying == true
-                      ? Icons.pause
-                      : Icons.play_arrow,
-                  large: true,
-                  onPressed: controller == null
-                      ? null
-                      : () {
-                          controller.isPlaying
-                              ? controller.pause()
-                              : controller.play();
-                          setState(() {});
-                        },
-                ),
-                const SizedBox(width: 18),
-                _RoundButton(
-                  icon: Icons.forward_10,
-                  onPressed: controller == null
-                      ? null
-                      : () => controller.seekTo(
-                            controller.position.inMilliseconds + 10000,
-                          ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            _VolumeSlider(
-              value: _volume,
-              onChanged: (value) {
-                setState(() => _volume = value);
-                webrtc.setVolume(value);
-              },
-            ),
-            const SizedBox(height: 14),
-            const _StatusPill(
-                icon: Icons.settings_input_antenna, text: 'Stream: Active'),
-            const SizedBox(height: 24),
-            _SecondaryButton(
-              label: 'END SESSION',
-              icon: Icons.link_off,
-              danger: true,
-              onPressed: _leaveSession,
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+              const SizedBox(width: 18),
+              _RoundButton(
+                icon: controller?.isPlaying == true
+                    ? Icons.pause
+                    : Icons.play_arrow,
+                large: true,
+                onPressed: controller == null
+                    ? null
+                    : () {
+                        controller.isPlaying
+                            ? controller.pause()
+                            : controller.play();
+                        setState(() {});
+                      },
+              ),
+              const SizedBox(width: 18),
+              _RoundButton(
+                icon: Icons.forward_10,
+                onPressed: controller == null
+                    ? null
+                    : () => controller.seekTo(
+                          controller.position.inMilliseconds + 10000,
+                        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _VolumeSlider(
+            value: _volume,
+            onChanged: (value) {
+              setState(() => _volume = value);
+              webrtc.setVolume(value);
+            },
+          ),
+          const SizedBox(height: 14),
+          const _StatusPill(
+              icon: Icons.settings_input_antenna, text: 'Stream: Active'),
+          const SizedBox(height: 24),
+          _SecondaryButton(
+            label: 'END SESSION',
+            icon: Icons.link_off,
+            danger: true,
+            onPressed: _leaveSession,
+          ),
+          SizedBox(height: 8 + bottomSafeSpace),
+        ],
       ),
     );
   }
@@ -465,6 +492,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final controller = _guestController ?? webrtc.guestController;
     final isBrowserAudio =
         webrtc.hasRemoteAudio && controller?.isLoaded != true;
+    final hasError =
+        webrtc.state == AppConnectionState.error ||
+            controller?.hasPlaybackError == true;
+    final statusText = hasError
+        ? (controller?.playbackErrorMessage.isNotEmpty == true
+            ? controller!.playbackErrorMessage
+            : webrtc.errorMessage)
+        : 'Sync: In Sync';
     return _Page(
       title: 'CONNECTED TO HOST',
       onBack: _leaveSession,
@@ -498,7 +533,11 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           const SizedBox(height: 16),
-          const _StatusPill(icon: Icons.sync, text: 'Sync: In Sync'),
+          _StatusPill(
+            icon: hasError ? Icons.error_outline : Icons.sync,
+            text: statusText,
+            danger: hasError,
+          ),
           const SizedBox(height: 24),
           _SecondaryButton(
             label: 'LEAVE SESSION',
@@ -1139,30 +1178,36 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.icon, required this.text});
+  const _StatusPill({
+    required this.icon,
+    required this.text,
+    this.danger = false,
+  });
 
   final IconData icon;
   final String text;
+  final bool danger;
 
   @override
   Widget build(BuildContext context) {
+    final color = danger ? AppTheme.red : AppTheme.accent;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppTheme.accent.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18, color: AppTheme.accent),
+          Icon(icon, size: 18, color: color),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                color: AppTheme.accent,
+              style: TextStyle(
+                color: color,
                 fontWeight: FontWeight.w800,
               ),
             ),

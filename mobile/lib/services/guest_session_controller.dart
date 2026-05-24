@@ -45,8 +45,11 @@ class GuestSessionController extends ChangeNotifier {
   // ── State ─────────────────────────────────────────────────────────────────
   final AudioPlayer _player = AudioPlayer();
   RTCDataChannel? _hostChannel;
+  StreamSubscription<PlaybackEvent>? _playbackEventSubscription;
   bool _isLoaded = false;
   bool _hostIsPlaying = false;
+  bool _hasPlaybackError = false;
+  String _playbackErrorMessage = '';
   double _volume = 1.0;
   String? _streamUrl;
   SyncCommand? _pendingCommand;
@@ -70,10 +73,21 @@ class GuestSessionController extends ChangeNotifier {
   bool get isPlaying => _player.playing;
   bool get isLoaded => _isLoaded;
   bool get hostIsPlaying => _hostIsPlaying;
+  bool get hasPlaybackError => _hasPlaybackError;
+  String get playbackErrorMessage => _playbackErrorMessage;
   String? get streamUrl => _streamUrl;
   int get medianRttMs => _medianRtt();
   int get clockOffsetMs => _clockOffsetMs;
   double get filteredDriftMs => _emaDriftMs;
+
+  GuestSessionController() {
+    _playbackEventSubscription = _player.playbackEventStream.listen(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {
+        _setPlaybackError('Host stream disconnected. Leave and reconnect.');
+      },
+    );
+  }
 
   void setHostChannel(RTCDataChannel channel) {
     _hostChannel = channel;
@@ -270,6 +284,7 @@ class GuestSessionController extends ChangeNotifier {
     String url, {
     required int initialPositionMs,
   }) async {
+    _clearPlaybackError();
     final session = await AudioSession.instance;
     await session.configure(AudioSessionConfiguration.music());
     await session.setActive(true);
@@ -289,6 +304,24 @@ class GuestSessionController extends ChangeNotifier {
     }
     // Start RTT calibration pings once connected.
     _startCalibration();
+    notifyListeners();
+  }
+
+  void markHostDisconnected() {
+    _setPlaybackError('Host disconnected. Leave this session and reconnect.');
+  }
+
+  void _setPlaybackError(String message) {
+    if (_hasPlaybackError && _playbackErrorMessage == message) return;
+    _hasPlaybackError = true;
+    _playbackErrorMessage = message;
+    notifyListeners();
+  }
+
+  void _clearPlaybackError() {
+    if (!_hasPlaybackError && _playbackErrorMessage.isEmpty) return;
+    _hasPlaybackError = false;
+    _playbackErrorMessage = '';
     notifyListeners();
   }
 
@@ -314,6 +347,7 @@ class GuestSessionController extends ChangeNotifier {
   @override
   void dispose() {
     _speedResetTimer?.cancel();
+    _playbackEventSubscription?.cancel();
     _player.dispose();
     super.dispose();
   }

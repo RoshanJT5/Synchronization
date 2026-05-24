@@ -34,6 +34,8 @@ class WebRTCService extends ChangeNotifier {
 
   io.Socket? _socket;
   final Map<String, RTCPeerConnection> _peers = {};
+  final Map<String, List<RTCVideoRenderer>> _remoteAudioRenderersByPeer = {};
+  final Map<String, List<MediaStreamTrack>> _remoteAudioTracksByPeer = {};
   final List<RTCVideoRenderer> _remoteAudioRenderers = [];
   final List<MediaStreamTrack> _remoteAudioTracks = [];
   bool _hasRemoteAudio = false;
@@ -315,13 +317,14 @@ class WebRTCService extends ChangeNotifier {
       } else if (state ==
           RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
         _peers.remove(peerId);
+        _disposePeerMedia(peerId);
         notifyListeners();
       }
     };
 
     pc.onTrack = (event) {
       if (event.track.kind == 'audio') {
-        _attachRemoteAudio(event);
+        _attachRemoteAudio(peerId, event);
       }
     };
   }
@@ -342,11 +345,16 @@ class WebRTCService extends ChangeNotifier {
         _connectionTimeoutTimer?.cancel();
         _setState(AppConnectionState.connected);
       }
+      if (!isHost && state == RTCDataChannelState.RTCDataChannelClosed) {
+        guestController?.markHostDisconnected();
+        _setError('Host disconnected. Leave this session and reconnect.');
+        return;
+      }
       notifyListeners();
     };
   }
 
-  void _attachRemoteAudio(RTCTrackEvent event) {
+  void _attachRemoteAudio(String peerId, RTCTrackEvent event) {
     final stream = event.streams.isNotEmpty ? event.streams.first : null;
     if (stream == null) return;
 
@@ -358,10 +366,12 @@ class WebRTCService extends ChangeNotifier {
         for (final track in stream.getAudioTracks()) {
           if (!_remoteAudioTracks.contains(track)) {
             _remoteAudioTracks.add(track);
+            _remoteAudioTracksByPeer.putIfAbsent(peerId, () => []).add(track);
             await Helper.setVolume(_volume, track);
           }
         }
         _remoteAudioRenderers.add(renderer);
+        _remoteAudioRenderersByPeer.putIfAbsent(peerId, () => []).add(renderer);
         _hasRemoteAudio = true;
         debugPrint('[WebRTC] Remote extension audio track attached');
         _connectionTimeoutTimer?.cancel();
@@ -370,6 +380,21 @@ class WebRTCService extends ChangeNotifier {
         debugPrint('[WebRTC] Failed to attach remote audio: $e');
       }
     });
+  }
+
+  void _disposePeerMedia(String peerId) {
+    final renderers = _remoteAudioRenderersByPeer.remove(peerId) ?? const [];
+    for (final renderer in renderers) {
+      _remoteAudioRenderers.remove(renderer);
+      renderer.srcObject = null;
+      renderer.dispose();
+    }
+
+    final tracks = _remoteAudioTracksByPeer.remove(peerId) ?? const [];
+    for (final track in tracks) {
+      _remoteAudioTracks.remove(track);
+    }
+    _hasRemoteAudio = _remoteAudioRenderers.isNotEmpty;
   }
 
   void disconnect({bool notify = true, bool keepControllers = false}) {
@@ -390,7 +415,9 @@ class WebRTCService extends ChangeNotifier {
       renderer.srcObject = null;
       renderer.dispose();
     }
+    _remoteAudioRenderersByPeer.clear();
     _remoteAudioRenderers.clear();
+    _remoteAudioTracksByPeer.clear();
     _remoteAudioTracks.clear();
     _hasRemoteAudio = false;
     if (!keepControllers) {
@@ -440,6 +467,12 @@ class WebRTCService extends ChangeNotifier {
     } catch (e) {
       debugPrint('[WebRTC] ICE restart failed for $peerId: $e');
       _peers.remove(peerId);
+      _disposePeerMedia(peerId);
+      if (!isHost) {
+        guestController?.markHostDisconnected();
+        _setError('Host disconnected. Leave this session and reconnect.');
+        return;
+      }
       notifyListeners();
     }
   }
