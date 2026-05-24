@@ -25,16 +25,20 @@ import 'package:synchronization/models/sync_command.dart';
 class GuestSessionController extends ChangeNotifier {
   // ── Sync tuning knobs ─────────────────────────────────────────────────────
   /// Drift above this triggers a hard seek (in ms).
-  static const int hardSeekThresholdMs = 250;
+  static const int hardSeekThresholdMs = 650;
 
   /// Drift below hardSeek but above this is corrected via speed adjustment.
-  static const int softCorrectionMs = 40;
+  static const int softCorrectionMs = 90;
 
-  /// How much to speed up / slow down for soft correction (5 %).
-  static const double speedAdjustment = 0.05;
+  /// How much to speed up / slow down for soft correction (3 %).
+  static const double speedAdjustment = 0.03;
 
   /// Duration after a speed adjustment before reverting to 1.0×.
-  static const int speedCorrectionWindowMs = 600;
+  static const int speedCorrectionWindowMs = 900;
+
+  /// Minimum time between hard seeks. Video-container audio can stall if the
+  /// HTTP decoder is forced to seek several times per second.
+  static const int hardSeekCooldownMs = 1800;
 
   /// Maximum number of RTT samples kept for median calculation.
   static const int maxRttSamples = 20;
@@ -65,6 +69,7 @@ class GuestSessionController extends ChangeNotifier {
 
   // Speed correction state
   Timer? _speedResetTimer;
+  int _lastHardSeekAtMs = 0;
 
   // ── Public getters ────────────────────────────────────────────────────────
   Stream<Duration> get positionStream => _player.positionStream;
@@ -227,6 +232,11 @@ class GuestSessionController extends ChangeNotifier {
   // ── Drift correction (AmpMe-style) ───────────────────────────────────────
 
   Future<void> _correctDrift(SyncCommand command) async {
+    if (_player.processingState == ProcessingState.loading ||
+        _player.processingState == ProcessingState.buffering) {
+      return;
+    }
+
     final transitMs = _estimateOneWayDelay(command);
     final expectedMs = command.positionMs + transitMs;
     final actualMs = _player.position.inMilliseconds;
@@ -246,11 +256,17 @@ class GuestSessionController extends ChangeNotifier {
       sentAtMs: DateTime.now().millisecondsSinceEpoch,
     ));
 
-    if (absDrift > hardSeekThresholdMs) {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final canHardSeek = nowMs - _lastHardSeekAtMs > hardSeekCooldownMs;
+
+    if (absDrift > hardSeekThresholdMs && canHardSeek) {
       // ── Hard seek: drift is too large, snap to correct position.
       debugPrint('[Sync] Hard seek: drift=${drift}ms');
       await _player.seek(Duration(milliseconds: expectedMs));
+      _lastHardSeekAtMs = nowMs;
       _emaDriftMs = 0; // Reset EMA after hard correction.
+      if (!_player.playing) await _player.play();
+    } else if (absDrift > hardSeekThresholdMs) {
       if (!_player.playing) await _player.play();
     } else if (absDrift > softCorrectionMs) {
       // ── Soft correction: adjust playback speed to catch up / slow down.
@@ -296,6 +312,8 @@ class GuestSessionController extends ChangeNotifier {
         milliseconds: initialPositionMs.clamp(0, 1 << 31),
       ),
     );
+    _emaDriftMs = 0;
+    _lastHardSeekAtMs = 0;
     _isLoaded = true;
     final pending = _pendingCommand;
     _pendingCommand = null;

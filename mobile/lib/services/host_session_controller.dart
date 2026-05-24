@@ -31,6 +31,7 @@ class HostSessionController extends ChangeNotifier {
   final NetworkService _networkService = NetworkService();
   final List<RTCDataChannel> _guestChannels = [];
   final Map<RTCDataChannel, int> _guestRttMs = {};
+  final Map<RTCDataChannel, int> _lastForceSeekAtMs = {};
   Timer? _syncTimer;
   Timer? _pingTimer;
   SyncCommand? _lastPlaybackCommand;
@@ -47,7 +48,11 @@ class HostSessionController extends ChangeNotifier {
   static const int pingIntervalMs = 3000;
 
   /// Drift threshold above which the host force-seeks a guest (ms).
-  static const int forceSeekDriftMs = 500;
+  static const int forceSeekDriftMs = 2000;
+
+  /// Avoid seek storms on receivers while HTTP audio from video containers is
+  /// still buffering or recovering.
+  static const int forceSeekCooldownMs = 5000;
 
   // ── Public getters ────────────────────────────────────────────────────────
   Stream<Duration> get positionStream => _player.positionStream;
@@ -98,6 +103,7 @@ class HostSessionController extends ChangeNotifier {
       if (state == RTCDataChannelState.RTCDataChannelClosed) {
         _guestChannels.remove(channel);
         _guestRttMs.remove(channel);
+        _lastForceSeekAtMs.remove(channel);
       }
       notifyListeners();
     };
@@ -234,7 +240,11 @@ class HostSessionController extends ChangeNotifier {
           // Check this specific guest's drift.
           final drift =
               (_player.position.inMilliseconds - command.positionMs).abs();
-          if (drift > forceSeekDriftMs) {
+          final nowMs = DateTime.now().millisecondsSinceEpoch;
+          final lastForceSeekMs = _lastForceSeekAtMs[channel] ?? 0;
+          if (drift > forceSeekDriftMs &&
+              nowMs - lastForceSeekMs > forceSeekCooldownMs) {
+            _lastForceSeekAtMs[channel] = nowMs;
             // Force-seek only THIS guest, not all guests.
             _sendToChannel(
               channel,
@@ -293,6 +303,7 @@ class HostSessionController extends ChangeNotifier {
     _player.dispose();
     _guestChannels.clear();
     _guestRttMs.clear();
+    _lastForceSeekAtMs.clear();
     super.dispose();
   }
 }
