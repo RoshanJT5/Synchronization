@@ -30,7 +30,7 @@ class GuestSessionController extends ChangeNotifier {
   /// Drift below hardSeek but above this is corrected via speed adjustment.
   static const int softCorrectionMs = 25;
 
-  /// How much to speed up / slow down for soft correction (3 %).
+  /// How much to speed up / slow down for soft correction (6 %).
   static const double speedAdjustment = 0.06;
 
   /// Duration after a speed adjustment before reverting to 1.0×.
@@ -51,6 +51,7 @@ class GuestSessionController extends ChangeNotifier {
   RTCDataChannel? _hostChannel;
   StreamSubscription<PlaybackEvent>? _playbackEventSubscription;
   bool _isLoaded = false;
+  bool _sentReadyToPlay = false;
   bool _hostIsPlaying = false;
   bool _hasPlaybackError = false;
   String _playbackErrorMessage = '';
@@ -60,8 +61,8 @@ class GuestSessionController extends ChangeNotifier {
 
   // RTT calibration
   final Queue<int> _rttSamples = Queue<int>();
+  final Map<int, int> _sentPingTimes = {};
   int _pingCounter = 0;
-  int _lastPingSentAtMs = 0;
   int _clockOffsetMs = 0; // guestClock − hostClock (positive = guest ahead)
 
   // EMA filtered drift
@@ -69,6 +70,7 @@ class GuestSessionController extends ChangeNotifier {
 
   // Speed correction state
   Timer? _speedResetTimer;
+  Timer? _scheduledPlayTimer;
   int _lastHardSeekAtMs = 0;
 
   // ── Public getters ────────────────────────────────────────────────────────
@@ -97,6 +99,7 @@ class GuestSessionController extends ChangeNotifier {
   void setHostChannel(RTCDataChannel channel) {
     _hostChannel = channel;
     channel.onMessage = (message) => _handleHostCommand(message.text);
+    _startCalibration();
   }
 
   Future<void> setVolume(double volume) async {
@@ -118,16 +121,22 @@ class GuestSessionController extends ChangeNotifier {
 
   void _handlePing(SyncCommand command) {
     // Immediately pong back with the same pingId.
-    _sendToHost(SyncCommand(
-      action: SyncAction.pong,
-      positionMs: 0,
-      sentAtMs: DateTime.now().millisecondsSinceEpoch,
-      pingId: command.pingId,
-    ));
+    _sendToHost(
+      SyncCommand(
+        action: SyncAction.pong,
+        positionMs: 0,
+        sentAtMs: DateTime.now().millisecondsSinceEpoch,
+        pingId: command.pingId,
+      ),
+    );
   }
 
   void _handlePong(SyncCommand command) {
-    final rtt = DateTime.now().millisecondsSinceEpoch - _lastPingSentAtMs;
+    final pingId = command.pingId;
+    if (pingId == null) return;
+    final sentAtMs = _sentPingTimes.remove(pingId);
+    if (sentAtMs == null) return;
+    final rtt = DateTime.now().millisecondsSinceEpoch - sentAtMs;
     if (rtt >= 0 && rtt < 5000) {
       _rttSamples.addLast(rtt);
       while (_rttSamples.length > maxRttSamples) {
@@ -135,21 +144,27 @@ class GuestSessionController extends ChangeNotifier {
       }
       // Re-derive clock offset: hostClock ≈ guestClock − offset
       // offset = guestNow − (hostSentAt + oneWayDelay)
-      _clockOffsetMs = DateTime.now().millisecondsSinceEpoch -
+      _clockOffsetMs =
+          DateTime.now().millisecondsSinceEpoch -
           (command.sentAtMs + _oneWayDelayMs);
+      _sendReadyToPlayIfReady();
+      unawaited(_handlePendingCommandIfReady());
     }
   }
 
   /// Send a ping to the host to measure RTT.
   void sendPing() {
     _pingCounter++;
-    _lastPingSentAtMs = DateTime.now().millisecondsSinceEpoch;
-    _sendToHost(SyncCommand(
-      action: SyncAction.ping,
-      positionMs: 0,
-      sentAtMs: _lastPingSentAtMs,
-      pingId: _pingCounter,
-    ));
+    final sentAtMs = DateTime.now().millisecondsSinceEpoch;
+    _sentPingTimes[_pingCounter] = sentAtMs;
+    _sendToHost(
+      SyncCommand(
+        action: SyncAction.ping,
+        positionMs: 0,
+        sentAtMs: sentAtMs,
+        pingId: _pingCounter,
+      ),
+    );
   }
 
   // ── Command handler ──────────────────────────────────────────────────────
@@ -166,6 +181,10 @@ class GuestSessionController extends ChangeNotifier {
           _handlePong(command);
           return;
         case SyncAction.streamReady:
+          _scheduledPlayTimer?.cancel();
+          _pendingCommand = null;
+          _isLoaded = false;
+          _sentReadyToPlay = false;
           if (command.streamUrl != null) {
             final transitMs = _estimateOneWayDelay(command);
             await _connectToStream(
@@ -186,11 +205,19 @@ class GuestSessionController extends ChangeNotifier {
           // Wait for seek to complete, then play to avoid glitch.
           await _player.play();
           break;
+        case SyncAction.scheduledPlay:
+          if (!_isLoaded) {
+            _pendingCommand = command;
+            break;
+          }
+          await _handleScheduledPlay(command);
+          break;
         case SyncAction.pause:
           if (!_isLoaded) {
             _pendingCommand = command;
             break;
           }
+          _scheduledPlayTimer?.cancel();
           _hostIsPlaying = false;
           await _player.pause();
           await _player.seek(Duration(milliseconds: command.positionMs));
@@ -200,8 +227,23 @@ class GuestSessionController extends ChangeNotifier {
             _pendingCommand = command;
             break;
           }
+          _scheduledPlayTimer?.cancel();
           await _player.seek(Duration(milliseconds: command.positionMs));
           if (!_hostIsPlaying) await _player.pause();
+          break;
+        case SyncAction.scheduledPause:
+          if (!_isLoaded) {
+            _pendingCommand = command;
+            break;
+          }
+          await _handleScheduledPause(command);
+          break;
+        case SyncAction.scheduledSeek:
+          if (!_isLoaded) {
+            _pendingCommand = command;
+            break;
+          }
+          await _handleScheduledSeek(command);
           break;
         case SyncAction.syncCheck:
           if (!_isLoaded) break;
@@ -209,12 +251,59 @@ class GuestSessionController extends ChangeNotifier {
           await _correctDrift(command);
           break;
         case SyncAction.syncResponse:
+        case SyncAction.readyToPlay:
           break;
       }
       notifyListeners();
     } catch (e) {
       debugPrint('Guest command error: $e');
     }
+  }
+
+  Future<void> _handleScheduledPlay(SyncCommand command) async {
+    final startAtMs = command.startAtMs;
+    if (startAtMs == null) {
+      await _player.seek(Duration(milliseconds: command.positionMs));
+      await _player.play();
+      return;
+    }
+
+    _scheduledPlayTimer?.cancel();
+    _hostIsPlaying = true;
+    await _player.pause();
+    await _player.setSpeed(1.0);
+    await _player.seek(Duration(milliseconds: command.positionMs));
+
+    final delayMs = _delayUntilHostTime(startAtMs, command.sentAtMs);
+    _scheduledPlayTimer = Timer(Duration(milliseconds: delayMs), () async {
+      try {
+        await _player.play();
+      } catch (e) {
+        debugPrint('Scheduled play error: $e');
+      }
+    });
+  }
+
+  Future<void> _handleScheduledPause(SyncCommand command) async {
+    _scheduledPlayTimer?.cancel();
+    final delayMs = command.startAtMs == null
+        ? 0
+        : _delayUntilHostTime(command.startAtMs!, command.sentAtMs);
+    Timer(Duration(milliseconds: delayMs), () async {
+      await _player.pause();
+      await _player.seek(Duration(milliseconds: command.positionMs));
+    });
+  }
+
+  Future<void> _handleScheduledSeek(SyncCommand command) async {
+    _scheduledPlayTimer?.cancel();
+    final delayMs = command.startAtMs == null
+        ? 0
+        : _delayUntilHostTime(command.startAtMs!, command.sentAtMs);
+    Timer(Duration(milliseconds: delayMs), () async {
+      await _player.seek(Duration(milliseconds: command.positionMs));
+      if (!_hostIsPlaying) await _player.pause();
+    });
   }
 
   /// Estimate the one-way delay for a given command.
@@ -233,9 +322,20 @@ class GuestSessionController extends ChangeNotifier {
         DateTime.now().millisecondsSinceEpoch - _clockOffsetMs;
     final transitMs = hostNowEstimate - command.sentAtMs;
     if (transitMs >= 0 && transitMs < 5000) {
-      return transitMs.clamp(_oneWayDelayMs, 500);
+      return transitMs.clamp(_oneWayDelayMs, 500).toInt();
     }
     return _oneWayDelayMs;
+  }
+
+  int _delayUntilHostTime(int hostTimeMs, int sentAtMs) {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (_rttSamples.isNotEmpty) {
+      final localTargetMs = hostTimeMs + _clockOffsetMs;
+      return (localTargetMs - nowMs).clamp(0, 5000).toInt();
+    }
+
+    final scheduledLeadMs = hostTimeMs - sentAtMs;
+    return scheduledLeadMs.clamp(0, 5000).toInt();
   }
 
   // ── Drift correction (AmpMe-style) ───────────────────────────────────────
@@ -259,11 +359,13 @@ class GuestSessionController extends ChangeNotifier {
     final absDrift = drift.abs();
 
     // Send sync response to host.
-    _sendToHost(SyncCommand(
-      action: SyncAction.syncResponse,
-      positionMs: actualMs,
-      sentAtMs: DateTime.now().millisecondsSinceEpoch,
-    ));
+    _sendToHost(
+      SyncCommand(
+        action: SyncAction.syncResponse,
+        positionMs: actualMs,
+        sentAtMs: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
 
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final canHardSeek = nowMs - _lastHardSeekAtMs > hardSeekCooldownMs;
@@ -279,8 +381,9 @@ class GuestSessionController extends ChangeNotifier {
       if (!_player.playing) await _player.play();
     } else if (absDrift > softCorrectionMs) {
       // ── Soft correction: adjust playback speed to catch up / slow down.
-      final targetSpeed =
-          drift > 0 ? (1.0 - speedAdjustment) : (1.0 + speedAdjustment);
+      final targetSpeed = drift > 0
+          ? (1.0 - speedAdjustment)
+          : (1.0 + speedAdjustment);
       await _player.setSpeed(targetSpeed);
       debugPrint('[Sync] Soft correct: drift=${drift}ms → speed=$targetSpeed');
       // Schedule speed reset back to 1.0× after correction window.
@@ -324,12 +427,9 @@ class GuestSessionController extends ChangeNotifier {
     _emaDriftMs = 0;
     _lastHardSeekAtMs = 0;
     _isLoaded = true;
-    final pending = _pendingCommand;
-    _pendingCommand = null;
-    if (pending != null) {
-      await _handleHostCommand(pending.toJson());
-    }
-    // Start RTT calibration pings once connected.
+    _sendReadyToPlayIfReady();
+    await _handlePendingCommandIfReady();
+    // Refresh RTT calibration once media is ready.
     _startCalibration();
     notifyListeners();
   }
@@ -371,9 +471,37 @@ class GuestSessionController extends ChangeNotifier {
     }
   }
 
+  void _sendReadyToPlay() {
+    _sentReadyToPlay = true;
+    _sendToHost(
+      SyncCommand(
+        action: SyncAction.readyToPlay,
+        positionMs: _player.position.inMilliseconds,
+        sentAtMs: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+  }
+
+  void _sendReadyToPlayIfReady() {
+    if (_sentReadyToPlay || !_isLoaded || _rttSamples.isEmpty) return;
+    _sendReadyToPlay();
+  }
+
+  Future<void> _handlePendingCommandIfReady() async {
+    final pending = _pendingCommand;
+    if (pending == null || !_isLoaded) return;
+    if (pending.action == SyncAction.scheduledPlay && _rttSamples.isEmpty) {
+      return;
+    }
+    _pendingCommand = null;
+    await _handleHostCommand(pending.toJson());
+  }
+
   @override
   void dispose() {
     _speedResetTimer?.cancel();
+    _scheduledPlayTimer?.cancel();
+    _sentPingTimes.clear();
     _playbackEventSubscription?.cancel();
     _player.dispose();
     super.dispose();

@@ -34,10 +34,11 @@ class HostSessionController extends ChangeNotifier {
   final Map<RTCDataChannel, int> _lastForceSeekAtMs = {};
   Timer? _syncTimer;
   Timer? _pingTimer;
+  Timer? _scheduledPlayTimer;
   SyncCommand? _lastPlaybackCommand;
 
-  String? _streamUrl;   // full /stream URL (used by host for its own playback)
-  String? _audioUrl;    // /audio URL sent to guests (always audio-only)
+  String? _streamUrl; // full /stream URL (used by host for its own playback)
+  String? _audioUrl; // /audio URL sent to guests (always audio-only)
   PlatformFile? _file;
 
   // ── Sync tuning ───────────────────────────────────────────────────────────
@@ -65,7 +66,8 @@ class HostSessionController extends ChangeNotifier {
   PlatformFile? get file => _file;
   int get guestCount => _guestChannels
       .where(
-          (channel) => channel.state == RTCDataChannelState.RTCDataChannelOpen)
+        (channel) => channel.state == RTCDataChannelState.RTCDataChannelOpen,
+      )
       .length;
 
   Future<String> setupSession(
@@ -120,32 +122,53 @@ class HostSessionController extends ChangeNotifier {
   }
 
   Future<void> play() async {
-    await _player.play();
-    _broadcastPlayback(SyncCommand(
-      action: SyncAction.play,
-      positionMs: _player.position.inMilliseconds,
-      sentAtMs: DateTime.now().millisecondsSinceEpoch,
-    ));
+    final positionMs = _player.position.inMilliseconds;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final startAtMs = nowMs + 900;
+    final command = SyncCommand(
+      action: SyncAction.scheduledPlay,
+      positionMs: positionMs,
+      sentAtMs: nowMs,
+      startAtMs: startAtMs,
+    );
+
+    _lastPlaybackCommand = command;
+    _broadcast(command);
+    _scheduledPlayTimer?.cancel();
+    _scheduledPlayTimer = Timer(
+      Duration(milliseconds: startAtMs - nowMs),
+      () async {
+        await _player.seekTo(positionMs);
+        await _player.play();
+        notifyListeners();
+      },
+    );
     notifyListeners();
   }
 
   Future<void> pause() async {
+    _scheduledPlayTimer?.cancel();
     await _player.pause();
-    _broadcastPlayback(SyncCommand(
-      action: SyncAction.pause,
-      positionMs: _player.position.inMilliseconds,
-      sentAtMs: DateTime.now().millisecondsSinceEpoch,
-    ));
+    _broadcastPlayback(
+      SyncCommand(
+        action: SyncAction.pause,
+        positionMs: _player.position.inMilliseconds,
+        sentAtMs: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
     notifyListeners();
   }
 
   Future<void> seekTo(int positionMs) async {
+    _scheduledPlayTimer?.cancel();
     await _player.seekTo(positionMs);
-    _broadcastPlayback(SyncCommand(
-      action: SyncAction.seek,
-      positionMs: positionMs,
-      sentAtMs: DateTime.now().millisecondsSinceEpoch,
-    ));
+    _broadcastPlayback(
+      SyncCommand(
+        action: SyncAction.seek,
+        positionMs: positionMs,
+        sentAtMs: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
     notifyListeners();
   }
 
@@ -155,21 +178,25 @@ class HostSessionController extends ChangeNotifier {
 
   void startPeriodicSync() {
     _syncTimer?.cancel();
-    _syncTimer =
-        Timer.periodic(const Duration(milliseconds: syncIntervalMs), (_) {
+    _syncTimer = Timer.periodic(const Duration(milliseconds: syncIntervalMs), (
+      _,
+    ) {
       if (_player.isPlaying) {
-        _broadcast(SyncCommand(
-          action: SyncAction.syncCheck,
-          positionMs: _player.position.inMilliseconds,
-          sentAtMs: DateTime.now().millisecondsSinceEpoch,
-          hostClockMs: DateTime.now().millisecondsSinceEpoch,
-        ));
+        _broadcast(
+          SyncCommand(
+            action: SyncAction.syncCheck,
+            positionMs: _player.position.inMilliseconds,
+            sentAtMs: DateTime.now().millisecondsSinceEpoch,
+            hostClockMs: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
       }
     });
     // Start periodic calibration pings.
     _pingTimer?.cancel();
-    _pingTimer =
-        Timer.periodic(const Duration(milliseconds: pingIntervalMs), (_) {
+    _pingTimer = Timer.periodic(const Duration(milliseconds: pingIntervalMs), (
+      _,
+    ) {
       for (final channel in List<RTCDataChannel>.from(_guestChannels)) {
         if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
           _sendPing(channel);
@@ -188,13 +215,14 @@ class HostSessionController extends ChangeNotifier {
       return;
     }
     _sendToChannel(
-        channel,
-        SyncCommand(
-          action: SyncAction.streamReady,
-          positionMs: _player.position.inMilliseconds,
-          sentAtMs: DateTime.now().millisecondsSinceEpoch,
-          streamUrl: url,
-        ));
+      channel,
+      SyncCommand(
+        action: SyncAction.streamReady,
+        positionMs: _player.position.inMilliseconds,
+        sentAtMs: DateTime.now().millisecondsSinceEpoch,
+        streamUrl: url,
+      ),
+    );
   }
 
   void _sendPing(RTCDataChannel channel) {
@@ -217,8 +245,7 @@ class HostSessionController extends ChangeNotifier {
         case SyncAction.pong:
           // Guest answered our ping — compute RTT for this guest.
           if (command.pingId != null) {
-            final rtt =
-                DateTime.now().millisecondsSinceEpoch - command.pingId!;
+            final rtt = DateTime.now().millisecondsSinceEpoch - command.pingId!;
             if (rtt >= 0 && rtt < 5000) {
               _guestRttMs[channel] = rtt;
             }
@@ -238,8 +265,8 @@ class HostSessionController extends ChangeNotifier {
           break;
         case SyncAction.syncResponse:
           // Check this specific guest's drift.
-          final drift =
-              (_player.position.inMilliseconds - command.positionMs).abs();
+          final drift = (_player.position.inMilliseconds - command.positionMs)
+              .abs();
           final nowMs = DateTime.now().millisecondsSinceEpoch;
           final lastForceSeekMs = _lastForceSeekAtMs[channel] ?? 0;
           if (drift > forceSeekDriftMs &&
@@ -255,6 +282,9 @@ class HostSessionController extends ChangeNotifier {
               ),
             );
           }
+          break;
+        case SyncAction.readyToPlay:
+          _sendLastPlaybackCommand(channel);
           break;
         default:
           break;
@@ -282,10 +312,29 @@ class HostSessionController extends ChangeNotifier {
     // Cancel any previous pending replay to avoid stale commands (e.g. a
     // play replay firing after the user quickly tapped pause).
     _pendingReplayTimer?.cancel();
-    _pendingReplayTimer =
-        Timer(const Duration(milliseconds: 100), () {
+    _pendingReplayTimer = Timer(const Duration(milliseconds: 100), () {
       _broadcast(command);
     });
+  }
+
+  void _sendLastPlaybackCommand(RTCDataChannel channel) {
+    if (_player.isPlaying) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      const leadMs = 900;
+      _sendToChannel(
+        channel,
+        SyncCommand(
+          action: SyncAction.scheduledPlay,
+          positionMs: _player.position.inMilliseconds + leadMs,
+          sentAtMs: nowMs,
+          startAtMs: nowMs + leadMs,
+        ),
+      );
+      return;
+    }
+
+    final last = _lastPlaybackCommand;
+    if (last != null) _sendToChannel(channel, last);
   }
 
   void _sendToChannel(RTCDataChannel channel, SyncCommand command) {
@@ -298,6 +347,7 @@ class HostSessionController extends ChangeNotifier {
   void dispose() {
     _syncTimer?.cancel();
     _pingTimer?.cancel();
+    _scheduledPlayTimer?.cancel();
     _pendingReplayTimer?.cancel();
     _streamServer.stop();
     _player.dispose();

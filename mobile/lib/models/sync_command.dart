@@ -7,9 +7,15 @@ enum SyncAction {
   syncCheck,
   syncResponse,
   streamReady,
-  /// Host → Guest: requests a pong for RTT calibration.
+  readyToPlay,
+  scheduledPlay,
+  scheduledPause,
+  scheduledSeek,
+
+  /// Host to guest: requests a pong for RTT calibration.
   ping,
-  /// Guest → Host: answers a ping for RTT calibration.
+
+  /// Guest to host: answers a ping for RTT calibration.
   pong,
 }
 
@@ -21,37 +27,45 @@ class SyncCommand {
     this.streamUrl,
     this.pingId,
     this.hostClockMs,
+    this.startAtMs,
   });
 
   final SyncAction action;
   final int positionMs;
   final int sentAtMs;
   final String? streamUrl;
+
   /// Monotonic ping counter used for RTT calibration.
   final int? pingId;
+
   /// Host wall-clock ms included in syncCheck so guest can compute offset.
   final int? hostClockMs;
 
+  /// Host wall-clock ms when a scheduled playback action should happen.
+  final int? startAtMs;
+
   String toJson() => jsonEncode({
-        'action': action.name,
-        'positionMs': positionMs,
-        'sentAtMs': sentAtMs,
-        if (streamUrl != null) 'streamUrl': streamUrl,
-        if (pingId != null) 'pingId': pingId,
-        if (hostClockMs != null) 'hostClockMs': hostClockMs,
-      });
+    'action': action.name,
+    'positionMs': positionMs,
+    'sentAtMs': sentAtMs,
+    if (streamUrl != null) 'streamUrl': streamUrl,
+    if (pingId != null) 'pingId': pingId,
+    if (hostClockMs != null) 'hostClockMs': hostClockMs,
+    if (startAtMs != null) 'startAtMs': startAtMs,
+  });
 
   factory SyncCommand.fromJson(String raw) {
     final map = jsonDecode(raw) as Map<String, dynamic>;
     return SyncCommand(
       action: SyncAction.values.byName(map['action'] as String),
       positionMs: ((map['positionMs'] ?? 0) as num).toInt(),
-      sentAtMs: ((map['sentAtMs'] ?? DateTime.now().millisecondsSinceEpoch)
-              as num)
-          .toInt(),
+      sentAtMs:
+          ((map['sentAtMs'] ?? DateTime.now().millisecondsSinceEpoch) as num)
+              .toInt(),
       streamUrl: map['streamUrl'] as String?,
       pingId: (map['pingId'] as num?)?.toInt(),
       hostClockMs: (map['hostClockMs'] as num?)?.toInt(),
+      startAtMs: (map['startAtMs'] as num?)?.toInt(),
     );
   }
 }
