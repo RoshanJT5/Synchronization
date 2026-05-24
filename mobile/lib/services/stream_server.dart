@@ -35,9 +35,7 @@ class StreamServer {
         continue;
       }
     }
-    throw Exception(
-      'Could not start stream server — ports ${_portCandidates.first}-${_portCandidates.last} are all in use.',
-    );
+    throw Exception('Streaming port is busy.');
   }
 
   /// URL for guest audio-only playback (works for both MP3 and MP4 sources).

@@ -80,11 +80,7 @@ class HostSessionController extends ChangeNotifier {
       localIp = await _networkService.getLocalIP();
     }
     if (localIp == null || localIp.isEmpty) {
-      throw Exception(
-        'No local network detected. '
-        'Connect both devices to the same WiFi, '
-        'or turn on Mobile Hotspot and connect the other device to it.',
-      );
+      throw Exception('No WiFi connected.');
     }
 
     _streamUrl = await _streamServer.start(file.path!, localIp);

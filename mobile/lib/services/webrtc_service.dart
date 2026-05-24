@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:synchronization/services/guest_session_controller.dart';
 import 'package:synchronization/services/host_session_controller.dart';
+import 'package:synchronization/utils/user_error_message.dart';
 
 enum AppConnectionState { idle, connecting, connected, reconnecting, error }
 
@@ -181,7 +182,7 @@ class WebRTCService extends ChangeNotifier {
     _socket!.onConnectError((e) {
       debugPrint('[WebRTC] Socket connect error: $e');
       if (!completer.isCompleted) {
-        completer.completeError(Exception('Could not reach signaling server'));
+        completer.completeError(Exception('No internet connection.'));
       }
     });
 
@@ -507,7 +508,7 @@ class WebRTCService extends ChangeNotifier {
 
   void _setError(String message) {
     if (_isDisposed) return;
-    _errorMessage = message;
+      _errorMessage = UserErrorMessage.from(message);
     _state = AppConnectionState.error;
     notifyListeners();
   }

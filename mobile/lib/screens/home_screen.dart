@@ -12,6 +12,7 @@ import 'package:synchronization/services/host_media_player.dart';
 import 'package:synchronization/services/host_session_controller.dart';
 import 'package:synchronization/services/webrtc_service.dart';
 import 'package:synchronization/theme/app_theme.dart';
+import 'package:synchronization/utils/user_error_message.dart';
 import 'package:video_player/video_player.dart';
 
 enum _ScreenMode { welcome, hostSetup, hostActive, guestJoin, guestActive }
@@ -113,7 +114,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _mode = _ScreenMode.hostActive;
       });
     } catch (e) {
-      _showSnack(e.toString());
+      _showSnack(e);
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -139,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _mode = _ScreenMode.guestActive;
       });
     } catch (e) {
-      _showSnack(e.toString());
+      _showSnack(e);
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -186,8 +187,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _showSnack(Object message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(UserErrorMessage.from(message))),
+    );
   }
 
   bool _isVideoFile(PlatformFile file) {
@@ -345,84 +348,62 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHostActive(WebRTCService webrtc) {
     final controller = _hostController ?? webrtc.hostController;
     final bottomSafeSpace = MediaQuery.viewPaddingOf(context).bottom;
-    return _Page(
-      title: 'SESSION ACTIVE',
-      onBack: _leaveSession,
+    return Padding(
+      key: const ValueKey('hostActive'),
+      padding: EdgeInsets.fromLTRB(24, 18, 24, 12 + bottomSafeSpace),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _StatusPill(
-            icon: Icons.group,
-            text: '${webrtc.guestCount} guests connected',
-          ),
-          const SizedBox(height: 16),
-          _QrPanel(sessionId: webrtc.activeSessionId),
-          const SizedBox(height: 16),
-          if (controller != null)
-            _HostPlayerPanel(
-              controller: controller,
-              onSeek: (ms) => controller.seekTo(ms),
-              onFullscreen:
-                  controller.isVideoPlayback ? _enterFullscreen : null,
+          _PageHeader(title: 'SESSION ACTIVE', onBack: _leaveSession),
+          Expanded(
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              padding: const EdgeInsets.only(bottom: 24),
+              children: [
+                _StatusPill(
+                  icon: Icons.group,
+                  text: '${webrtc.guestCount} guests connected',
+                ),
+                const SizedBox(height: 16),
+                _QrPanel(sessionId: webrtc.activeSessionId),
+                const SizedBox(height: 16),
+                if (controller != null)
+                  _HostPlayerPanel(
+                    controller: controller,
+                    onSeek: (ms) => controller.seekTo(ms),
+                    onFullscreen:
+                        controller.isVideoPlayback ? _enterFullscreen : null,
+                  ),
+                const SizedBox(height: 14),
+                _HostTransportControls(
+                  controller: controller,
+                  onChanged: () => setState(() {}),
+                ),
+                const SizedBox(height: 18),
+                _VolumeSlider(
+                  value: _volume,
+                  onChanged: (value) {
+                    setState(() => _volume = value);
+                    webrtc.setVolume(value);
+                  },
+                ),
+                const SizedBox(height: 14),
+                const _StatusPill(
+                  icon: Icons.settings_input_antenna,
+                  text: 'Stream: Active',
+                ),
+              ],
             ),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _RoundButton(
-                icon: Icons.replay_10,
-                onPressed: controller == null
-                    ? null
-                    : () => controller.seekTo(
-                          (controller.position.inMilliseconds - 10000)
-                              .clamp(0, 1 << 31),
-                        ),
-              ),
-              const SizedBox(width: 18),
-              _RoundButton(
-                icon: controller?.isPlaying == true
-                    ? Icons.pause
-                    : Icons.play_arrow,
-                large: true,
-                onPressed: controller == null
-                    ? null
-                    : () {
-                        controller.isPlaying
-                            ? controller.pause()
-                            : controller.play();
-                        setState(() {});
-                      },
-              ),
-              const SizedBox(width: 18),
-              _RoundButton(
-                icon: Icons.forward_10,
-                onPressed: controller == null
-                    ? null
-                    : () => controller.seekTo(
-                          controller.position.inMilliseconds + 10000,
-                        ),
-              ),
-            ],
           ),
-          const SizedBox(height: 18),
-          _VolumeSlider(
-            value: _volume,
-            onChanged: (value) {
-              setState(() => _volume = value);
-              webrtc.setVolume(value);
-            },
-          ),
-          const SizedBox(height: 14),
-          const _StatusPill(
-              icon: Icons.settings_input_antenna, text: 'Stream: Active'),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
           _SecondaryButton(
             label: 'END SESSION',
             icon: Icons.link_off,
             danger: true,
             onPressed: _leaveSession,
           ),
-          SizedBox(height: 8 + bottomSafeSpace),
         ],
       ),
     );
@@ -641,37 +622,45 @@ class _HostPlayerPanelState extends State<_HostPlayerPanel> {
   @override
   Widget build(BuildContext context) {
     final videoController = widget.controller.videoController;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final maxPreviewHeight = (screenHeight * 0.42).clamp(220.0, 360.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (widget.controller.isVideoPlayback &&
             videoController != null &&
             videoController.value.isInitialized) ...[
-          Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: AspectRatio(
-                  aspectRatio: videoController.value.aspectRatio,
-                  child: VideoPlayer(videoController),
-                ),
-              ),
-              if (widget.onFullscreen != null)
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: IconButton(
-                    onPressed: widget.onFullscreen,
-                    icon: const Icon(Icons.fullscreen, color: Colors.white),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.black54,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxPreviewHeight),
+            child: Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: AspectRatio(
+                      aspectRatio: videoController.value.aspectRatio,
+                      child: VideoPlayer(videoController),
                     ),
                   ),
                 ),
-            ],
+                if (widget.onFullscreen != null)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: IconButton(
+                      onPressed: widget.onFullscreen,
+                      icon: const Icon(Icons.fullscreen, color: Colors.white),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
         ],
@@ -682,6 +671,56 @@ class _HostPlayerPanelState extends State<_HostPlayerPanel> {
           duration: widget.controller.duration,
           readOnly: false,
           onSeek: widget.onSeek,
+        ),
+      ],
+    );
+  }
+}
+
+class _HostTransportControls extends StatelessWidget {
+  const _HostTransportControls({
+    required this.controller,
+    required this.onChanged,
+  });
+
+  final HostSessionController? controller;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _RoundButton(
+          icon: Icons.replay_10,
+          onPressed: controller == null
+              ? null
+              : () => controller!.seekTo(
+                    (controller!.position.inMilliseconds - 10000)
+                        .clamp(0, 1 << 31),
+                  ),
+        ),
+        const SizedBox(width: 18),
+        _RoundButton(
+          icon: controller?.isPlaying == true ? Icons.pause : Icons.play_arrow,
+          large: true,
+          onPressed: controller == null
+              ? null
+              : () {
+                  controller!.isPlaying
+                      ? controller!.pause()
+                      : controller!.play();
+                  onChanged();
+                },
+        ),
+        const SizedBox(width: 18),
+        _RoundButton(
+          icon: Icons.forward_10,
+          onPressed: controller == null
+              ? null
+              : () => controller!.seekTo(
+                    controller!.position.inMilliseconds + 10000,
+                  ),
         ),
       ],
     );
@@ -920,28 +959,7 @@ class _Page extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (title != null)
-            Row(
-              children: [
-                IconButton(
-                  onPressed: onBack,
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                ),
-                Expanded(
-                  child: Text(
-                    title!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 48),
-              ],
-            ),
+          if (title != null) _PageHeader(title: title!, onBack: onBack),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -961,6 +979,38 @@ class _Page extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PageHeader extends StatelessWidget {
+  const _PageHeader({required this.title, required this.onBack});
+
+  final String title;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+          onPressed: onBack,
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+        ),
+        Expanded(
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        const SizedBox(width: 48),
+      ],
     );
   }
 }
