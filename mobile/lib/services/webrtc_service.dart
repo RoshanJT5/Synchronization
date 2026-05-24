@@ -147,10 +147,8 @@ class WebRTCService extends ChangeNotifier {
       // signalling server stays warm (prevents Render free tier from sleeping)
       // and the session doesn't get pruned by the server's TTL logic.
       _socketHeartbeatTimer?.cancel();
-      _socketHeartbeatTimer =
-          Timer.periodic(const Duration(seconds: 30), (_) {
-        _socket?.emit(
-            'session-heartbeat', {'sessionId': _activeSessionId});
+      _socketHeartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        _socket?.emit('session-heartbeat', {'sessionId': _activeSessionId});
       });
     });
 
@@ -314,8 +312,7 @@ class WebRTCService extends ChangeNotifier {
           state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         // Attempt ICE restart instead of silently dropping the peer.
         _attemptIceRestart(peerId, pc);
-      } else if (state ==
-          RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
         _peers.remove(peerId);
         _disposePeerMedia(peerId);
         notifyListeners();
@@ -449,8 +446,7 @@ class WebRTCService extends ChangeNotifier {
   /// Attempt an ICE restart for a peer whose connection went to
   /// `disconnected` or `failed`. If the restart itself fails, the peer
   /// is removed as a last resort.
-  Future<void> _attemptIceRestart(
-      String peerId, RTCPeerConnection pc) async {
+  Future<void> _attemptIceRestart(String peerId, RTCPeerConnection pc) async {
     debugPrint('[WebRTC] Attempting ICE restart for peer $peerId');
     try {
       final offer = await pc.createOffer({

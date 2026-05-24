@@ -21,7 +21,7 @@ let state: ExtensionState = {
 };
 
 let lobbySocket: Socket | null = null;
-let announceTimer: ReturnType<typeof setInterval> | null = null;
+let announceTimer: number | null = null;
 let offscreenReady = false;
 let pendingInit: unknown = null;
 let readyPeerIds = new Set<string>();
@@ -70,7 +70,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       target: 'offscreen',
       type: 'SET_SOURCE_MUTE',
       muted: Boolean(message.muted),
-    }).catch(() => {});
+    }).catch(() => { });
   }
 
   if (message.type === 'OFFSCREEN_READY') {
@@ -132,7 +132,7 @@ function prepareSession(sessionId: string) {
       });
     };
     announce();
-    announceTimer = setInterval(announce, 5000);
+    announceTimer = window.setInterval(announce, 5000);
   });
 
   lobbySocket.on('peer-joined', ({ peerId }) => {
@@ -257,10 +257,10 @@ async function startExtensionHostLegacy(sessionId: string) {
 
 function stopAll() {
   stopLobby();
-  chrome.runtime.sendMessage({ type: 'STOP_EXTENSION_HOST' }).catch(() => {});
+  chrome.runtime.sendMessage({ type: 'STOP_EXTENSION_HOST' }).catch(() => { });
   // chrome.offscreen is only available on Chrome 116+.
   if (typeof (chrome as any).offscreen !== 'undefined') {
-    (chrome as any).offscreen.closeDocument().catch(() => {});
+    (chrome as any).offscreen.closeDocument().catch(() => { });
   }
   offscreenReady = false;
   pendingInit = null;
@@ -277,7 +277,7 @@ function stopAll() {
 
 function stopLobby() {
   if (announceTimer != null) {
-    clearInterval(announceTimer);
+    window.clearInterval(announceTimer);
     announceTimer = null;
   }
   lobbySocket?.removeAllListeners();
@@ -288,7 +288,7 @@ function stopLobby() {
 function updateState(next: Partial<ExtensionState>) {
   state = { ...state, ...next };
   chrome.storage.local.set({ [STATE_STORAGE_KEY]: state });
-  chrome.runtime.sendMessage({ type: 'STATE_UPDATED', state }).catch(() => {});
+  chrome.runtime.sendMessage({ type: 'STATE_UPDATED', state }).catch(() => { });
 }
 
 async function restoreState() {

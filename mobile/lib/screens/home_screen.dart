@@ -70,8 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final webrtc = _webrtc;
     if (!mounted || webrtc == null) return;
     final guestController = webrtc.guestController;
-    final shouldShowGuest =
-        !webrtc.isHost &&
+    final shouldShowGuest = !webrtc.isHost &&
         guestController != null &&
         (_mode == _ScreenMode.welcome || _mode == _ScreenMode.guestJoin);
     if (shouldShowGuest) {
@@ -81,7 +80,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
-
 
   Future<void> _pickFile() async {
     final file = await _fileService.pickMediaFile();
@@ -492,9 +490,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final controller = _guestController ?? webrtc.guestController;
     final isBrowserAudio =
         webrtc.hasRemoteAudio && controller?.isLoaded != true;
-    final hasError =
-        webrtc.state == AppConnectionState.error ||
-            controller?.hasPlaybackError == true;
+    final hasError = webrtc.state == AppConnectionState.error ||
+        controller?.hasPlaybackError == true;
     final statusText = hasError
         ? (controller?.playbackErrorMessage.isNotEmpty == true
             ? controller!.playbackErrorMessage
@@ -946,16 +943,20 @@ class _Page extends StatelessWidget {
               ],
             ),
           Expanded(
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics(),
-              ),
-              slivers: [
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: child,
-                ),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: IntrinsicHeight(child: child),
+                  ),
+                );
+              },
             ),
           ),
         ],
