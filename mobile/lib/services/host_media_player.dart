@@ -96,7 +96,7 @@ class HostMediaPlayer {
 
   void _startVideoTicker() {
     _videoPositionTimer =
-        Timer.periodic(const Duration(milliseconds: 250), (_) {
+        Timer.periodic(const Duration(milliseconds: 100), (_) {
       final position = _videoController?.value.position;
       if (position != null && !_videoPositionController.isClosed) {
         _videoPositionController.add(position);

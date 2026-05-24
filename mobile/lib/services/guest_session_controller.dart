@@ -28,13 +28,13 @@ class GuestSessionController extends ChangeNotifier {
   static const int hardSeekThresholdMs = 650;
 
   /// Drift below hardSeek but above this is corrected via speed adjustment.
-  static const int softCorrectionMs = 90;
+  static const int softCorrectionMs = 25;
 
   /// How much to speed up / slow down for soft correction (3 %).
-  static const double speedAdjustment = 0.03;
+  static const double speedAdjustment = 0.06;
 
   /// Duration after a speed adjustment before reverting to 1.0×.
-  static const int speedCorrectionWindowMs = 900;
+  static const int speedCorrectionWindowMs = 650;
 
   /// Minimum time between hard seeks. Video-container audio can stall if the
   /// HTTP decoder is forced to seek several times per second.
@@ -222,11 +222,20 @@ class GuestSessionController extends ChangeNotifier {
   /// wall-clock difference (which is fragile but better than nothing).
   int _estimateOneWayDelay(SyncCommand command) {
     if (_rttSamples.isNotEmpty) {
-      return _oneWayDelayMs;
+      return _calibratedTransitMs(command);
     }
     // Fallback: raw wall-clock transit (host sentAt → guest now).
-    final raw = DateTime.now().millisecondsSinceEpoch - command.sentAtMs;
-    return raw.clamp(0, 500);
+    return 0;
+  }
+
+  int _calibratedTransitMs(SyncCommand command) {
+    final hostNowEstimate =
+        DateTime.now().millisecondsSinceEpoch - _clockOffsetMs;
+    final transitMs = hostNowEstimate - command.sentAtMs;
+    if (transitMs >= 0 && transitMs < 5000) {
+      return transitMs.clamp(_oneWayDelayMs, 500);
+    }
+    return _oneWayDelayMs;
   }
 
   // ── Drift correction (AmpMe-style) ───────────────────────────────────────

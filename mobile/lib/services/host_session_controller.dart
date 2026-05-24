@@ -42,7 +42,7 @@ class HostSessionController extends ChangeNotifier {
 
   // ── Sync tuning ───────────────────────────────────────────────────────────
   /// How often to send syncCheck commands (ms).
-  static const int syncIntervalMs = 500;
+  static const int syncIntervalMs = 250;
 
   /// How often to send calibration pings (ms).
   static const int pingIntervalMs = 3000;
