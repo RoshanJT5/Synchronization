@@ -2,12 +2,21 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:video_player/video_player.dart';
 
 enum HostPlaybackMode { audioOnly, videoWithAudio }
 
 class HostMediaPlayer {
+  HostMediaPlayer() {
+    _audioPlayingSubscription = _audioPlayer.playingStream.listen((playing) {
+      if (_mode == HostPlaybackMode.audioOnly) {
+        onPlayingChanged?.call();
+      }
+    });
+  }
+
   final AudioPlayer _audioPlayer = AudioPlayer();
   final StreamController<Duration> _videoPositionController =
       StreamController<Duration>.broadcast();
@@ -15,6 +24,18 @@ class HostMediaPlayer {
   Timer? _videoPositionTimer;
   HostPlaybackMode _mode = HostPlaybackMode.audioOnly;
   bool _isLoaded = false;
+  
+  VoidCallback? onPlayingChanged;
+  StreamSubscription<bool>? _audioPlayingSubscription;
+  bool _lastVideoPlayingState = false;
+
+  void _handleVideoStateChange() {
+    final playing = _videoController?.value.isPlaying ?? false;
+    if (playing != _lastVideoPlayingState) {
+      _lastVideoPlayingState = playing;
+      onPlayingChanged?.call();
+    }
+  }
 
   Stream<Duration> get positionStream =>
       _mode == HostPlaybackMode.videoWithAudio
@@ -41,6 +62,7 @@ class HostMediaPlayer {
     _mode = mode;
     _isLoaded = false;
     _stopVideoTicker();
+    _videoController?.removeListener(_handleVideoStateChange);
     await _videoController?.dispose();
     _videoController = null;
     await _audioPlayer.stop();
@@ -48,7 +70,8 @@ class HostMediaPlayer {
     if (_mode == HostPlaybackMode.videoWithAudio) {
       final controller = VideoPlayerController.file(File(filePath));
       await controller.initialize();
-      _videoController = controller;
+      _videoController = controller..addListener(_handleVideoStateChange);
+      _lastVideoPlayingState = controller.value.isPlaying;
       _startVideoTicker();
     } else {
       await _audioPlayer.setFilePath(filePath);
@@ -111,6 +134,8 @@ class HostMediaPlayer {
 
   Future<void> dispose() async {
     _stopVideoTicker();
+    _audioPlayingSubscription?.cancel();
+    _videoController?.removeListener(_handleVideoStateChange);
     await _videoController?.dispose();
     await _audioPlayer.dispose();
     await _videoPositionController.close();
