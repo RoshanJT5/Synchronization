@@ -19,7 +19,9 @@ class StreamServer {
     final router = Router()
       ..get('/ping', (shelf.Request request) => shelf.Response.ok('pong'))
       ..get('/stream', _handleStream)
-      ..get('/audio', _handleAudio); // audio-only endpoint for guest devices
+      ..add('HEAD', '/stream', _handleStreamHead)
+      ..get('/audio', _handleAudio)
+      ..add('HEAD', '/audio', _handleAudioHead); // audio-only endpoint for guests
 
     final handler = const shelf.Pipeline()
         .addMiddleware(_corsMiddleware())
@@ -52,12 +54,41 @@ class StreamServer {
     return _serveFile(request, _mimeType);
   }
 
+  Future<shelf.Response> _handleStreamHead(shelf.Request request) async {
+    return _serveHead(_mimeType);
+  }
+
   /// Serves the same file but always with an audio-compatible MIME type.
   /// For MP4/MKV/AVI sources, this tells ExoPlayer/just_audio to treat it
   /// as audio-only so guests never get a video track.
   Future<shelf.Response> _handleAudio(shelf.Request request) async {
     final audioMime = _getAudioMimeType(_filePath ?? '');
     return _serveFile(request, audioMime);
+  }
+
+  Future<shelf.Response> _handleAudioHead(shelf.Request request) async {
+    final audioMime = _getAudioMimeType(_filePath ?? '');
+    return _serveHead(audioMime);
+  }
+
+  Future<shelf.Response> _serveHead(String? contentType) async {
+    final path = _filePath;
+    if (path == null) return shelf.Response.notFound('No file selected');
+
+    final file = File(path);
+    if (!await file.exists()) return shelf.Response.notFound('File not found');
+
+    final fileSize = await file.length();
+    return shelf.Response.ok(
+      null,
+      headers: {
+        'Content-Type': contentType ?? 'application/octet-stream',
+        'Content-Length': '$fileSize',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    );
   }
 
   Future<shelf.Response> _serveFile(
@@ -99,14 +130,32 @@ class StreamServer {
     String rangeHeader, {
     String? contentType,
   }) {
-    final match = RegExp(r'bytes=(\d+)-(\d*)').firstMatch(rangeHeader);
-    if (match == null) return shelf.Response(416, body: 'Invalid range');
+    final match = RegExp(r'bytes=(\d*)-(\d*)').firstMatch(rangeHeader);
+    if (match == null || fileSize <= 0) {
+      return _rangeNotSatisfiable(fileSize);
+    }
 
-    final start = int.parse(match.group(1)!);
-    final requestedEnd = match.group(2);
-    final end = requestedEnd == null || requestedEnd.isEmpty
-        ? fileSize - 1
-        : int.parse(requestedEnd).clamp(start, fileSize - 1);
+    final startText = match.group(1) ?? '';
+    final endText = match.group(2) ?? '';
+    if (startText.isEmpty && endText.isEmpty) {
+      return _rangeNotSatisfiable(fileSize);
+    }
+
+    int start;
+    int end;
+    if (startText.isEmpty) {
+      final suffixLength = int.tryParse(endText) ?? 0;
+      if (suffixLength <= 0) return _rangeNotSatisfiable(fileSize);
+      start = (fileSize - suffixLength).clamp(0, fileSize - 1).toInt();
+      end = fileSize - 1;
+    } else {
+      start = int.parse(startText);
+      if (start >= fileSize) return _rangeNotSatisfiable(fileSize);
+      end = endText.isEmpty
+          ? fileSize - 1
+          : int.parse(endText).clamp(start, fileSize - 1).toInt();
+    }
+
     final length = end - start + 1;
 
     return shelf.Response(
@@ -119,6 +168,14 @@ class StreamServer {
         'Accept-Ranges': 'bytes',
         'Cache-Control': 'no-cache',
       },
+    );
+  }
+
+  shelf.Response _rangeNotSatisfiable(int fileSize) {
+    return shelf.Response(
+      416,
+      body: 'Range not satisfiable',
+      headers: {'Content-Range': 'bytes */$fileSize'},
     );
   }
 

@@ -272,12 +272,16 @@ class GuestSessionController extends ChangeNotifier {
     _hostIsPlaying = true;
     await _player.pause();
     await _player.setSpeed(1.0);
-    await _player.seek(Duration(milliseconds: command.positionMs));
 
     final delayMs = _delayUntilHostTime(startAtMs, command.sentAtMs);
+    final lateByMs = _elapsedSinceHostTime(startAtMs, command.sentAtMs);
+    final targetPositionMs = command.positionMs + lateByMs;
+    await _player.seek(Duration(milliseconds: targetPositionMs));
+
     _scheduledPlayTimer = Timer(Duration(milliseconds: delayMs), () async {
       try {
         await _player.play();
+        notifyListeners();
       } catch (e) {
         debugPrint('Scheduled play error: $e');
       }
@@ -289,9 +293,11 @@ class GuestSessionController extends ChangeNotifier {
     final delayMs = command.startAtMs == null
         ? 0
         : _delayUntilHostTime(command.startAtMs!, command.sentAtMs);
-    Timer(Duration(milliseconds: delayMs), () async {
+    _scheduledPlayTimer = Timer(Duration(milliseconds: delayMs), () async {
+      _hostIsPlaying = false;
       await _player.pause();
       await _player.seek(Duration(milliseconds: command.positionMs));
+      notifyListeners();
     });
   }
 
@@ -300,9 +306,10 @@ class GuestSessionController extends ChangeNotifier {
     final delayMs = command.startAtMs == null
         ? 0
         : _delayUntilHostTime(command.startAtMs!, command.sentAtMs);
-    Timer(Duration(milliseconds: delayMs), () async {
+    _scheduledPlayTimer = Timer(Duration(milliseconds: delayMs), () async {
       await _player.seek(Duration(milliseconds: command.positionMs));
       if (!_hostIsPlaying) await _player.pause();
+      notifyListeners();
     });
   }
 
@@ -336,6 +343,13 @@ class GuestSessionController extends ChangeNotifier {
 
     final scheduledLeadMs = hostTimeMs - sentAtMs;
     return scheduledLeadMs.clamp(0, 5000).toInt();
+  }
+
+  int _elapsedSinceHostTime(int hostTimeMs, int sentAtMs) {
+    if (_rttSamples.isEmpty) return 0;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final localTargetMs = hostTimeMs + _clockOffsetMs;
+    return (nowMs - localTargetMs).clamp(0, 5000).toInt();
   }
 
   // ── Drift correction (AmpMe-style) ───────────────────────────────────────

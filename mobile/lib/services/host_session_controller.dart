@@ -36,6 +36,8 @@ class HostSessionController extends ChangeNotifier {
   Timer? _pingTimer;
   Timer? _scheduledPlayTimer;
   SyncCommand? _lastPlaybackCommand;
+  int? _resumeAnchorPositionMs;
+  bool _wantsToPlay = false;
 
   String? _streamUrl; // full /stream URL (used by host for its own playback)
   String? _audioUrl; // /audio URL sent to guests (always audio-only)
@@ -43,6 +45,11 @@ class HostSessionController extends ChangeNotifier {
 
   HostSessionController() {
     _player.onPlayingChanged = () {
+      if (_player.isPlaying) {
+        _wantsToPlay = true;
+      } else if (_isAtEndOfMedia) {
+        _wantsToPlay = false;
+      }
       notifyListeners();
     };
   }
@@ -61,11 +68,14 @@ class HostSessionController extends ChangeNotifier {
   /// still buffering or recovering.
   static const int forceSeekCooldownMs = 5000;
 
+  /// Tiny pre-roll used after pause so the next play becomes a clean resync.
+  static const int pauseResumePrerollMs = 30;
+
   // ── Public getters ────────────────────────────────────────────────────────
   Stream<Duration> get positionStream => _player.positionStream;
   Duration get position => _player.position;
   Duration? get duration => _player.duration;
-  bool get isPlaying => _player.isPlaying;
+  bool get isPlaying => _wantsToPlay || _player.isPlaying;
   bool get isVideoPlayback => _player.isVideoPlayback;
   VideoPlayerController? get videoController => _player.videoController;
   String? get streamUrl => _streamUrl;
@@ -128,13 +138,18 @@ class HostSessionController extends ChangeNotifier {
   }
 
   Future<void> play() async {
-    final positionMs = _player.position.inMilliseconds;
+    final anchorMs = _resumeAnchorPositionMs;
+    final positionMs =
+        anchorMs ?? (_isAtEndOfMedia ? 0 : _player.position.inMilliseconds);
+    _resumeAnchorPositionMs = null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final startAtMs = nowMs + 900;
+    final leadMs = _scheduledLeadMs();
+    final startAtMs = nowMs + leadMs;
 
     _scheduledPlayTimer?.cancel();
-    
-    // Pre-seek the host player immediately so seek latency is absorbed before playback starts
+    _wantsToPlay = true;
+    notifyListeners();
+    // Pre-seek the host player so seek latency is absorbed before playback starts.
     await _player.seekTo(positionMs);
 
     final command = SyncCommand(
@@ -145,12 +160,12 @@ class HostSessionController extends ChangeNotifier {
     );
 
     _lastPlaybackCommand = command;
-    _broadcast(command);
+    _broadcastPlayback(command);
 
     // Calculate remaining delay from current time to startAtMs
     final remainingMs = startAtMs - DateTime.now().millisecondsSinceEpoch;
     _scheduledPlayTimer = Timer(
-      Duration(milliseconds: remainingMs.clamp(0, 900)),
+      Duration(milliseconds: remainingMs.clamp(0, leadMs)),
       () async {
         await _player.play();
         notifyListeners();
@@ -164,7 +179,13 @@ class HostSessionController extends ChangeNotifier {
     final positionMs = _player.position.inMilliseconds;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final startAtMs = nowMs + 500;
-    final targetPositionMs = isPlaying ? positionMs + 500 : positionMs;
+    final rawTargetPositionMs =
+        _player.isPlaying ? positionMs + 500 : positionMs;
+    final targetPositionMs = _clampPositionMs(rawTargetPositionMs);
+    _resumeAnchorPositionMs =
+        (targetPositionMs - pauseResumePrerollMs).clamp(0, 1 << 31).toInt();
+    _wantsToPlay = false;
+    notifyListeners();
 
     final command = SyncCommand(
       action: SyncAction.scheduledPause,
@@ -181,6 +202,7 @@ class HostSessionController extends ChangeNotifier {
       () async {
         await _player.pause();
         await _player.seekTo(targetPositionMs);
+        _wantsToPlay = false;
         notifyListeners();
       },
     );
@@ -188,16 +210,26 @@ class HostSessionController extends ChangeNotifier {
   }
 
   Future<void> seekTo(int positionMs) async {
+    final targetMs = _clampPositionMs(positionMs);
+    _resumeAnchorPositionMs = null;
     _scheduledPlayTimer?.cancel();
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final startAtMs = nowMs + 500;
+    final shouldResume = isPlaying;
+    final wasActuallyPlaying = _player.isPlaying;
 
-    // Pre-seek the host player immediately so seek latency is absorbed during the wait time
-    await _player.seekTo(positionMs);
+    if (!wasActuallyPlaying) {
+      await _player.seekTo(targetMs);
+    }
+
+    if (shouldResume && !wasActuallyPlaying) {
+      await _schedulePlayFromPosition(targetMs);
+      return;
+    }
 
     final command = SyncCommand(
       action: SyncAction.scheduledSeek,
-      positionMs: positionMs,
+      positionMs: targetMs,
       sentAtMs: nowMs,
       startAtMs: startAtMs,
     );
@@ -209,13 +241,48 @@ class HostSessionController extends ChangeNotifier {
     _scheduledPlayTimer = Timer(
       Duration(milliseconds: remainingMs.clamp(0, 500)),
       () async {
-        if (!_player.isPlaying) {
+        if (wasActuallyPlaying) {
+          await _player.seekTo(targetMs);
+        }
+        if (!shouldResume) {
           await _player.pause();
+          _wantsToPlay = false;
+        } else if (!_player.isPlaying) {
+          await _player.play();
+          _wantsToPlay = true;
         }
         notifyListeners();
       },
     );
     notifyListeners();
+  }
+
+  Future<void> _schedulePlayFromPosition(int positionMs) async {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final leadMs = _scheduledLeadMs();
+    final startAtMs = nowMs + leadMs;
+
+    _wantsToPlay = true;
+    notifyListeners();
+
+    final command = SyncCommand(
+      action: SyncAction.scheduledPlay,
+      positionMs: positionMs,
+      sentAtMs: nowMs,
+      startAtMs: startAtMs,
+    );
+
+    _lastPlaybackCommand = command;
+    _broadcastPlayback(command);
+
+    final remainingMs = startAtMs - DateTime.now().millisecondsSinceEpoch;
+    _scheduledPlayTimer = Timer(
+      Duration(milliseconds: remainingMs.clamp(0, leadMs)),
+      () async {
+        await _player.play();
+        notifyListeners();
+      },
+    );
   }
 
   Future<void> setVolume(double volume) => _player.setVolume(volume);
@@ -366,7 +433,7 @@ class HostSessionController extends ChangeNotifier {
   void _sendLastPlaybackCommand(RTCDataChannel channel) {
     if (_player.isPlaying) {
       final nowMs = DateTime.now().millisecondsSinceEpoch;
-      const leadMs = 900;
+      final leadMs = _scheduledLeadMs();
       _sendToChannel(
         channel,
         SyncCommand(
@@ -381,6 +448,28 @@ class HostSessionController extends ChangeNotifier {
 
     final last = _lastPlaybackCommand;
     if (last != null) _sendToChannel(channel, last);
+  }
+
+  int _scheduledLeadMs() {
+    final maxRttMs = _guestRttMs.values.fold<int>(0, (max, rtt) {
+      if (rtt > max) return rtt;
+      return max;
+    });
+    return (900 + maxRttMs).clamp(900, 1800).toInt();
+  }
+
+  bool get _isAtEndOfMedia {
+    final total = duration;
+    if (total == null || total.inMilliseconds <= 0) return false;
+    return position.inMilliseconds >= total.inMilliseconds - 250;
+  }
+
+  int _clampPositionMs(int positionMs) {
+    final total = duration?.inMilliseconds;
+    if (total == null || total <= 0) {
+      return positionMs.clamp(0, 1 << 31).toInt();
+    }
+    return positionMs.clamp(0, total).toInt();
   }
 
   void _sendToChannel(RTCDataChannel channel, SyncCommand command) {

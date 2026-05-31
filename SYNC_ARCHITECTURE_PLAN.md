@@ -94,7 +94,19 @@ Pause and seek can stay mostly immediate, but the cleaner long-term model is:
 - `scheduledPause(positionMs, startAtMs)`
 - `scheduledSeek(positionMs, startAtMs)`
 
-For now, immediate pause/seek is acceptable because the most noticeable issue is starting/resuming playback.
+The app now uses scheduled pause and scheduled seek, and resume/play uses the same scheduled clock path in audio-only and video+audio modes.
+
+Resume after pause should be treated like a fresh synchronized start:
+
+1. Host captures the paused media position.
+2. Host picks a near-future `startAtMs`, using the measured guest RTT as extra safety margin.
+3. Host sends `scheduledPlay(positionMs, startAtMs)` twice with a short stagger, just like other playback commands.
+4. Host updates the UI immediately to a logical "playing/scheduled" state, then starts the local decoder at `startAtMs`.
+5. Receiver seeks before the start time when possible. If the command is handled after `startAtMs`, it seeks to `positionMs + overdueMs` so it catches the host clock instead of starting late.
+
+This gives play-after-pause the same "time clock" behavior as initial playback and prevents audio-only resumes from accumulating a fixed delay.
+
+Pause also creates a tiny resume anchor 30ms before the scheduled paused position. On the next play, the host and guests seek to that anchor and start together using `scheduledPlay`. This turns the pause button into a practical resync tool: if small drift has built up, pausing and playing again re-locks both devices to the same clocked position without a noticeable jump for the listener.
 
 ### 5. Continuous Correction
 

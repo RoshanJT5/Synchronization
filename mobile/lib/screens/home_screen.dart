@@ -63,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _webrtc?.removeListener(_handleWebRtcChange);
+    _restorePortraitSystemUi();
     _codeController.dispose();
     super.dispose();
   }
@@ -173,6 +174,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _leaveSession() {
+    if (_isFullscreen) {
+      _isFullscreen = false;
+      _restorePortraitSystemUi();
+    }
     context.read<WebRTCService>().disconnect();
     setState(() {
       _mode = _ScreenMode.welcome;
@@ -209,6 +214,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _exitFullscreen() {
     setState(() => _isFullscreen = false);
+    _restorePortraitSystemUi();
+  }
+
+  void _restorePortraitSystemUi() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -1428,6 +1437,7 @@ class _FullscreenVideoOverlayState extends State<_FullscreenVideoOverlay> {
 
     final position = vc.value.position;
     final duration = vc.value.duration;
+    final isPlaying = widget.controller.isPlaying;
     final maxMs =
         duration.inMilliseconds <= 0 ? 1.0 : duration.inMilliseconds.toDouble();
     final posMs = position.inMilliseconds.clamp(0, maxMs.toInt()).toDouble();
@@ -1496,12 +1506,12 @@ class _FullscreenVideoOverlayState extends State<_FullscreenVideoOverlay> {
                           const SizedBox(width: 32),
                           IconButton(
                             onPressed: () {
-                              vc.value.isPlaying
+                              isPlaying
                                   ? widget.controller.pause()
                                   : widget.controller.play();
                             },
                             icon: Icon(
-                              vc.value.isPlaying
+                              isPlaying
                                   ? Icons.pause_circle_filled
                                   : Icons.play_circle_filled,
                               color: Colors.white,
