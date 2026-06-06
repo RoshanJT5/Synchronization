@@ -8,6 +8,7 @@ import 'package:synchronization/services/guest_session_controller.dart';
 import 'package:synchronization/services/host_session_controller.dart';
 import 'package:synchronization/utils/user_error_message.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:synchronization/services/background_keep_alive_service.dart';
 
 enum AppConnectionState { idle, connecting, connected, reconnecting, error }
 
@@ -530,6 +531,7 @@ class WebRTCService extends ChangeNotifier {
   Future<void> _enableSessionWakelock() async {
     try {
       await WakelockPlus.enable();
+      await BackgroundKeepAliveService.start();
     } catch (e) {
       debugPrint('[WebRTC] Failed to enable wakelock: $e');
     }
@@ -538,6 +540,7 @@ class WebRTCService extends ChangeNotifier {
   Future<void> _disableSessionWakelock() async {
     try {
       await WakelockPlus.disable();
+      await BackgroundKeepAliveService.stop();
     } catch (e) {
       debugPrint('[WebRTC] Failed to disable wakelock: $e');
     }
