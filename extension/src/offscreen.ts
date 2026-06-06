@@ -20,13 +20,18 @@ const ICE_SERVERS: RTCIceServer[] = [
     credential: 'openrelayproject',
   },
 ];
+const MOBILE_SYNC_DELAY_SECONDS = 0.8;
+const MOBILE_SYNC_DELAY_MS = MOBILE_SYNC_DELAY_SECONDS * 1000;
 
 let socket: Socket | null = null;
 let activeSessionId = '';
 let capturedStream: MediaStream | null = null;
 let audioContext: AudioContext | null = null;
 let localGain: GainNode | null = null;
+let phoneDelay: DelayNode | null = null;
+let phoneDestination: MediaStreamAudioDestinationNode | null = null;
 let peers = new Map<string, RTCPeerConnection>();
+let pendingIceCandidates = new Map<string, RTCIceCandidateInit[]>();
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
 chrome.runtime.sendMessage({ type: 'OFFSCREEN_READY' });
@@ -63,10 +68,19 @@ async function startHost(sessionId: string, streamId: string) {
     // Keep local browser audio audible while the captured stream is active.
     audioContext = new AudioContext();
     const source = audioContext.createMediaStreamSource(capturedStream);
+
     localGain = audioContext.createGain();
     localGain.gain.value = 1;
     source.connect(localGain);
     localGain.connect(audioContext.destination);
+
+    // Send one intentionally delayed timeline to every phone. The browser
+    // stays live locally, while all receivers hear the same shared delayed feed.
+    phoneDelay = audioContext.createDelay(2);
+    phoneDelay.delayTime.value = MOBILE_SYNC_DELAY_SECONDS;
+    phoneDestination = audioContext.createMediaStreamDestination();
+    source.connect(phoneDelay);
+    phoneDelay.connect(phoneDestination);
 
     socket = io(SIGNALING_SERVER, {
       transports: ['websocket', 'polling'],
@@ -81,45 +95,48 @@ async function startHost(sessionId: string, streamId: string) {
         label: 'Browser Extension',
         type: 'computer',
       });
-    chrome.runtime.sendMessage({ type: 'EXTENSION_HOST_STARTED' });
-    notifyPeerCount();
+      chrome.runtime.sendMessage({ type: 'EXTENSION_HOST_STARTED' });
+      notifyPeerCount();
 
-    // Periodic heartbeat keeps the signalling server aware this session is
-    // alive AND generates inbound traffic that prevents Render free tier
-    // from sleeping after 15 minutes of "inactivity".
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
-    heartbeatTimer = setInterval(() => {
-      socket?.emit('session-heartbeat', { sessionId: activeSessionId });
-      socket?.emit('announce-session', {
-        sessionId: activeSessionId,
-        label: 'Browser Extension',
-        type: 'computer',
-      });
-    }, 30_000); // every 30 seconds
+      // Periodic heartbeat keeps the signalling server aware this session is
+      // alive AND generates inbound traffic that prevents Render free tier
+      // from sleeping after 15 minutes of "inactivity".
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        socket?.emit('session-heartbeat', { sessionId: activeSessionId });
+        socket?.emit('announce-session', {
+          sessionId: activeSessionId,
+          label: 'Browser Extension',
+          type: 'computer',
+        });
+      }, 30_000); // every 30 seconds
     });
 
     socket.on('session-peers', ({ peers: peerIds }) => {
       for (const peerId of peerIds || []) {
-        if (peerId !== socket?.id) createOffer(peerId);
+        if (peerId !== socket?.id) {
+          createOffer(peerId).catch((error) => {
+            console.warn('[Synchronization] Failed to create offer', error);
+            cleanupPeer(peerId);
+          });
+        }
       }
     });
 
     socket.on('peer-joined', ({ peerId }) => {
-      if (peerId && peerId !== socket?.id) createOffer(peerId);
+      if (peerId && peerId !== socket?.id) {
+        createOffer(peerId).catch((error) => {
+          console.warn('[Synchronization] Failed to create offer', error);
+          cleanupPeer(peerId);
+        });
+      }
     });
 
     socket.on('signal', async (data) => {
-      const peer = peers.get(data.from);
-      if (!peer || !data.signal) return;
-      if (data.signal.type === 'answer') {
-        await peer.setRemoteDescription(
-          new RTCSessionDescription({
-            type: 'answer',
-            sdp: data.signal.sdp,
-          }),
-        );
-      } else if (data.signal.candidate) {
-        await peer.addIceCandidate(new RTCIceCandidate(data.signal));
+      try {
+        await handleSignal(data);
+      } catch (error) {
+        console.warn('[Synchronization] Failed to handle signal', error);
       }
     });
   } catch (error: any) {
@@ -137,17 +154,22 @@ async function createOffer(peerId: string) {
   peers.set(peerId, pc);
   notifyPeerCount();
 
-  for (const track of capturedStream.getAudioTracks()) {
-    pc.addTrack(track, capturedStream);
+  const outboundStream = phoneDestination?.stream ?? capturedStream;
+  for (const track of outboundStream.getAudioTracks()) {
+    pc.addTrack(track, outboundStream);
   }
 
   const syncChannel = pc.createDataChannel('sync', { ordered: true });
   syncChannel.onopen = () => {
+    const now = Date.now();
     syncChannel.send(
       JSON.stringify({
         action: 'streamReady',
         positionMs: 0,
-        sentAtMs: Date.now(),
+        sentAtMs: now,
+        hostClockMs: now,
+        startAtMs: now + 1000,
+        sharedDelayMs: MOBILE_SYNC_DELAY_MS,
       }),
     );
   };
@@ -182,14 +204,12 @@ async function createOffer(peerId: string) {
           });
         } catch {
           // ICE restart failed — remove the peer as a last resort.
-          peers.delete(peerId);
-          notifyPeerCount();
+          cleanupPeer(peerId);
         }
       })();
     }
     if (pc.connectionState === 'closed') {
-      peers.delete(peerId);
-      notifyPeerCount();
+      cleanupPeer(peerId);
     }
   };
 
@@ -205,9 +225,76 @@ async function createOffer(peerId: string) {
   });
 }
 
+async function handleSignal(data: any) {
+  const peerId = data?.from;
+  const signal = data?.signal;
+  const peer = peers.get(peerId);
+  if (!peer || !signal) return;
+
+  if (signal.type === 'offer') {
+    await peer.setRemoteDescription(
+      new RTCSessionDescription({
+        type: 'offer',
+        sdp: signal.sdp,
+      }),
+    );
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
+    socket?.emit('signal', {
+      sessionId: activeSessionId,
+      signal: { type: answer.type, sdp: answer.sdp },
+      to: peerId,
+    });
+    await flushPendingIceCandidates(peerId, peer);
+    return;
+  }
+
+  if (signal.type === 'answer') {
+    await peer.setRemoteDescription(
+      new RTCSessionDescription({
+        type: 'answer',
+        sdp: signal.sdp,
+      }),
+    );
+    await flushPendingIceCandidates(peerId, peer);
+    return;
+  }
+
+  if (signal.candidate) {
+    const candidate = {
+      candidate: signal.candidate,
+      sdpMid: signal.sdpMid,
+      sdpMLineIndex: signal.sdpMLineIndex,
+    };
+
+    if (!peer.remoteDescription) {
+      const pending = pendingIceCandidates.get(peerId) ?? [];
+      pending.push(candidate);
+      pendingIceCandidates.set(peerId, pending);
+      return;
+    }
+
+    await peer.addIceCandidate(new RTCIceCandidate(candidate));
+  }
+}
+
+async function flushPendingIceCandidates(peerId: string, peer: RTCPeerConnection) {
+  const pending = pendingIceCandidates.get(peerId) ?? [];
+  pendingIceCandidates.delete(peerId);
+
+  for (const candidate of pending) {
+    try {
+      await peer.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (error) {
+      console.warn('[Synchronization] Ignored stale ICE candidate', error);
+    }
+  }
+}
+
 function stopHost() {
   for (const peer of peers.values()) peer.close();
   peers.clear();
+  pendingIceCandidates.clear();
   notifyPeerCount();
 
   if (heartbeatTimer) {
@@ -221,6 +308,8 @@ function stopHost() {
   audioContext?.close().catch(() => {});
   audioContext = null;
   localGain = null;
+  phoneDelay = null;
+  phoneDestination = null;
 
   if (socket?.connected && activeSessionId) {
     socket.emit('end-session', { sessionId: activeSessionId });
@@ -228,6 +317,16 @@ function stopHost() {
   socket?.removeAllListeners();
   socket?.disconnect();
   socket = null;
+}
+
+function cleanupPeer(peerId: string) {
+  pendingIceCandidates.delete(peerId);
+  const peer = peers.get(peerId);
+  if (peer && peer.connectionState !== 'closed') {
+    peer.close();
+  }
+  peers.delete(peerId);
+  notifyPeerCount();
 }
 
 function notifyPeerCount() {

@@ -208,6 +208,43 @@ Keep messages short and human-readable.
 - Do not block the UI while waiting for scheduled start.
 - Keep audio-only behavior working, since it is already good.
 
+## Wake And Background Playback
+
+Active host and guest sessions enable `wakelock_plus` so the phone does not dim into sleep while it is part of a sync session. Wakelock is disabled when the session disconnects or the app is disposed.
+
+The host and guest audio sessions are configured as music playback sessions and explicitly activated before playback. This helps Android/iOS treat the app as active media playback instead of an idle screen app.
+
+Important limitation: wakelock keeps the device awake by preventing normal screen sleep. If we later want reliable playback with the screen intentionally turned off or the app backgrounded for long periods, Android may still require a foreground media service/notification, and iOS requires background audio behavior to remain valid.
+
+## Extension To Multiple Phones
+
+The browser extension should use a direct star topology:
+
+```text
+extension
+  ├─ phone A
+  └─ phone B
+```
+
+Do not relay phone B through phone A for normal sync, because that adds another network hop, another decoder, and another device scheduler.
+
+The extension live path now creates two audio timelines from the captured tab:
+
+- local browser monitor: immediate, so the computer/browser stays live.
+- phone feed: one shared delayed WebAudio stream, currently 800ms behind the browser.
+
+Every connected phone receives the same delayed phone feed:
+
+```text
+extension: 1:03.000
+phone A:   1:02.200
+phone B:   1:02.200
+```
+
+This does not remove all WebRTC jitter, because each phone still has its own OS/network jitter buffer, but it gives all phones the same source timeline and intentional delay budget. That is the correct first layer for extension-to-many-phone sync without touching the phone-to-phone scheduled file playback system.
+
+Future stronger version: send timestamped PCM/Opus chunks plus extension clock calibration over data channels, then let phones buffer and render against a shared playout clock. That would give phone-to-phone-level control, but it is a larger audio pipeline rewrite.
+
 ## Success Criteria
 
 The implementation is successful when:

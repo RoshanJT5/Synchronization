@@ -7,6 +7,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:synchronization/services/guest_session_controller.dart';
 import 'package:synchronization/services/host_session_controller.dart';
 import 'package:synchronization/utils/user_error_message.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 enum AppConnectionState { idle, connecting, connected, reconnecting, error }
 
@@ -98,14 +99,26 @@ class WebRTCService extends ChangeNotifier {
     isHost = true;
     _activeSessionId = sessionId.toUpperCase();
     _setState(AppConnectionState.connecting);
-    await _connectSocket(serverUrl ?? _signalingServer);
+    unawaited(_enableSessionWakelock());
+    try {
+      await _connectSocket(serverUrl ?? _signalingServer);
+    } catch (_) {
+      unawaited(_disableSessionWakelock());
+      rethrow;
+    }
   }
 
   Future<void> connect(String shareCode, [String? serverUrl]) async {
     isHost = false;
     _activeSessionId = _extractSessionId(shareCode).toUpperCase();
     _setState(AppConnectionState.connecting);
-    await _connectSocket(serverUrl ?? _signalingServer);
+    unawaited(_enableSessionWakelock());
+    try {
+      await _connectSocket(serverUrl ?? _signalingServer);
+    } catch (_) {
+      unawaited(_disableSessionWakelock());
+      rethrow;
+    }
   }
 
   Future<void> setVolume(double value) async {
@@ -425,6 +438,7 @@ class WebRTCService extends ChangeNotifier {
       guestController = null;
       _activeSessionId = '';
       isHost = false;
+      unawaited(_disableSessionWakelock());
     }
     if (notify) _setState(AppConnectionState.idle);
   }
@@ -508,9 +522,25 @@ class WebRTCService extends ChangeNotifier {
 
   void _setError(String message) {
     if (_isDisposed) return;
-      _errorMessage = UserErrorMessage.from(message);
+    _errorMessage = UserErrorMessage.from(message);
     _state = AppConnectionState.error;
     notifyListeners();
+  }
+
+  Future<void> _enableSessionWakelock() async {
+    try {
+      await WakelockPlus.enable();
+    } catch (e) {
+      debugPrint('[WebRTC] Failed to enable wakelock: $e');
+    }
+  }
+
+  Future<void> _disableSessionWakelock() async {
+    try {
+      await WakelockPlus.disable();
+    } catch (e) {
+      debugPrint('[WebRTC] Failed to disable wakelock: $e');
+    }
   }
 
   @override

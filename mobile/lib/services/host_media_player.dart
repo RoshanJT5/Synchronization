@@ -59,6 +59,7 @@ class HostMediaPlayer {
   }) async {
     final session = await AudioSession.instance;
     await session.configure(AudioSessionConfiguration.music());
+    await session.setActive(true);
     _mode = mode;
     _isLoaded = false;
     _stopVideoTicker();

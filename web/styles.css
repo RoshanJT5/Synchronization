@@ -154,14 +154,15 @@ h1 {
 }
 
 .download-note {
-  color: var(--muted);
+  color: var(--text-dim);
   font-size: 14px;
   line-height: 1.5;
-  margin: -42px 0 42px;
+  margin: 14px 0 0;
 }
 
 .btn.is-disabled {
   opacity: 0.62;
+  pointer-events: none;
 }
 
 .btn {
@@ -195,6 +196,117 @@ h1 {
 
 .btn-secondary:hover {
   background: rgba(255,255,255,0.1);
+}
+
+.download-panel {
+  background: rgba(15, 15, 18, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  margin: 0 0 56px;
+  padding: 24px;
+  text-align: left;
+  width: min(100%, 860px);
+}
+
+.download-panel-header {
+  align-items: center;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr auto;
+}
+
+.download-panel h2 {
+  font-size: clamp(22px, 4vw, 34px);
+  letter-spacing: -0.5px;
+  margin: 4px 0 8px;
+}
+
+.download-panel p {
+  color: var(--text-dim);
+}
+
+.download-kicker {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.apk-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 20px;
+}
+
+.apk-option {
+  background: #07070a;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 132px;
+  padding: 16px;
+}
+
+.apk-option:hover {
+  border-color: rgba(168, 85, 247, 0.55);
+  transform: translateY(-1px);
+}
+
+.apk-option.is-recommended {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.2), 0 18px 44px rgba(0, 0, 0, 0.32);
+}
+
+.apk-option.is-recommended::before {
+  color: var(--accent);
+  content: 'Recommended';
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.apk-option.is-disabled {
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+.apk-name {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.apk-desc {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.apk-state {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: auto;
+}
+
+.ios-note {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 16px;
+  padding: 12px 14px;
+}
+
+.ios-note strong {
+  color: var(--text);
 }
 
 .hero-visual {
@@ -392,5 +504,13 @@ footer {
   .actions .btn {
     width: 100%;
     justify-content: center;
+  }
+  .download-panel-header,
+  .apk-grid {
+    grid-template-columns: 1fr;
+  }
+  .download-panel-header .btn {
+    justify-content: center;
+    width: 100%;
   }
 }

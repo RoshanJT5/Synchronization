@@ -27,6 +27,11 @@ app.get('/__version', (req, res) => {
     buildTag: 'downloads-20260512-0130',
     extensionZip: artifact('synchronization-extension.zip'),
     androidApk: artifact('synchronization-app.apk'),
+    androidApks: {
+      arm64: artifact('synchronization-arm64.apk'),
+      arm32: artifact('synchronization-arm32.apk'),
+      x86_64: artifact('synchronization-x86_64.apk'),
+    },
   });
 });
 

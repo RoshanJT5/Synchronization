@@ -1,8 +1,9 @@
 {
   "extensionZipBytes": 2264307,
-  "androidApkBytes": 100065451,
   "downloadLinks": {
     "extension": "/downloads/synchronization-extension.zip?v=20260509-2030",
-    "android": "/downloads/synchronization-app.apk?v=20260509-2030"
+    "androidArm64": "/downloads/synchronization-arm64.apk?v=20260606-arch",
+    "androidArm32": "/downloads/synchronization-arm32.apk?v=20260606-arch",
+    "androidX64": "/downloads/synchronization-x86_64.apk?v=20260606-arch"
   }
 }

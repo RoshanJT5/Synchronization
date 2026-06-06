@@ -95,6 +95,14 @@ function App() {
     const hasModernApi = typeof chrome.tabCapture.getMediaStreamId === 'function'
       && typeof (chrome as any).offscreen !== 'undefined';
 
+    if (!hasModernApi) {
+      setStatus('ERROR');
+      setError(
+        'This extension build needs Chrome 116 or newer for reliable phone streaming. Please update Chrome and try again.',
+      );
+      return;
+    }
+
     if (hasModernApi) {
       // ── Modern path (Chrome 116+) ─────────────────────────────────────────
       chrome.tabCapture.getMediaStreamId({ targetTabId: undefined }, (streamId) => {

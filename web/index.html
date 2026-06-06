@@ -29,14 +29,70 @@
           Powered by WebRTC P2P technology for ultra-low latency.
         </p>
         <div class="actions" id="download">
-          <a id="apk-download" class="btn btn-primary" href="downloads/synchronization-app.apk?v=20260512-0130" download="synchronization.apk">
-            Install Android App
-          </a>
           <a class="btn btn-secondary" href="downloads/synchronization-extension.zip?v=20260512-0130" download="synchronization-extension.zip">
             Get Chrome Extension
           </a>
         </div>
-        <p id="apk-status" class="download-note"></p>
+        <section class="download-panel" aria-label="Android app downloads">
+          <div class="download-panel-header">
+            <div>
+              <span class="download-kicker">Android APK</span>
+              <h2>Choose the right app build</h2>
+              <p>
+                We recommend the most likely APK for this device, but every architecture is available for manual download.
+              </p>
+            </div>
+            <a
+              id="apk-download"
+              class="btn btn-primary"
+              href="downloads/synchronization-arm64.apk?v=20260606-arch"
+              download="synchronization-arm64.apk"
+            >
+              Detecting Android build...
+            </a>
+          </div>
+
+          <div class="apk-grid" id="apk-options">
+            <a
+              class="apk-option"
+              data-arch="arm64"
+              href="downloads/synchronization-arm64.apk?v=20260606-arch"
+              download="synchronization-arm64.apk"
+            >
+              <span class="apk-name">ARM64</span>
+              <span class="apk-desc">Most modern Android phones</span>
+              <span class="apk-state">Checking...</span>
+            </a>
+            <a
+              class="apk-option"
+              data-arch="arm32"
+              href="downloads/synchronization-arm32.apk?v=20260606-arch"
+              download="synchronization-arm32.apk"
+            >
+              <span class="apk-name">ARMv7 / 32-bit</span>
+              <span class="apk-desc">Older Android phones</span>
+              <span class="apk-state">Checking...</span>
+            </a>
+            <a
+              class="apk-option"
+              data-arch="x86_64"
+              href="downloads/synchronization-x86_64.apk?v=20260606-arch"
+              download="synchronization-x86_64.apk"
+            >
+              <span class="apk-name">x86_64</span>
+              <span class="apk-desc">Emulators, Chromebooks, rare Intel devices</span>
+              <span class="apk-state">Checking...</span>
+            </a>
+          </div>
+
+          <p id="apk-status" class="download-note"></p>
+          <p class="download-note">
+            Downloading on a PC for transfer? Pick the APK that matches the Android device, not the computer.
+          </p>
+          <div class="ios-note">
+            <strong>iOS:</strong> iPhone builds are not published yet. When an iOS release is available, it should be distributed through TestFlight or the App Store rather than Android APK architecture files.
+          </div>
+        </section>
         <div class="hero-visual">
           <img src="assets/hero.png" alt="App Preview" />
         </div>
