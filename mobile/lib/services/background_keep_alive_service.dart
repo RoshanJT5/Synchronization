@@ -1,24 +1,30 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// ---------------------------------------------------------------------------
 /// BackgroundKeepAliveService
 /// ---------------------------------------------------------------------------
-/// A lightweight service that keeps the app alive when the screen is off by
-/// acquiring a native Android partial wake lock via a platform channel.
+/// Bridges Flutter to the native Android Foreground Service that keeps the
+/// app alive when the screen is off.
 ///
-/// **Why this exists:**
-/// `WakelockPlus` only prevents the screen from dimming automatically.  When
-/// the user presses the power button to lock the phone, Android Doze mode
-/// kicks in after ~5-10 minutes and suspends network + CPU, killing audio.
+/// **How it works (the Spotify approach):**
 ///
-/// This service acquires a **partial wake lock** (CPU stays on, screen stays
-/// off) — exactly what music apps like Spotify do.  It also runs a tiny
-/// periodic timer to generate activity so the Dart isolate is never idle long
-/// enough for the OS to throttle it.
+///  1.  When a session starts, [start] is called.
+///  2.  It invokes the native `SyncForegroundService` via a MethodChannel.
+///  3.  The native service:
+///      - Shows a persistent notification ("Audio session is active")
+///      - Acquires a PARTIAL_WAKE_LOCK (CPU on, screen off)
+///      - Declares foregroundServiceType=mediaPlayback
+///  4.  Android now treats this app as an active media app and will NOT
+///      kill it under Doze mode — even with screen off for hours.
+///  5.  A backup Dart-side heartbeat timer runs every 4 minutes as an
+///      additional safety net to keep the Dart isolate active.
+///  6.  On first session start, the service checks battery optimization
+///      and prompts the user to disable it (critical for Oppo/Vivo/Xiaomi).
 ///
-/// **Usage:**
+/// **Public API (unchanged from before):**
 /// ```dart
 /// await BackgroundKeepAliveService.start();   // when session begins
 /// await BackgroundKeepAliveService.stop();     // when session ends
@@ -27,48 +33,110 @@ import 'package:flutter/foundation.dart';
 class BackgroundKeepAliveService {
   BackgroundKeepAliveService._();
 
+  static const _channel =
+      MethodChannel('com.synchronization.app/foreground_service');
+
   static Timer? _keepAliveTimer;
   static bool _isRunning = false;
+  static bool _batteryOptimizationChecked = false;
 
-  /// Whether the keep-alive loop is currently active.
+  /// Whether the keep-alive service is currently active.
   static bool get isRunning => _isRunning;
 
-  /// Start the background keep-alive.
+  // ── Start ─────────────────────────────────────────────────────────────────
+
+  /// Start the foreground service and background keep-alive.
   ///
-  /// This creates a periodic timer that fires every 4 minutes.  Each tick
-  /// is a no-op but it prevents the Dart event loop from going completely
-  /// idle, which in turn prevents Android from aggressively throttling the
-  /// app under Doze mode.
-  ///
-  /// On Android the audio_session plugin (already configured as
-  /// `AudioSessionConfiguration.music()`) tells the OS this is a media app,
-  /// and the partial wake lock permission in AndroidManifest.xml allows the
-  /// CPU to stay on even with the screen off.  The timer simply ensures
-  /// periodic Dart-level activity so the engine doesn't get GC'd.
+  /// Safe to call multiple times — subsequent calls are no-ops.
   static Future<void> start() async {
     if (_isRunning) return;
     _isRunning = true;
 
-    // Fire every 4 minutes — well inside the 5-minute Doze window.
+    // 1. Start the native Android foreground service.
+    try {
+      await _channel.invokeMethod('startForegroundService');
+      debugPrint('[KeepAlive] Foreground service started');
+    } catch (e) {
+      debugPrint('[KeepAlive] Failed to start foreground service: $e');
+    }
+
+    // 2. Check battery optimization once per app launch.
+    //    Shows the system "Allow background activity?" dialog if needed.
+    if (!_batteryOptimizationChecked) {
+      _batteryOptimizationChecked = true;
+      _promptBatteryOptimizationIfNeeded();
+    }
+
+    // 3. Dart-side heartbeat timer (additional safety net).
     _keepAliveTimer?.cancel();
     _keepAliveTimer = Timer.periodic(
       const Duration(minutes: 4),
       (_) {
-        // A tiny log keeps the Dart isolate marked as active.
         debugPrint(
           '[KeepAlive] heartbeat at ${DateTime.now().toIso8601String()}',
         );
       },
     );
 
-    debugPrint('[KeepAlive] Started background keep-alive timer');
+    debugPrint('[KeepAlive] Background keep-alive fully started');
   }
 
-  /// Stop the background keep-alive and release resources.
+  // ── Stop ──────────────────────────────────────────────────────────────────
+
+  /// Stop the foreground service and release all resources.
   static Future<void> stop() async {
     _keepAliveTimer?.cancel();
     _keepAliveTimer = null;
     _isRunning = false;
-    debugPrint('[KeepAlive] Stopped background keep-alive timer');
+
+    try {
+      await _channel.invokeMethod('stopForegroundService');
+      debugPrint('[KeepAlive] Foreground service stopped');
+    } catch (e) {
+      debugPrint('[KeepAlive] Failed to stop foreground service: $e');
+    }
+
+    debugPrint('[KeepAlive] Background keep-alive fully stopped');
+  }
+
+  // ── Battery optimization ──────────────────────────────────────────────────
+
+  /// Check if battery optimization is disabled for this app.
+  static Future<bool> isBatteryOptimizationDisabled() async {
+    try {
+      final result =
+          await _channel.invokeMethod<bool>('isBatteryOptimizationDisabled');
+      return result ?? false;
+    } catch (e) {
+      debugPrint('[KeepAlive] Failed to check battery optimization: $e');
+      return false;
+    }
+  }
+
+  /// Open the system dialog to disable battery optimization.
+  static Future<void> requestDisableBatteryOptimization() async {
+    try {
+      await _channel.invokeMethod('requestDisableBatteryOptimization');
+    } catch (e) {
+      debugPrint('[KeepAlive] Failed to request battery opt disable: $e');
+    }
+  }
+
+  // ── Internal ──────────────────────────────────────────────────────────────
+
+  /// Checks battery optimization status and shows the system prompt if
+  /// the app is not yet exempt.  Runs once per app launch, non-blocking.
+  static Future<void> _promptBatteryOptimizationIfNeeded() async {
+    try {
+      final isDisabled = await isBatteryOptimizationDisabled();
+      if (!isDisabled) {
+        debugPrint('[KeepAlive] Battery optimization is ON — prompting user');
+        await requestDisableBatteryOptimization();
+      } else {
+        debugPrint('[KeepAlive] Battery optimization already disabled ✓');
+      }
+    } catch (e) {
+      debugPrint('[KeepAlive] Battery optimization check failed: $e');
+    }
   }
 }
