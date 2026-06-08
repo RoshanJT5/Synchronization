@@ -6,6 +6,7 @@ import 'services/webrtc_service.dart';
 import 'services/discovery_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/guest_session_controller.dart';
+import 'services/app_open_ad_manager.dart';
 
 class SynchronizationApp extends StatelessWidget {
   const SynchronizationApp({super.key, this.enableDiscovery = true});
@@ -41,12 +42,16 @@ class _DeepLinkWrapper extends StatefulWidget {
   State<_DeepLinkWrapper> createState() => _DeepLinkWrapperState();
 }
 
-class _DeepLinkWrapperState extends State<_DeepLinkWrapper> {
+class _DeepLinkWrapperState extends State<_DeepLinkWrapper> with WidgetsBindingObserver {
   final DeepLinkService _deepLinkService = DeepLinkService();
+  final AppOpenAdManager _appOpenAdManager = AppOpenAdManager();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _appOpenAdManager.loadAd();
+
     _deepLinkService.onDeepLink = (sessionId, serverUrl) {
       // Connect as soon as a deep link arrives, regardless of current state
       final webrtc = context.read<WebRTCService>();
@@ -57,7 +62,15 @@ class _DeepLinkWrapperState extends State<_DeepLinkWrapper> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _appOpenAdManager.showAdIfAvailable();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _deepLinkService.dispose();
     super.dispose();
   }

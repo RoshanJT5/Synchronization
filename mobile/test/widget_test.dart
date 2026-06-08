@@ -6,7 +6,8 @@ void main() {
   testWidgets('Synchronization app renders home screen', (tester) async {
     await tester.pumpWidget(const SynchronizationApp(enableDiscovery: false));
     await tester.pump();
-
-    expect(find.text('Synchronization'), findsOneWidget);
+    // The app now gates the main UI behind a Location Permission screen,
+    // so the initial text we expect to see is 'Location Required'.
+    expect(find.text('Location Required'), findsOneWidget);
   });
 }

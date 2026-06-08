@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Google Mobile Ads SDK
+  await MobileAds.instance.initialize();
 
   // Force portrait orientation
   await SystemChrome.setPreferredOrientations([

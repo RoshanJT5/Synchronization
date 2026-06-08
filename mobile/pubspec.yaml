@@ -50,6 +50,7 @@ dependencies:
 
   # Icons
   cupertino_icons: ^1.0.8
+  google_mobile_ads: ^8.0.0
 
 dev_dependencies:
   flutter_test:
