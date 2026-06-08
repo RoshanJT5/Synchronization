@@ -246,7 +246,10 @@ class WebRTCService extends ChangeNotifier {
     );
   }
 
-  void _announceHost() {
+  ({double lat, double lng})? _hostLocation;
+
+  void _announceHost() async {
+    _hostLocation ??= await LocationService.getPosition();
     _doAnnounceHost();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 7), (_) {
@@ -257,14 +260,13 @@ class WebRTCService extends ChangeNotifier {
 
   /// Emits 'announce-session' with the host's GPS coordinates so the server
   /// knows where this session is physically located (50m filter).
-  Future<void> _doAnnounceHost() async {
-    final pos = await LocationService.getPosition();
+  void _doAnnounceHost() {
     _socket?.emit('announce-session', {
       'sessionId': _activeSessionId,
       'label': 'Host Phone',
       'type': 'mobile-host',
-      if (pos != null) 'lat': pos.lat,
-      if (pos != null) 'lng': pos.lng,
+      if (_hostLocation != null) 'lat': _hostLocation!.lat,
+      if (_hostLocation != null) 'lng': _hostLocation!.lng,
     });
   }
 

@@ -104,6 +104,11 @@ class DiscoveryService extends ChangeNotifier {
       notifyListeners();
     });
 
+    // Listen for the new server event that tells us to re-fetch instead of wiping the UI
+    _socket!.on('refresh-sessions-needed', (_) {
+      _requestActiveSessions();
+    });
+
     _socket!.on('active-sessions-updated', (data) {
       try {
         Map<String, dynamic> payload;

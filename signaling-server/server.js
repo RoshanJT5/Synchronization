@@ -104,9 +104,9 @@ function broadcastActiveSessions() {
   // Broadcast is only used for general server-push (e.g. after a session ends).
   // Individual clients receive proximity-filtered lists via 'get-active-sessions'.
   pruneExpiredSessions();
-  // We still broadcast so any connected client can refresh — but clients
-  // should re-call get-active-sessions to get their filtered view.
-  io.emit('active-sessions-updated', { sessions: [] });
+  // We emit refresh-sessions-needed so any connected client can refresh 
+  // by calling get-active-sessions to get their filtered view without wiping the UI.
+  io.emit('refresh-sessions-needed');
 }
 
 function pruneExpiredSessions() {
