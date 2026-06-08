@@ -81,22 +81,32 @@ const io = new Server(server, {
 });
 
 // ── Active session announcements ─────────────────────────────────────────────
-// Map of sessionId → { label, socketId, announcedAt }
+// Map of sessionId → { label, socketId, announcedAt, lat, lng }
 // Extensions call 'announce-session' when they start streaming.
-// Mobile clients call 'get-active-sessions' to get the current list,
-// and subscribe to 'active-sessions-updated' for live updates.
+// Mobile clients call 'get-active-sessions' with their GPS to get a
+// proximity-filtered list (50-metre radius).
 const activeSessions = new Map();
 const SESSION_TTL_MS = 90000;
 
+// ── Haversine distance (metres between two GPS coordinates) ──────────────────
+function haversineMetres(lat1, lng1, lat2, lng2) {
+  const R = 6_371_000; // Earth radius in metres
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function broadcastActiveSessions() {
+  // Broadcast is only used for general server-push (e.g. after a session ends).
+  // Individual clients receive proximity-filtered lists via 'get-active-sessions'.
   pruneExpiredSessions();
-  const list = Array.from(activeSessions.values()).map(({ sessionId, label, type, announcedAt }) => ({
-    sessionId,
-    label,
-    type: type || 'computer',
-    announcedAt,
-  }));
-  io.emit('active-sessions-updated', { sessions: list });
+  // We still broadcast so any connected client can refresh — but clients
+  // should re-call get-active-sessions to get their filtered view.
+  io.emit('active-sessions-updated', { sessions: [] });
 }
 
 function pruneExpiredSessions() {
@@ -124,11 +134,12 @@ setInterval(() => {
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // ── Discovery: extension announces it is streaming ──────────────────────
-  socket.on('announce-session', ({ sessionId, label, type }) => {
+  // ── Discovery: extension/host announces it is streaming ─────────────────
+  // Now accepts optional lat/lng so the server stores the session's location.
+  socket.on('announce-session', ({ sessionId, label, type, lat, lng }) => {
     if (!sessionId) return;
     const existing = activeSessions.get(sessionId);
-    console.log(`Session announced: ${sessionId} (${label || 'Unnamed'}, type=${type || 'computer'})`);
+    console.log(`Session announced: ${sessionId} (${label || 'Unnamed'}, type=${type || 'computer'}, lat=${lat ?? 'none'}, lng=${lng ?? 'none'})`);
     activeSessions.set(sessionId, {
       sessionId,
       label: label || 'Computer',
@@ -136,6 +147,8 @@ io.on('connection', (socket) => {
       socketId: socket.id,
       announcedAt: existing?.announcedAt || Date.now(),
       lastSeen: Date.now(),
+      lat: lat ?? null,
+      lng: lng ?? null,
     });
     broadcastActiveSessions();
   });
@@ -155,15 +168,33 @@ io.on('connection', (socket) => {
     broadcastActiveSessions();
   });
 
-  // ── Discovery: mobile requests current list of active sessions ───────────
-  socket.on('get-active-sessions', () => {
+  // ── Discovery: mobile requests sessions within 50m of its GPS ───────────
+  // The client sends { lat, lng } with the request.
+  // The server runs Haversine and only returns sessions within 50 metres.
+  socket.on('get-active-sessions', (data) => {
+    const reqLat = data?.lat ?? null;
+    const reqLng = data?.lng ?? null;
+
     pruneExpiredSessions();
-    const list = Array.from(activeSessions.values()).map(({ sessionId, label, type, announcedAt }) => ({
-      sessionId,
-      label,
-      type: type || 'computer',
-      announcedAt,
-    }));
+
+    const list = Array.from(activeSessions.values())
+      .filter(({ lat, lng }) => {
+        // Both sides must have GPS for the proximity filter to work.
+        // If either side is missing coordinates, exclude for safety.
+        if (lat == null || lng == null || reqLat == null || reqLng == null) {
+          return false;
+        }
+        const dist = haversineMetres(reqLat, reqLng, lat, lng);
+        return dist <= 50; // 50-metre radius
+      })
+      .map(({ sessionId, label, type, announcedAt }) => ({
+        sessionId,
+        label,
+        type: type || 'computer',
+        announcedAt,
+      }));
+
+    console.log(`get-active-sessions from (${reqLat},${reqLng}) → ${list.length} session(s) within 50m`);
     socket.emit('active-sessions-updated', { sessions: list });
   });
 

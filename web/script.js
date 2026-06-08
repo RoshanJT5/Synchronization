@@ -40,26 +40,58 @@ function detectPreferredAndroidArch() {
   const ua = navigator.userAgent.toLowerCase();
   const platform = (navigator.platform || '').toLowerCase();
 
+  // ── Desktop / x86 checks ──────────────────────────────────────────────────
   if (ua.includes('x86_64') || ua.includes('x64') || ua.includes('wow64') || ua.includes('win64')) {
     return 'x86_64';
   }
-
-  if (ua.includes('i686') || ua.includes('x86')) {
+  if (ua.includes('i686') || (ua.includes('x86') && !ua.includes('android'))) {
     return 'x86_64';
   }
 
-  if (ua.includes('armv7') || ua.includes('armeabi') || ua.includes('android 4') || ua.includes('android 5')) {
+  // ── Explicit ABI strings that only appear on ARM32 devices ───────────────
+  // Android WebView / Chrome on 32-bit devices often exposes these.
+  if (
+    ua.includes('armv7') ||
+    ua.includes('armeabi-v7') ||
+    ua.includes('armeabi') ||
+    ua.includes('arm_32')
+  ) {
     return 'arm32';
   }
 
+  // ── Android version heuristic ─────────────────────────────────────────────
+  // Extract Android version number from UA like "Android 8.1.0"
   if (ua.includes('android')) {
+    const versionMatch = ua.match(/android\s+(\d+)\.?(\d*)/);
+    const major = versionMatch ? parseInt(versionMatch[1], 10) : 0;
+    const minor = versionMatch && versionMatch[2] ? parseInt(versionMatch[2], 10) : 0;
+
+    // Android 4 and 5: virtually all devices are 32-bit ARMv7.
+    if (major <= 5) return 'arm32';
+
+    // Android 6: mostly 32-bit, some early arm64 (Nexus 6P etc.).
+    // Defaulting to arm32 is safer for older phones.
+    if (major === 6) return 'arm32';
+
+    // Android 7: still a significant mix — lean arm32 as the safer default
+    // for phones visiting download pages (newer phones use newer Android).
+    if (major === 7) return 'arm32';
+
+    // Android 8.x: many Snapdragon 4xx/6xx devices (e.g. SD625, SD430) are
+    // ARMv7 even on Android 8. Without architecture hint, arm32 is safer.
+    if (major === 8) return 'arm32';
+
+    // Android 9 and above: the vast majority of devices are arm64.
+    // (arm32 phones rarely received Android 9+ updates.)
     return 'arm64';
   }
 
+  // ── Non-Android ARM (e.g. iOS browsing, rare) ─────────────────────────────
   if (platform.includes('arm')) {
     return 'arm64';
   }
 
+  // ── Unknown — default to arm64 (most common architecture today) ───────────
   return 'arm64';
 }
 
@@ -145,9 +177,22 @@ async function setupApkDownloads() {
 
   setRecommended(recommended);
   const label = APK_LABELS[recommended.dataset.arch] || recommended.dataset.arch;
-  const reason = navigator.userAgent.toLowerCase().includes('android')
-    ? 'Recommended for this Android device.'
-    : 'Recommended guess. If you are downloading on PC, choose the APK for the target phone below.';
+  const ua = navigator.userAgent.toLowerCase();
+  const isAndroid = ua.includes('android');
+  const usedHighEntropy = preferredArch !== initialArch;
+  const versionMatch = ua.match(/android\s+(\d+)/);
+  const androidMajor = versionMatch ? parseInt(versionMatch[1], 10) : 0;
+
+  let reason;
+  if (!isAndroid) {
+    reason = 'Recommended guess for PC download. Choose the APK that matches the target phone below.';
+  } else if (usedHighEntropy) {
+    reason = 'Detected from your browser\'s device architecture API. High confidence.';
+  } else if (androidMajor > 0 && androidMajor <= 8) {
+    reason = `Detected via Android ${androidMajor} version (older devices often use ARMv7). If your phone is 64-bit, try ARM64 below.`;
+  } else {
+    reason = 'Recommended for this Android device.';
+  }
   apkStatus.textContent = `${label} selected. ${reason}`;
 }
 

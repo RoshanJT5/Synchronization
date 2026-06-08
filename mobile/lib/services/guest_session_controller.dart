@@ -478,6 +478,15 @@ class GuestSessionController extends ChangeNotifier {
     }
   }
 
+  /// Called when the user taps the sync pill in the UI.
+  /// Re-runs RTT calibration and notifies listeners so the UI can spin.
+  void manualResync() {
+    _startCalibration();
+    // Send an extra ping immediately to also re-calibrate the clock offset.
+    sendPing();
+    notifyListeners();
+  }
+
   void _sendToHost(SyncCommand command) {
     final channel = _hostChannel;
     if (channel?.state == RTCDataChannelState.RTCDataChannelOpen) {

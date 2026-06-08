@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'package:synchronization/services/location_service.dart';
 
 /// A session announced on the signaling server.
 class DiscoveredSession {
@@ -78,12 +79,17 @@ class DiscoveryService extends ChangeNotifier {
       _isConnected = true;
       _isConnecting = false;
       notifyListeners();
-      _socket!.emit('get-active-sessions');
+      _requestActiveSessions();
     });
 
+    // Bug fix: also update _isConnected on reconnect so the UI reflects
+    // the correct state, then re-fetch the proximity-filtered session list.
     _socket!.on('reconnect', (_) {
       debugPrint('[Discovery] Reconnected');
-      _socket!.emit('get-active-sessions');
+      _isConnected = true;
+      _isConnecting = false;
+      notifyListeners();
+      _requestActiveSessions();
     });
 
     _socket!.onConnectError((error) {
@@ -125,6 +131,20 @@ class DiscoveryService extends ChangeNotifier {
     });
 
     _socket!.connect();
+  }
+
+  /// Emits 'get-active-sessions' with the phone's GPS coordinates so the
+  /// server only returns sessions within 50 metres.
+  Future<void> _requestActiveSessions() async {
+    final pos = await LocationService.getPosition();
+    if (pos == null) {
+      debugPrint('[Discovery] No GPS position — skipping session request');
+      return;
+    }
+    _socket?.emit('get-active-sessions', {
+      'lat': pos.lat,
+      'lng': pos.lng,
+    });
   }
 
   void stopDiscovery() {

@@ -9,6 +9,7 @@ import 'package:synchronization/services/host_session_controller.dart';
 import 'package:synchronization/utils/user_error_message.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:synchronization/services/background_keep_alive_service.dart';
+import 'package:synchronization/services/location_service.dart';
 
 enum AppConnectionState { idle, connecting, connected, reconnecting, error }
 
@@ -20,20 +21,43 @@ class WebRTCService extends ChangeNotifier {
 
   static const Map<String, dynamic> _iceConfig = {
     'iceServers': [
+      // Always try Google STUN first (Fastest, uses 0MB)
       {'urls': 'stun:stun.l.google.com:19302'},
-      {'urls': 'stun:stun1.l.google.com:19302'},
+      
+      // If STUN fails, try your private 500MB TURN server (Fast, reliable)
+      {
+        'urls': "stun:stun.relay.metered.ca:80",
+      },
+      {
+        'urls': "turn:global.relay.metered.ca:80",
+        'username': "3bc60cb6f671013bf50ac68c",
+        'credential': "6w0c+6c2jfIWt5v1",
+      },
+      {
+        'urls': "turn:global.relay.metered.ca:80?transport=tcp",
+        'username': "3bc60cb6f671013bf50ac68c",
+        'credential': "6w0c+6c2jfIWt5v1",
+      },
+      {
+        'urls': "turn:global.relay.metered.ca:443",
+        'username': "3bc60cb6f671013bf50ac68c",
+        'credential': "6w0c+6c2jfIWt5v1",
+      },
+      {
+        'urls': "turns:global.relay.metered.ca:443?transport=tcp",
+        'username': "3bc60cb6f671013bf50ac68c",
+        'credential': "6w0c+6c2jfIWt5v1",
+      },
+      
+      // If the private one rejects us (quota reached), fallback to the overloaded free one
       {
         'urls': 'turn:openrelay.metered.ca:443?transport=udp',
         'username': 'openrelayproject',
         'credential': 'openrelayproject',
       },
-      {
-        'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
     ],
   };
+
 
   io.Socket? _socket;
   final Map<String, RTCPeerConnection> _peers = {};
@@ -223,19 +247,24 @@ class WebRTCService extends ChangeNotifier {
   }
 
   void _announceHost() {
+    _doAnnounceHost();
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 7), (_) {
+      _socket?.emit('session-heartbeat', {'sessionId': _activeSessionId});
+      _doAnnounceHost();
+    });
+  }
+
+  /// Emits 'announce-session' with the host's GPS coordinates so the server
+  /// knows where this session is physically located (50m filter).
+  Future<void> _doAnnounceHost() async {
+    final pos = await LocationService.getPosition();
     _socket?.emit('announce-session', {
       'sessionId': _activeSessionId,
       'label': 'Host Phone',
       'type': 'mobile-host',
-    });
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 7), (_) {
-      _socket?.emit('session-heartbeat', {'sessionId': _activeSessionId});
-      _socket?.emit('announce-session', {
-        'sessionId': _activeSessionId,
-        'label': 'Host Phone',
-        'type': 'mobile-host',
-      });
+      if (pos != null) 'lat': pos.lat,
+      if (pos != null) 'lng': pos.lng,
     });
   }
 

@@ -13,6 +13,7 @@ import 'package:synchronization/services/host_session_controller.dart';
 import 'package:synchronization/services/webrtc_service.dart';
 import 'package:synchronization/theme/app_theme.dart';
 import 'package:synchronization/utils/user_error_message.dart';
+import 'package:synchronization/services/location_service.dart';
 import 'package:video_player/video_player.dart';
 
 enum _ScreenMode { welcome, hostSetup, hostActive, guestJoin, guestActive }
@@ -40,11 +41,20 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isFullscreen = false;
   double _volume = 1.0;
   WebRTCService? _webrtc;
+  bool _locationGranted = false; // gate — app won't work until granted
 
   @override
   void initState() {
     super.initState();
-    if (widget.enableDiscovery) {
+    _initLocation();
+  }
+
+  Future<void> _initLocation() async {
+    final granted = await LocationService.checkAndRequest();
+    if (!mounted) return;
+    setState(() => _locationGranted = granted);
+    // Only start discovery if permission was granted
+    if (granted && widget.enableDiscovery) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.read<DiscoveryService>().startDiscovery();
       });
@@ -227,6 +237,77 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Gate: user must grant location permission before anything works.
+    if (!_locationGranted) {
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AppTheme.surface, AppTheme.bg],
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.location_off, color: AppTheme.accent, size: 72),
+                  const SizedBox(height: 28),
+                  const Text(
+                    'Location Required',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Synchronization uses your GPS location to show only sessions happening in the same room as you.\n\nWithout location permission, the app cannot filter sessions and will not work.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppTheme.textDim, fontSize: 14, height: 1.6),
+                  ),
+                  const SizedBox(height: 36),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final granted = await LocationService.checkAndRequest();
+                        if (!mounted) return;
+                        if (granted) {
+                          setState(() => _locationGranted = true);
+                          if (widget.enableDiscovery) {
+                            context.read<DiscoveryService>().startDiscovery();
+                          }
+                        } else {
+                          // Permanently denied — send to Settings
+                          await LocationService.openSettings();
+                        }
+                      },
+                      icon: const Icon(Icons.location_on),
+                      label: const Text('Grant Location Permission'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accent,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Stack(
         children: [
@@ -520,11 +601,19 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           const SizedBox(height: 16),
-          _StatusPill(
-            icon: hasError ? Icons.error_outline : Icons.sync,
-            text: statusText,
-            danger: hasError,
-          ),
+          // Tappable sync pill — tap to manually resync.
+          // When not in error state, the sync icon spins during resync.
+          if (!hasError && controller != null && controller.isLoaded)
+            _SyncPill(
+              text: statusText,
+              controller: controller,
+            )
+          else
+            _StatusPill(
+              icon: hasError ? Icons.error_outline : Icons.sync,
+              text: statusText,
+              danger: hasError,
+            ),
           const SizedBox(height: 24),
           _SecondaryButton(
             label: 'LEAVE SESSION',
@@ -1273,6 +1362,96 @@ class _StatusPill extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Animated, tappable sync status pill for the guest session screen.
+/// Tapping it triggers a manual resync: the icon spins for ~3 seconds
+/// while RTT calibration pings are sent, then the icon stops spinning.
+class _SyncPill extends StatefulWidget {
+  const _SyncPill({
+    required this.text,
+    required this.controller,
+  });
+
+  final String text;
+  final GuestSessionController controller;
+
+  @override
+  State<_SyncPill> createState() => _SyncPillState();
+}
+
+class _SyncPillState extends State<_SyncPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin;
+  bool _isSyncing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _spin = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  Future<void> _triggerResync() async {
+    if (_isSyncing) return;
+    setState(() => _isSyncing = true);
+    _spin.repeat(); // continuous spin during resync
+    widget.controller.manualResync();
+    // Spin for 3 seconds — enough for the 5 calibration pings to complete.
+    await Future<void>.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+    _spin.stop();
+    _spin.reset();
+    setState(() => _isSyncing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _triggerResync,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.accent.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.accent.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _spin,
+              builder: (_, child) => Transform.rotate(
+                angle: _spin.value * 2 * 3.14159265,
+                child: child,
+              ),
+              child: const Icon(Icons.sync, size: 18, color: AppTheme.accent),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _isSyncing ? 'Resyncing...' : widget.text,
+                style: const TextStyle(
+                  color: AppTheme.accent,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            // Tap hint
+            const Icon(Icons.touch_app, size: 14, color: AppTheme.textDim),
+          ],
+        ),
       ),
     );
   }

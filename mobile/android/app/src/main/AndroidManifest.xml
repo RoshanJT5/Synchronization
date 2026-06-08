@@ -9,6 +9,10 @@
     <!-- Camera permission for QR scanner -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- GPS location (50m proximity filter — mandatory for session discovery) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- Local media picker/playback permissions -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />

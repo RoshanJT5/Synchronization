@@ -45,6 +45,9 @@ dependencies:
   # Shared preferences (remember last server URL)
   shared_preferences: ^2.3.3
 
+  # GPS location (50m proximity filter for session discovery)
+  geolocator: ^13.0.2
+
   # Icons
   cupertino_icons: ^1.0.8
 
