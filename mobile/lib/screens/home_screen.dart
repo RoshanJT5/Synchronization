@@ -373,6 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Scaffold(
+      drawer: _buildDrawer(context),
       body: Stack(
         children: [
           const DecoratedBox(
@@ -415,6 +416,24 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Row(
+            children: [
+              Builder(
+                builder: (context) => GestureDetector(
+                  onTap: () => Scaffold.of(context).openDrawer(),
+                  child: Container(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Image.asset(
+                      'assets/images/Sync_hamburger.png',
+                      width: 32,
+                      height: 32,
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(),
+            ],
+          ),
           const Spacer(),
           const Icon(Icons.graphic_eq, color: AppTheme.accent, size: 64),
           const SizedBox(height: 20),
@@ -444,6 +463,62 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'JOIN A SESSION',
             icon: Icons.smartphone,
             onPressed: () => setState(() => _mode = _ScreenMode.guestJoin),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context) {
+    return Drawer(
+      backgroundColor: AppTheme.bg,
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: const BoxDecoration(
+              color: AppTheme.surface,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Icon(Icons.graphic_eq, color: AppTheme.accent, size: 48),
+                const SizedBox(height: 12),
+                const Text(
+                  'Synchronization',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.info_outline, color: AppTheme.textDim),
+            title: const Text('About us', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              // TODO: Write detailed About us later
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.description_outlined, color: AppTheme.textDim),
+            title: const Text('Terms and conditions', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              // TODO: Write detailed Terms and conditions later
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.textDim),
+            title: const Text('Privacy policy', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              // TODO: Write detailed Privacy policy later
+              Navigator.pop(context);
+            },
           ),
         ],
       ),
