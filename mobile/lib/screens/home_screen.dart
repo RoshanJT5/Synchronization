@@ -62,7 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     _leaveSessionCount++;
-    if (_leaveSessionCount % 4 != 0) {
+    // Show ad on 2nd leave, then every 4th leave (2, 6, 10, 14...)
+    if ((_leaveSessionCount - 2) % 4 != 0) {
       onAdComplete();
       return;
     }
@@ -480,15 +481,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 'Guests must be on the same WiFi as this phone, or connected to this phone hotspot.',
           ),
           const Spacer(),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: BannerAdWidget(),
-          ),
           _PrimaryButton(
             label: _isBusy ? 'STARTING...' : 'START SESSION',
             icon: Icons.rocket_launch,
             onPressed:
                 _isBusy || _selectedFile == null ? null : _startHostSession,
+          ),
+          const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: BannerAdWidget(),
           ),
           if (webrtc.state == AppConnectionState.error) ...[
             const SizedBox(height: 12),
@@ -1261,32 +1262,52 @@ class _FileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = file == null ? '' : ' (${_formatSize(file!.size)})';
+    if (file == null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          border: Border.all(color: AppTheme.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.audio_file, color: AppTheme.textDim),
+            SizedBox(width: 12),
+            Text('No file selected', style: TextStyle(color: AppTheme.textDim)),
+          ],
+        ),
+      );
+    }
+
+    final size = ' (${_formatSize(file!.size)})';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.card,
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: AppTheme.accent),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Icon(
-            file == null
-                ? Icons.insert_drive_file_outlined
-                : Icons.check_circle,
-            color: file == null ? AppTheme.textDim : AppTheme.green,
-          ),
+          const Icon(Icons.check_circle, color: AppTheme.green),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              file == null ? 'No file selected' : '${file!.name}$size',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  file!.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  'Ready to stream$size',
+                  style: const TextStyle(color: AppTheme.textDim, fontSize: 13),
+                ),
+              ],
             ),
           ),
         ],

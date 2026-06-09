@@ -24,7 +24,19 @@ class WebRTCService extends ChangeNotifier {
       // Always try Google STUN first (Fastest, uses 0MB)
       {'urls': 'stun:stun.l.google.com:19302'},
       
-      // If STUN fails, try your private 500MB TURN server (Fast, reliable)
+      // ExpressTURN STUN Backup
+      {
+        'urls': 'stun:free.expressturn.com:3478',
+      },
+
+      // ExpressTURN TURN (Try this first)
+      {
+        'urls': 'turn:free.expressturn.com:3478',
+        'username': '000000002096352701',
+        'credential': 'I4PrWLgp6znLfV6BXYK7xQviwTw=',
+      },
+
+      // If ExpressTURN fails, try your private 500MB TURN server (Fast, reliable)
       {
         'urls': "stun:stun.relay.metered.ca:80",
       },

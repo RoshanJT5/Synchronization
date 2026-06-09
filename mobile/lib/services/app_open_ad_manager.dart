@@ -18,9 +18,16 @@ class AppOpenAdManager {
       adUnitId: adUnitId,
       request: const AdRequest(),
       adLoadCallback: AppOpenAdLoadCallback(
-        onAdLoaded: (ad) {
+        onAdLoaded: (ad) async {
           _appOpenLoadTime = DateTime.now();
           _appOpenAd = ad;
+
+          // If this is the very first time the app is ever opened,
+          // show the ad immediately as soon as it finishes loading!
+          final prefs = await SharedPreferences.getInstance();
+          if (prefs.getString('last_app_open_ad_time') == null) {
+            showAdIfAvailable();
+          }
         },
         onAdFailedToLoad: (error) {
           debugPrint('AppOpenAd failed to load: $error');
