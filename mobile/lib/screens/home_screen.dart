@@ -32,6 +32,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   InterstitialAd? _interstitialAd;
   DateTime? _interstitialLoadTime;
+  int _leaveSessionCount = 0;
 
   void _loadInterstitialAd() {
     InterstitialAd.load(
@@ -56,6 +57,12 @@ class _HomeScreenState extends State<HomeScreen> {
         DateTime.now().difference(_interstitialLoadTime!).inMinutes > 50) {
       _interstitialAd?.dispose();
       _interstitialAd = null;
+      onAdComplete();
+      return;
+    }
+
+    _leaveSessionCount++;
+    if (_leaveSessionCount % 4 != 0) {
       onAdComplete();
       return;
     }
@@ -473,6 +480,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 'Guests must be on the same WiFi as this phone, or connected to this phone hotspot.',
           ),
           const Spacer(),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: BannerAdWidget(),
+          ),
           _PrimaryButton(
             label: _isBusy ? 'STARTING...' : 'START SESSION',
             icon: Icons.rocket_launch,
@@ -600,6 +611,10 @@ class _HomeScreenState extends State<HomeScreen> {
           const _InfoCard(
             text:
                 'You must be on the same WiFi as the host, or connected to the host phone hotspot.',
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: BannerAdWidget(),
           ),
           if (webrtc.state == AppConnectionState.error) ...[
             const SizedBox(height: 12),
@@ -896,7 +911,7 @@ class _GuestPlayerPanel extends StatelessWidget {
   }
 }
 
-class _DiscoveredSessions extends StatefulWidget {
+class _DiscoveredSessions extends StatelessWidget {
   const _DiscoveredSessions({
     required this.sessions,
     required this.isLoading,
@@ -910,71 +925,9 @@ class _DiscoveredSessions extends StatefulWidget {
   final ValueChanged<DiscoveredSession> onJoin;
 
   @override
-  State<_DiscoveredSessions> createState() => _DiscoveredSessionsState();
-}
-
-class _DiscoveredSessionsState extends State<_DiscoveredSessions> {
-  NativeAd? _nativeAd;
-  bool _nativeAdIsLoaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadNativeAd();
-  }
-
-  void _loadNativeAd() {
-    _nativeAd = NativeAd(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/2247696110'
-          : 'ca-app-pub-3940256099942544/3986624511',
-      request: const AdRequest(),
-      listener: NativeAdListener(
-        onAdLoaded: (ad) {
-          if (mounted) setState(() => _nativeAdIsLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          debugPrint('NativeAd failed to load: $error');
-          ad.dispose();
-        },
-      ),
-      nativeTemplateStyle: NativeTemplateStyle(
-        templateType: TemplateType.small,
-        mainBackgroundColor: AppTheme.card,
-        cornerRadius: 8.0,
-        callToActionTextStyle: NativeTemplateTextStyle(
-          textColor: Colors.black,
-          backgroundColor: AppTheme.accent,
-          style: NativeTemplateFontStyle.bold,
-          size: 16.0,
-        ),
-        primaryTextStyle: NativeTemplateTextStyle(
-          textColor: Colors.white,
-          backgroundColor: AppTheme.card,
-          style: NativeTemplateFontStyle.bold,
-          size: 16.0,
-        ),
-        secondaryTextStyle: NativeTemplateTextStyle(
-          textColor: AppTheme.textDim,
-          backgroundColor: AppTheme.card,
-          style: NativeTemplateFontStyle.normal,
-          size: 14.0,
-        ),
-      ),
-    )..load();
-  }
-
-  @override
-  void dispose() {
-    _nativeAd?.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    Widget content;
-    if (widget.sessions.isEmpty) {
-      content = Container(
+    if (sessions.isEmpty) {
+      return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppTheme.card,
@@ -984,103 +937,88 @@ class _DiscoveredSessionsState extends State<_DiscoveredSessions> {
         child: Row(
           children: [
             Icon(
-              widget.isLoading ? Icons.search : Icons.devices,
+              isLoading ? Icons.search : Icons.devices,
               color: AppTheme.accent,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                widget.isLoading
+                isLoading
                     ? 'Looking for nearby hosts...'
                     : 'No nearby hosts found',
                 style: const TextStyle(color: AppTheme.textDim),
               ),
             ),
             IconButton(
-              onPressed: widget.onRefresh,
+              onPressed: onRefresh,
               icon: const Icon(Icons.refresh, color: AppTheme.accent),
             ),
           ],
         ),
-      );
-    } else {
-      content = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Nearby hosts',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 10),
-          ...widget.sessions.map(
-            (session) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: InkWell(
-                onTap: () => widget.onJoin(session),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppTheme.card,
-                    border: Border.all(color: AppTheme.border),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        session.isMobileSource
-                            ? Icons.smartphone
-                            : Icons.computer,
-                        color: AppTheme.accent,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              session.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            Text(
-                              session.sessionId,
-                              style: const TextStyle(
-                                color: AppTheme.textDim,
-                                fontFamily: 'monospace',
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right, color: AppTheme.textDim),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        content,
-        if (_nativeAdIsLoaded && _nativeAd != null) ...[
-          const SizedBox(height: 8),
-          // Fixed-height container to prevent scroll jank
-          SizedBox(
-            height: 120,
-            child: AdWidget(ad: _nativeAd!),
+        const Text(
+          'Nearby hosts',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 10),
+        ...sessions.map(
+          (session) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              onTap: () => onJoin(session),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  border: Border.all(color: AppTheme.border),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      session.isMobileSource
+                          ? Icons.smartphone
+                          : Icons.computer,
+                      color: AppTheme.accent,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            session.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            session.sessionId,
+                            style: const TextStyle(
+                              color: AppTheme.textDim,
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: AppTheme.textDim),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ],
+        ),
       ],
     );
   }

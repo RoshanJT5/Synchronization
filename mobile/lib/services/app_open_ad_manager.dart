@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppOpenAdManager {
   AppOpenAd? _appOpenAd;
@@ -32,7 +33,21 @@ class AppOpenAdManager {
     return _appOpenAd != null;
   }
 
-  void showAdIfAvailable() {
+  Future<void> showAdIfAvailable() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastShownStr = prefs.getString('last_app_open_ad_time');
+    
+    if (lastShownStr != null) {
+      final lastShown = DateTime.tryParse(lastShownStr);
+      if (lastShown != null) {
+        // Enforce 1-hour cooldown
+        if (DateTime.now().difference(lastShown).inHours < 1) {
+          debugPrint('AppOpenAd: Skipped due to 1-hour cooldown.');
+          return;
+        }
+      }
+    }
+
     if (!isAdAvailable) {
       loadAd();
       return;
@@ -50,8 +65,9 @@ class AppOpenAdManager {
     }
 
     _appOpenAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (ad) {
+      onAdShowedFullScreenContent: (ad) async {
         _isShowingAd = true;
+        await prefs.setString('last_app_open_ad_time', DateTime.now().toIso8601String());
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         _isShowingAd = false;
