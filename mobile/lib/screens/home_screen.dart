@@ -425,8 +425,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.all(8.0),
                     child: Image.asset(
                       'assets/images/Sync_hamburger.png',
-                      width: 32,
-                      height: 32,
+                      width: 35,
+                      height: 35,
                     ),
                   ),
                 ),
@@ -483,15 +483,20 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                const Icon(Icons.graphic_eq, color: AppTheme.accent, size: 48),
-                const SizedBox(height: 12),
-                const Text(
-                  'Synchronization',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.graphic_eq, color: AppTheme.accent, size: 32),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Synchronization',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
