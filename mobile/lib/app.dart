@@ -64,7 +64,7 @@ class _DeepLinkWrapperState extends State<_DeepLinkWrapper> with WidgetsBindingO
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _appOpenAdManager.showAdIfAvailable();
+      _appOpenAdManager.handleAppResume();
     }
   }
 

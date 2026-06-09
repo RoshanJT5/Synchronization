@@ -53,17 +53,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showInterstitialAd(VoidCallback onAdComplete) {
-    if (_interstitialAd == null || _interstitialLoadTime == null || 
-        DateTime.now().difference(_interstitialLoadTime!).inMinutes > 50) {
-      _interstitialAd?.dispose();
-      _interstitialAd = null;
+    _leaveSessionCount++;
+    // Show ad on 2nd leave, then every 5th leave (2, 7, 12, 17...)
+    // This gives exactly 4 exits of grace period (no ads) between ads.
+    if ((_leaveSessionCount - 2) % 5 != 0) {
       onAdComplete();
       return;
     }
 
-    _leaveSessionCount++;
-    // Show ad on 2nd leave, then every 4th leave (2, 6, 10, 14...)
-    if ((_leaveSessionCount - 2) % 4 != 0) {
+    if (_interstitialAd == null || _interstitialLoadTime == null || 
+        DateTime.now().difference(_interstitialLoadTime!).inMinutes > 50) {
+      _interstitialAd?.dispose();
+      _interstitialAd = null;
       onAdComplete();
       return;
     }
@@ -241,6 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _leaveSession() {
+    if (_mode == _ScreenMode.welcome) return;
     if (_isFullscreen) {
       _isFullscreen = false;
       _restorePortraitSystemUi();
@@ -480,16 +482,16 @@ class _HomeScreenState extends State<HomeScreen> {
             text:
                 'Guests must be on the same WiFi as this phone, or connected to this phone hotspot.',
           ),
+          const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: BannerAdWidget(),
+          ),
           const Spacer(),
           _PrimaryButton(
             label: _isBusy ? 'STARTING...' : 'START SESSION',
             icon: Icons.rocket_launch,
             onPressed:
                 _isBusy || _selectedFile == null ? null : _startHostSession,
-          ),
-          const Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: BannerAdWidget(),
           ),
           if (webrtc.state == AppConnectionState.error) ...[
             const SizedBox(height: 12),
@@ -584,6 +586,8 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           const SizedBox(height: 18),
+          const BannerAdWidget(),
+          const SizedBox(height: 18),
           _SecondaryButton(
             label: 'SCAN QR CODE',
             icon: Icons.qr_code_scanner,
@@ -612,10 +616,6 @@ class _HomeScreenState extends State<HomeScreen> {
           const _InfoCard(
             text:
                 'You must be on the same WiFi as the host, or connected to the host phone hotspot.',
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: BannerAdWidget(),
           ),
           if (webrtc.state == AppConnectionState.error) ...[
             const SizedBox(height: 12),
@@ -1833,6 +1833,73 @@ class _FullscreenVideoOverlayState extends State<_FullscreenVideoOverlay> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class BannerAdWidget extends StatefulWidget {
+  const BannerAdWidget({super.key});
+
+  @override
+  State<BannerAdWidget> createState() => _BannerAdWidgetState();
+}
+
+class _BannerAdWidgetState extends State<BannerAdWidget> {
+  BannerAd? _bannerAd;
+  bool _isLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAd();
+  }
+
+  void _loadAd() {
+    final adUnitId = Platform.isAndroid
+        ? 'ca-app-pub-3940256099942544/6300978111'
+        : 'ca-app-pub-3940256099942544/2934735716';
+
+    _bannerAd = BannerAd(
+      adUnitId: adUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) {
+            setState(() {
+              _isLoaded = true;
+            });
+          }
+        },
+        onAdFailedToLoad: (ad, error) {
+          debugPrint('BannerAd failed to load: $error');
+          ad.dispose();
+        },
+      ),
+    )..load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoaded && _bannerAd != null) {
+      return Center(
+        child: SizedBox(
+          width: _bannerAd!.size.width.toDouble(),
+          height: _bannerAd!.size.height.toDouble(),
+          child: AdWidget(ad: _bannerAd!),
+        ),
+      );
+    }
+    // Prevent UI jank by using a fixed 320x50 sized box while loading
+    return const SizedBox(
+      width: 320,
+      height: 50,
     );
   }
 }

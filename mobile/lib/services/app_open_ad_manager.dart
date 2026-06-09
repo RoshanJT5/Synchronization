@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,6 +7,7 @@ class AppOpenAdManager {
   AppOpenAd? _appOpenAd;
   bool _isShowingAd = false;
   DateTime? _appOpenLoadTime;
+  bool _showAdOnNextResume = false;
 
   /// Test ad unit IDs from Google
   final String adUnitId = Platform.isAndroid
@@ -23,10 +24,16 @@ class AppOpenAdManager {
           _appOpenAd = ad;
 
           // If this is the very first time the app is ever opened,
-          // show the ad immediately as soon as it finishes loading!
+          // show the ad immediately if the app is currently in the foreground,
+          // otherwise flag it to be shown on the next app resume.
           final prefs = await SharedPreferences.getInstance();
           if (prefs.getString('last_app_open_ad_time') == null) {
-            showAdIfAvailable();
+            final state = WidgetsBinding.instance.lifecycleState;
+            if (state == AppLifecycleState.resumed) {
+              showAdIfAvailable();
+            } else {
+              _showAdOnNextResume = true;
+            }
           }
         },
         onAdFailedToLoad: (error) {
@@ -75,11 +82,13 @@ class AppOpenAdManager {
       onAdShowedFullScreenContent: (ad) async {
         _isShowingAd = true;
         await prefs.setString('last_app_open_ad_time', DateTime.now().toIso8601String());
+        _showAdOnNextResume = false;
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         _isShowingAd = false;
         ad.dispose();
         _appOpenAd = null;
+        loadAd();
       },
       onAdDismissedFullScreenContent: (ad) {
         _isShowingAd = false;
@@ -90,5 +99,13 @@ class AppOpenAdManager {
     );
 
     _appOpenAd!.show();
+  }
+
+  void handleAppResume() {
+    if (_showAdOnNextResume && isAdAvailable) {
+      showAdIfAvailable();
+    } else {
+      showAdIfAvailable();
+    }
   }
 }
