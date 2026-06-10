@@ -8,8 +8,8 @@ import 'package:flutter/foundation.dart';
 ///    synchronization://connect?id=SESSION_ID&server=https://...
 ///
 /// 2. HTTPS App Link (preferred, Android intercepts QR scan directly):
-///    https://synchronization-807q.onrender.com/connect?id=SESSION_ID&server=https://...
-///    https://synchronization-807q.onrender.com/c/SESSION_ID
+///    https://synchronization.vercel.app/connect?id=SESSION_ID&server=https://...
+///    https://synchronization.vercel.app/c/SESSION_ID
 ///
 /// Both carry the same query parameters — the handler is identical.
 class DeepLinkService {
@@ -46,7 +46,7 @@ class DeepLinkService {
 
     final bool isAppLink = (uri.scheme == 'https' || uri.scheme == 'http') &&
         (uri.host == 'synchronization-807q.onrender.com' ||
-            uri.host == 'syncronization.vercel.app') &&
+            uri.host == 'synchronization.vercel.app') &&
         (uri.path.startsWith('/connect') || uri.path.startsWith('/c/'));
 
     if (!isCustomScheme && !isAppLink) return;

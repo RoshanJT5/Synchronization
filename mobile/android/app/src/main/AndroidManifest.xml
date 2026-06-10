@@ -72,22 +72,22 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="synchronization-807q.onrender.com"
+                    android:host="synchronization.vercel.app"
                     android:pathPrefix="/connect" />
             </intent-filter>
 
-            <!-- Render-hosted short QR links: https://synchronization-807q.onrender.com/c/ABC123 -->
+            <!-- Vercel-hosted short QR links: https://synchronization.vercel.app/c/ABC123 -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="synchronization-807q.onrender.com"
+                    android:host="synchronization.vercel.app"
                     android:pathPrefix="/c" />
                 <data
                     android:scheme="https"
-                    android:host="synchronization-807q.onrender.com"
+                    android:host="synchronization.vercel.app"
                     android:pathPrefix="/connect" />
             </intent-filter>
         </activity>

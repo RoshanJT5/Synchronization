@@ -481,18 +481,18 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Icon(Icons.graphic_eq, color: AppTheme.accent, size: 32),
+                    const Icon(Icons.graphic_eq, color: AppTheme.accent, size: 35),
                     const SizedBox(width: 12),
                     const Text(
                       'Synchronization',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
+                        fontSize: 25,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1413,7 +1413,7 @@ class _QrPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = 'https://synchronization-807q.onrender.com/c/$sessionId';
+    final url = 'https://synchronization.vercel.app/c/$sessionId';
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
