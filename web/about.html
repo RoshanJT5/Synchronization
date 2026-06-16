@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>About Us | Synchronization</title>
+    <meta name="description" content="Learn what Synchronization is, why we built it, and how it works. Stream browser audio to your phone with zero latency using WebRTC." />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" type="image/png" href="favicon.png?v=1" />
+    <style>
+      /* ── Page-specific extras ── */
+      .legal-hero {
+        text-align: center;
+        padding: 100px 5vw 60px;
+        max-width: 860px;
+        margin: 0 auto;
+      }
+      .legal-hero h1 {
+        font-size: clamp(36px, 8vw, 72px);
+        letter-spacing: -2px;
+        margin-bottom: 20px;
+      }
+      .legal-hero p {
+        color: var(--text-dim);
+        font-size: 18px;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      .content-wrap {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 0 5vw 80px;
+      }
+
+      .section-block {
+        margin-bottom: 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 36px 40px;
+        transition: border-color 0.3s;
+      }
+      .section-block:hover {
+        border-color: rgba(168, 85, 247, 0.3);
+      }
+
+      .section-block h2 {
+        color: var(--accent);
+        font-size: 20px;
+        font-weight: 800;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .section-block h2 .icon {
+        font-size: 22px;
+      }
+
+      .section-block p {
+        color: var(--text-dim);
+        line-height: 1.75;
+        margin-bottom: 14px;
+      }
+      .section-block p:last-child {
+        margin-bottom: 0;
+      }
+
+      .bullet-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .bullet-list li {
+        color: var(--text-dim);
+        line-height: 1.7;
+        padding: 8px 0 8px 24px;
+        position: relative;
+        border-bottom: 1px solid var(--border);
+      }
+      .bullet-list li:last-child {
+        border-bottom: none;
+      }
+      .bullet-list li::before {
+        content: '→';
+        color: var(--accent);
+        position: absolute;
+        left: 0;
+        font-weight: 700;
+      }
+
+      .highlight-box {
+        background: rgba(168, 85, 247, 0.07);
+        border: 1px solid rgba(168, 85, 247, 0.3);
+        border-radius: 14px;
+        padding: 20px 24px;
+        margin-top: 20px;
+        color: var(--text-dim);
+        font-size: 15px;
+        line-height: 1.7;
+      }
+      .highlight-box strong {
+        color: var(--text);
+      }
+
+      .extension-callout {
+        background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(124,58,237,0.06) 100%);
+        border: 1px solid rgba(168, 85, 247, 0.4);
+        border-radius: 20px;
+        padding: 36px 40px;
+        margin-bottom: 28px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 32px;
+        align-items: center;
+      }
+      .extension-callout h2 {
+        color: var(--text);
+        font-size: 22px;
+        font-weight: 800;
+        margin-bottom: 10px;
+      }
+      .extension-callout p {
+        color: var(--text-dim);
+        line-height: 1.7;
+        font-size: 15px;
+      }
+
+      @media (max-width: 680px) {
+        .section-block, .extension-callout {
+          padding: 28px 24px;
+        }
+        .extension-callout {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ── Navigation ── -->
+    <header class="topbar">
+      <a class="brand" href="./">
+        <img src="assets/Logo2.png" alt="Synchronization Logo" class="brand-logo" />
+      </a>
+      <nav>
+        <a href="./#setup">Setup</a>
+        <a href="./#download">Download</a>
+        <a href="about.html">About</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </nav>
+    </header>
+
+    <main>
+      <!-- ── Hero ── -->
+      <div class="legal-hero">
+        <span class="eyebrow">About Synchronization</span>
+        <h1>Audio, Untethered.</h1>
+        <p>The story of what we built, why we built it, and how it works under the hood.</p>
+      </div>
+
+      <div class="content-wrap">
+
+        <!-- What is Synchronization -->
+        <div class="section-block">
+          <h2><span class="icon" style="display: flex;"><img src="assets/what-is-syncronization.png" height="30px"></span> What is Synchronization?</h2>
+          <p>
+            Synchronization lets you stream any audio playing in your desktop browser directly to your Android phone — wirelessly, with virtually zero perceptible delay.
+          </p>
+          <p>
+            One device acts as the source: your computer, running the Synchronization Chrome Extension. Other devices join instantly and hear the same audio in lock-step — without routing through any cloud service or internet relay.
+          </p>
+          <p>
+            No accounts. No subscription. No cloud streaming. No unnecessary complexity.
+          </p>
+        </div>
+
+        <!-- Why we built it -->
+        <div class="section-block">
+          <h2><span class="icon" style="display: flex;"><img src="assets/why-we-built.png" height="40px"></span> Why Was It Built?</h2>
+          <p>Listening to audio from your laptop on another device is harder than it should be. Here is why every existing option falls short:</p>
+          <ul class="bullet-list">
+            <li>Bluetooth is limited — limited range, codec compression, and audio delay make it unsuitable for synchronized playback.</li>
+            <li>Streaming services add their own platform delay — two devices playing the same stream will drift apart by seconds.</li>
+            <li>Sharing headphones or speakers is not always practical, especially at a distance.</li>
+            <li>Existing local-network audio tools require manual IP configuration, ports, and firewall rules.</li>
+          </ul>
+          <p style="margin-top: 16px;">
+            Synchronization was built to solve this with a fast, direct audio connection between your PC and your phone — focused on synchronization precision and low latency above all else.
+          </p>
+        </div>
+
+        <!-- How it works -->
+        <div class="section-block">
+          <h2><span class="icon" style="display: flex;"><img src="assets/how-it-works.png" height="40px"></span> How Does It Work?</h2>
+          <ul class="bullet-list">
+            <li>The Chrome Extension captures the audio from your active browser tab using the browser's native <code style="color:var(--accent);font-family:monospace;">tabCapture</code> API — no screen recording, no microphone, just the tab audio.</li>
+            <li>A unique session QR code is generated instantly. Scan it from the Synchronization Android App to pair your devices.</li>
+            <li>Audio streams peer-to-peer via <strong style="color:var(--text);">WebRTC</strong> — directly from your computer to your phone over your local Wi-Fi or hotspot.</li>
+            <li>Playback stays aligned across all connected devices using clock-calibrated scheduling and drift correction algorithms.</li>
+            <li>Our signaling server is only contacted for the initial handshake (exchanging connection metadata). It never touches your audio.</li>
+          </ul>
+          <div class="highlight-box">
+            <strong>No accounts. No cloud audio. No firewall configuration required.</strong><br />
+            Your audio travels directly from your PC to your phone. We never see it, store it, or forward it.
+          </div>
+        </div>
+
+        <!-- Extension callout -->
+        <div class="extension-callout">
+          <div>
+            <h2>Connect the Chrome Extension</h2>
+            <p>
+              Synchronization requires the Chrome Extension to be installed on your desktop browser. The extension captures your tab audio and generates the QR code your phone scans to connect. Without the extension, the Android app has nothing to receive.
+            </p>
+            <p style="margin-top: 12px;">
+              Download the extension ZIP from our website, extract it, then go to <code style="color: var(--accent); font-family: monospace;">chrome://extensions</code> → enable <strong style="color:var(--text);">Developer mode</strong> → click <strong style="color:var(--text);">Load unpacked</strong> → select the extracted folder. That's it.
+            </p>
+          </div>
+          <a class="btn btn-secondary" href="./#download" style="white-space:nowrap;">Get the Extension →</a>
+        </div>
+
+        <!-- When is it useful -->
+        <div class="section-block">
+          <h2><span class="icon" style="display: flex;"><img src="assets/when-is-it-useful.png" height="40px"></span> When Is It Useful?</h2>
+          <ul class="bullet-list">
+            <li>Watching a video on your laptop while your Bluetooth headphones are already paired to your phone.</li>
+            <li>Moving around the house while a movie or podcast plays on your desktop browser.</li>
+            <li>Your laptop's headphone jack is broken or occupied.</li>
+            <li>Creating a multi-room audio setup where multiple phones play the same audio in sync.</li>
+            <li>Any situation where timing and audio fidelity matter — no compression, no artificial delay.</li>
+          </ul>
+          <p style="margin-top: 16px;">
+            If everyone needs to hear the same thing at the same moment, Synchronization is built for that.
+          </p>
+        </div>
+
+        <!-- Phone to Phone -->
+        <div class="section-block">
+          <h2><span class="icon" style="display: flex;"><img src="assets/phone-to-phone.png" height="30px"></span> Phone-to-Phone Mode</h2>
+          <p>
+            Beyond browser audio, the Synchronization Android App also supports a phone-to-phone sharing mode. One phone acts as the host — it selects a local media file, starts an internal HTTP audio stream, and announces the session. Guest phones scan the QR code and play the same audio in lock-step sync via the same precision clock-calibration system.
+          </p>
+          <p>
+            Both devices must be on the same Wi-Fi network, or the host phone can create a mobile hotspot for the guests to join.
+          </p>
+        </div>
+
+        <!-- Our focus -->
+        <div class="section-block">
+          <h2><span class="icon" style="display: flex;"><img src="assets/our-focus.png" height="30px"></span> Our Focus</h2>
+          <p>
+            Synchronization is built with a focus on performance, privacy, and simplicity. We do not run ads, we do not collect personal data, and we do not require you to create an account. The software is provided free of charge with no tracking of any kind.
+          </p>
+          <p>
+            The core technology — WebRTC peer-to-peer audio, precision clock-based sync scheduling, and drift correction — is designed to keep audio aligned within tens of milliseconds across all connected devices, even on real-world consumer networks.
+          </p>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- ── Footer ── -->
+    <footer>
+      <span>© 2026 Synchronization Labs</span>
+      <span>
+        <a href="about.html" style="color:var(--text-dim);margin-right:20px;">About</a>
+        <a href="privacy.html" style="color:var(--text-dim);margin-right:20px;">Privacy</a>
+        <a href="terms.html" style="color:var(--text-dim);">Terms</a>
+      </span>
+    </footer>
+  </body>
+</html>

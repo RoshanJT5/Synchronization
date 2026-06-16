@@ -7,6 +7,9 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:synchronization/screens/about_screen.dart';
+import 'package:synchronization/screens/privacy_policy_screen.dart';
+import 'package:synchronization/screens/terms_and_conditions_screen.dart';
 import 'package:synchronization/services/discovery_service.dart';
 import 'package:synchronization/services/file_service.dart';
 import 'package:synchronization/services/guest_session_controller.dart';
@@ -503,26 +506,38 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.info_outline, color: AppTheme.textDim),
-            title: const Text('About us', style: TextStyle(color: Colors.white)),
+            title: const Text('About Us', style: TextStyle(color: Colors.white)),
+            trailing: const Icon(Icons.chevron_right, color: AppTheme.textDim, size: 18),
             onTap: () {
-              // TODO: Write detailed About us later
               Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AboutScreen()),
+              );
             },
           ),
           ListTile(
             leading: const Icon(Icons.description_outlined, color: AppTheme.textDim),
-            title: const Text('Terms and conditions', style: TextStyle(color: Colors.white)),
+            title: const Text('Terms & Conditions', style: TextStyle(color: Colors.white)),
+            trailing: const Icon(Icons.chevron_right, color: AppTheme.textDim, size: 18),
             onTap: () {
-              // TODO: Write detailed Terms and conditions later
               Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TermsAndConditionsScreen()),
+              );
             },
           ),
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.textDim),
-            title: const Text('Privacy policy', style: TextStyle(color: Colors.white)),
+            title: const Text('Privacy Policy', style: TextStyle(color: Colors.white)),
+            trailing: const Icon(Icons.chevron_right, color: AppTheme.textDim, size: 18),
             onTap: () {
-              // TODO: Write detailed Privacy policy later
               Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+              );
             },
           ),
         ],

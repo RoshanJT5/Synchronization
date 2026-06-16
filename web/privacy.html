@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy | Synchronization</title>
+    <meta name="description" content="Synchronization Privacy Policy. We do not collect, store, or transmit your audio data. Peer-to-peer, private by design." />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" type="image/png" href="favicon.png?v=1" />
+    <style>
+      .legal-hero {
+        text-align: center;
+        padding: 100px 5vw 60px;
+        max-width: 860px;
+        margin: 0 auto;
+      }
+      .legal-hero h1 {
+        font-size: clamp(36px, 8vw, 72px);
+        letter-spacing: -2px;
+        margin-bottom: 20px;
+      }
+      .legal-hero .meta {
+        color: var(--text-dim);
+        font-size: 14px;
+        margin-top: 12px;
+      }
+
+      .content-wrap {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 0 5vw 80px;
+      }
+
+      .section-block {
+        margin-bottom: 24px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 36px 40px;
+        transition: border-color 0.3s;
+      }
+      .section-block:hover {
+        border-color: rgba(168, 85, 247, 0.25);
+      }
+
+      .section-block h2 {
+        color: var(--accent);
+        font-size: 19px;
+        font-weight: 800;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      .section-num {
+        background: var(--accent);
+        color: #fff;
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: 900;
+        margin-right: 10px;
+        vertical-align: middle;
+      }
+
+      .section-block p {
+        color: var(--text-dim);
+        line-height: 1.8;
+        margin-bottom: 14px;
+      }
+      .section-block p:last-child { margin-bottom: 0; }
+
+      .bullet-list {
+        list-style: none;
+        padding: 0;
+        margin: 12px 0 0;
+      }
+      .bullet-list li {
+        color: var(--text-dim);
+        line-height: 1.7;
+        padding: 9px 0 9px 26px;
+        position: relative;
+        border-bottom: 1px solid var(--border);
+        font-size: 15px;
+      }
+      .bullet-list li:last-child { border-bottom: none; }
+      .bullet-list li::before {
+        content: '✓';
+        color: var(--accent);
+        position: absolute;
+        left: 0;
+        font-weight: 900;
+      }
+
+      .privacy-badge {
+        background: rgba(168, 85, 247, 0.08);
+        border: 1px solid rgba(168, 85, 247, 0.35);
+        border-radius: 14px;
+        padding: 20px 24px;
+        margin-bottom: 28px;
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      .privacy-badge .badge-icon {
+        font-size: 30px;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+      .privacy-badge p {
+        color: var(--text-dim);
+        font-size: 15px;
+        line-height: 1.7;
+        margin: 0;
+      }
+      .privacy-badge strong { color: var(--text); }
+
+      .contact-block {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 36px 40px;
+        text-align: center;
+      }
+      .contact-block p {
+        color: var(--text-dim);
+        line-height: 1.7;
+        margin-bottom: 12px;
+      }
+
+      @media (max-width: 680px) {
+        .section-block, .contact-block { padding: 28px 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ── Navigation ── -->
+    <header class="topbar">
+      <a class="brand" href="./">
+        <img src="assets/Logo2.png" alt="Synchronization Logo" class="brand-logo" />
+      </a>
+      <nav>
+        <a href="./#setup">Setup</a>
+        <a href="./#download">Download</a>
+        <a href="about.html">About</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </nav>
+    </header>
+
+    <main>
+      <!-- ── Hero ── -->
+      <div class="legal-hero">
+        <span class="eyebrow">Privacy Policy</span>
+        <h1>Private by Design.</h1>
+        <p class="meta">Effective date: June 2026 &nbsp;·&nbsp; Last updated: June 2026</p>
+      </div>
+
+      <div class="content-wrap">
+
+        <!-- Top badge -->
+        <div class="privacy-badge">
+          <span class="badge-icon">🔒</span>
+          <p>
+            <strong>The short version:</strong> Synchronization does not collect your audio, personal data, or browsing history. Audio streams travel directly between your devices peer-to-peer. Our server is never in the audio path. We do not run ads. We do not sell data. We do not have user accounts.
+          </p>
+        </div>
+
+        <!-- 1. What Synchronization does -->
+        <div class="section-block">
+          <h2><span class="section-num">1</span> What Synchronization Does</h2>
+          <p>Synchronization is a local-network audio streaming tool with two modes of operation:</p>
+          <ul class="bullet-list">
+            <li><strong style="color:var(--text);">Browser Extension → Phone:</strong> The Chrome Extension captures audio from a browser tab and streams it to the Synchronization Android App via WebRTC peer-to-peer over your local Wi-Fi or mobile hotspot.</li>
+            <li><strong style="color:var(--text);">Phone → Phone:</strong> The Android App can host a local audio session where one phone streams a media file to other phones on the same network using a local HTTP audio server and WebRTC data channels for sync.</li>
+          </ul>
+          <p style="margin-top: 14px;">
+            In both modes, audio travels directly between your devices. It does not pass through our servers at any point.
+          </p>
+        </div>
+
+        <!-- 2. Data we collect -->
+        <div class="section-block">
+          <h2><span class="section-num">2</span> Data We Collect</h2>
+          <p>We collect <strong style="color:var(--text);">no personal data whatsoever</strong>. Specifically:</p>
+          <ul class="bullet-list">
+            <li>No name, email address, phone number, or account information is ever requested or stored.</li>
+            <li>No audio data is recorded, intercepted, or transmitted to us.</li>
+            <li>No browsing history or tab content is accessed beyond what is required to capture audio from the tab you explicitly activate streaming on.</li>
+            <li>No device identifiers, advertising IDs, or analytics fingerprints are collected.</li>
+            <li>No cookies or persistent trackers are placed on your device by our website or app.</li>
+          </ul>
+        </div>
+
+        <!-- 3. Audio recording and playback -->
+        <div class="section-block">
+          <h2><span class="section-num">3</span> Audio Recording and Playback</h2>
+          <p>
+            The Synchronization Chrome Extension uses the browser's <code style="color:var(--accent);font-family:monospace;">tabCapture</code> API to access the audio output of the currently active tab — and only that tab, and only when you click <strong style="color:var(--text);">Start Streaming</strong>. This audio is:
+          </p>
+          <ul class="bullet-list">
+            <li>Streamed in real time directly to your paired phone via WebRTC.</li>
+            <li>Never saved to disk, never uploaded to any server.</li>
+            <li>Discarded immediately when you stop streaming or close the extension.</li>
+          </ul>
+          <p style="margin-top: 14px;">
+            The Android App receives and plays this stream. Audio is rendered locally on your phone and is not retained after playback ends.
+          </p>
+        </div>
+
+        <!-- 4. Network communication -->
+        <div class="section-block">
+          <h2><span class="section-num">4</span> Network Communication</h2>
+          <p>
+            To establish a connection between your browser and your phone, Synchronization uses a lightweight <strong style="color:var(--text);">signaling server</strong>. This server's only job is to exchange connection metadata (called ICE candidates and SDP offers/answers) between your two devices so they can find each other on your local network.
+          </p>
+          <ul class="bullet-list">
+            <li>The signaling server does <strong style="color:var(--text);">not</strong> relay or record any audio.</li>
+            <li>Connection metadata (session ID, WebRTC handshake data) is ephemeral and discarded once the connection is established.</li>
+            <li>The signaling server does not log IP addresses for retention purposes.</li>
+            <li>Once peers are connected, all audio data flows peer-to-peer and the signaling server is no longer involved.</li>
+          </ul>
+        </div>
+
+        <!-- 5. Notifications -->
+        <div class="section-block">
+          <h2><span class="section-num">5</span> Notifications</h2>
+          <p>
+            Synchronization does not send push notifications of any kind. No notification permission is requested by the Chrome Extension. The Android App may use a foreground service notification on Android to keep audio playback alive in the background — this notification is system-generated, local only, and contains no personal data.
+          </p>
+        </div>
+
+        <!-- 6. Third-party services -->
+        <div class="section-block">
+          <h2><span class="section-num">6</span> Third-Party Services</h2>
+          <p>Synchronization uses the following third-party infrastructure:</p>
+          <ul class="bullet-list">
+            <li><strong style="color:var(--text);">Render / cloud hosting</strong> — Used to host the signaling server and the website. Standard server access logs may be maintained by the platform provider per their own policy. We do not add our own logging of user requests.</li>
+            <li><strong style="color:var(--text);">WebRTC (open standard)</strong> — The audio transport layer. WebRTC uses STUN servers (operated by public providers) to discover your network addresses during connection setup. These lookups are transient and do not persist.</li>
+          </ul>
+          <p style="margin-top: 14px;">
+            We do not integrate any advertising networks, social media SDKs, analytics platforms, or data brokers.
+          </p>
+        </div>
+
+        <!-- 7. Permissions summary -->
+        <div class="section-block">
+          <h2><span class="section-num">7</span> Permissions Summary</h2>
+          <p><strong style="color:var(--text);">Chrome Extension permissions requested:</strong></p>
+          <ul class="bullet-list">
+            <li><code style="color:var(--accent);font-family:monospace;">tabCapture</code> — Required to capture audio from the active browser tab. Used only when you explicitly start streaming.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">activeTab</code> — Required to identify the current tab for capture.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">storage</code> — Used to remember your last-used signaling server URL across sessions. No personal data is stored.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">offscreen</code> — Required by Chrome Manifest V3 to process audio in a background context.</li>
+          </ul>
+          <p style="margin-top: 14px;"><strong style="color:var(--text);">Android App permissions requested:</strong></p>
+          <ul class="bullet-list">
+            <li><code style="color:var(--accent);font-family:monospace;">CAMERA</code> — Used solely for scanning the QR code shown by the extension. No photos or video are taken or stored.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">INTERNET</code> — Required for WebRTC and signaling server communication.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">WAKE_LOCK</code> — Prevents the phone screen from sleeping while actively receiving an audio stream.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">READ_MEDIA_AUDIO</code> — Required for phone-to-phone mode where you select a local audio file to host.</li>
+          </ul>
+        </div>
+
+        <!-- 8. Data retention -->
+        <div class="section-block">
+          <h2><span class="section-num">8</span> Data Retention</h2>
+          <p>
+            We do not retain any user data. Session IDs are random identifiers generated fresh for each streaming session and are not associated with your identity. The only persistent data is the signaling server URL stored locally on your device by the app or extension, which you can clear at any time through your device settings.
+          </p>
+        </div>
+
+        <!-- 9. Children's privacy -->
+        <div class="section-block">
+          <h2><span class="section-num">9</span> Children's Privacy</h2>
+          <p>
+            Synchronization does not knowingly collect any information from children under the age of 13. We do not have age-gating mechanisms because we collect no personal information from any user of any age. If you believe a child has somehow provided us with personal information, please contact us and we will take appropriate action.
+          </p>
+        </div>
+
+        <!-- 10. User control -->
+        <div class="section-block">
+          <h2><span class="section-num">10</span> User Control</h2>
+          <p>Because we collect no personal data, there is nothing to request, export, or delete. You are in full control:</p>
+          <ul class="bullet-list">
+            <li>Uninstalling the Chrome Extension immediately removes all locally stored settings.</li>
+            <li>Uninstalling the Android App immediately removes all locally stored settings.</li>
+            <li>Stopping a streaming session immediately terminates all peer connections and frees all audio resources.</li>
+          </ul>
+        </div>
+
+        <!-- 11. Changes to this policy -->
+        <div class="section-block">
+          <h2><span class="section-num">11</span> Changes to This Policy</h2>
+          <p>
+            We may update this Privacy Policy from time to time to reflect changes in the application's functionality. Any changes will be posted on this page with an updated effective date. Because we do not collect contact information, we cannot notify you directly — please check this page periodically if privacy matters to you.
+          </p>
+        </div>
+
+        <!-- 12. Contact -->
+        <div class="contact-block">
+          <h2 style="color: var(--accent); font-size: 20px; margin-bottom: 12px;">12. Contact</h2>
+          <p>
+            If you have any questions about this Privacy Policy, contact us through the project's GitHub repository or the official website. We aim to respond within a reasonable time.
+          </p>
+          <p style="font-size: 14px;">
+            Synchronization Labs &nbsp;·&nbsp; June 2026
+          </p>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- ── Footer ── -->
+    <footer>
+      <span>© 2026 Synchronization Labs</span>
+      <span>
+        <a href="about.html" style="color:var(--text-dim);margin-right:20px;">About</a>
+        <a href="privacy.html" style="color:var(--text-dim);margin-right:20px;">Privacy</a>
+        <a href="terms.html" style="color:var(--text-dim);">Terms</a>
+      </span>
+    </footer>
+  </body>
+</html>
