@@ -56,10 +56,13 @@
         color: #fff;
         border-radius: 6px;
         padding: 2px 8px;
-        font-size: 12px;
+        font-size: 16px;
         font-weight: 900;
         margin-right: 10px;
         vertical-align: middle;
+      }
+      h2{
+        display: flex;
       }
 
       .section-block p {
@@ -100,6 +103,8 @@
         display: flex;
         align-items: flex-start;
         gap: 16px;
+        display: flex;
+        align-items: center;
       }
       .privacy-badge .badge-icon {
         font-size: 30px;
@@ -159,7 +164,7 @@
 
         <!-- Top badge -->
         <div class="privacy-badge">
-          <span class="badge-icon">🔒</span>
+          <span class="badge-icon"><img src="assets/Lock.png" height="50px"></span>
           <p>
             <strong>The short version:</strong> Synchronization does not collect your audio, personal data, or browsing history. Audio streams travel directly between your devices peer-to-peer. Our server is never in the audio path. We do not run ads. We do not sell data. We do not have user accounts.
           </p>
@@ -195,7 +200,7 @@
         <div class="section-block">
           <h2><span class="section-num">3</span> Audio Recording and Playback</h2>
           <p>
-            The Synchronization Chrome Extension uses the browser's <code style="color:var(--accent);font-family:monospace;">tabCapture</code> API to access the audio output of the currently active tab — and only that tab, and only when you click <strong style="color:var(--text);">Start Streaming</strong>. This audio is:
+            The Synchronization Chrome Extension uses the browser's <code style="color:var(--accent);font-family:monospace;">tabCapture</code> API to access the audio output of the currently active tab and only that tab, and only when you click <strong style="color:var(--text);">Start Streaming</strong>. This audio is:
           </p>
           <ul class="bullet-list">
             <li>Streamed in real time directly to your paired phone via WebRTC.</li>
@@ -225,7 +230,7 @@
         <div class="section-block">
           <h2><span class="section-num">5</span> Notifications</h2>
           <p>
-            Synchronization does not send push notifications of any kind. No notification permission is requested by the Chrome Extension. The Android App may use a foreground service notification on Android to keep audio playback alive in the background — this notification is system-generated, local only, and contains no personal data.
+            Synchronization does not send push notifications of any kind. No notification permission is requested by the Chrome Extension. The Android App may use a foreground service notification on Android to keep audio playback alive in the background this notification is system-generated, local only, and contains no personal data.
           </p>
         </div>
 
@@ -292,13 +297,13 @@
         <div class="section-block">
           <h2><span class="section-num">11</span> Changes to This Policy</h2>
           <p>
-            We may update this Privacy Policy from time to time to reflect changes in the application's functionality. Any changes will be posted on this page with an updated effective date. Because we do not collect contact information, we cannot notify you directly — please check this page periodically if privacy matters to you.
+            We may update this Privacy Policy from time to time to reflect changes in the application's functionality. Any changes will be posted on this page with an updated effective date. Because we do not collect contact information, we cannot notify you directly please check this page periodically if privacy matters to you.
           </p>
         </div>
 
         <!-- 12. Contact -->
         <div class="contact-block">
-          <h2 style="color: var(--accent); font-size: 20px; margin-bottom: 12px;">12. Contact</h2>
+          <h2 style="color: var(--accent); font-size: 20px; margin-bottom: 12px; display:inline-block;">12. Contact</h2>
           <p>
             If you have any questions about this Privacy Policy, contact us through the project's GitHub repository or the official website. We aim to respond within a reasonable time.
           </p>

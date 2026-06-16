@@ -73,8 +73,8 @@ class AboutScreen extends StatelessWidget {
               icon: Icons.graphic_eq,
               title: 'What is Synchronization?',
               body:
-                  'Synchronization lets you stream any audio playing in your desktop browser directly to your Android phone — wirelessly, with virtually zero perceptible delay.\n\n'
-                  'One device acts as the source: your computer, running the Synchronization Chrome Extension. Other devices join instantly and hear the same audio in lock-step — no cloud service, no internet relay, no accounts.',
+                  'Synchronization lets you stream any audio playing in your desktop browser directly to your Android phone wirelessly, with virtually zero perceptible delay.\n\n'
+                  'One device acts as the source: your computer, running the Synchronization Chrome Extension. Other devices join instantly and hear the same audio in lock-step no cloud service, no internet relay, no accounts.',
             ),
             const SizedBox(height: 14),
 
@@ -84,13 +84,13 @@ class AboutScreen extends StatelessWidget {
               title: 'Why Was It Built?',
               body: 'Listening to audio from your laptop on another device is harder than it should be:',
               bullets: const [
-                'Bluetooth is limited — range, compression, and audio delay make it unsuitable for synchronized playback.',
-                'Streaming services add their own delay — two devices playing the same stream drift apart by seconds.',
+                'Bluetooth is limited range, compression, and audio delay make it unsuitable for synchronized playback.',
+                'Streaming services add their own delay two devices playing the same stream drift apart by seconds.',
                 'Sharing headphones is not always practical, especially at a distance.',
                 'Existing tools require manual IP configuration and firewall rules.',
               ],
               footer:
-                  'Synchronization solves this with a fast, direct audio connection between your PC and your phone — focused on precision synchronization and low latency.',
+                  'Synchronization solves this with a fast, direct audio connection between your PC and your phone focused on precision synchronization and low latency.',
             ),
             const SizedBox(height: 14),
 
@@ -99,9 +99,9 @@ class AboutScreen extends StatelessWidget {
               icon: Icons.settings_input_antenna,
               title: 'How Does It Work?',
               bullets: const [
-                'The Chrome Extension captures audio from your active browser tab using the browser\'s tabCapture API — no screen recording, no microphone, just tab audio.',
+                'The Chrome Extension captures audio from your active browser tab using the browser\'s tabCapture API no screen recording, no microphone, just tab audio.',
                 'A unique session QR code is generated instantly. Scan it from this app to pair your devices in seconds.',
-                'Audio streams peer-to-peer via WebRTC — directly from your computer to your phone over your local Wi-Fi or hotspot.',
+                'Audio streams peer-to-peer via WebRTC directly from your computer to your phone over your local Wi-Fi or hotspot.',
                 'Playback stays aligned across all connected devices using clock-calibrated scheduling and drift correction algorithms.',
                 'Our signaling server is only used for the initial handshake. It never touches your audio.',
               ],
@@ -197,7 +197,7 @@ class AboutScreen extends StatelessWidget {
               icon: Icons.smartphone,
               title: 'Phone-to-Phone Mode',
               body:
-                  'The Synchronization App also supports phone-to-phone sharing. One phone acts as the host — it selects a local media file, starts an internal audio stream, and announces the session. Guest phones scan the QR code and play the same audio in lock-step sync via precision clock calibration.\n\n'
+                  'The Synchronization App also supports phone-to-phone sharing. One phone acts as the host it selects a local media file, starts an internal audio stream, and announces the session. Guest phones scan the QR code and play the same audio in lock-step sync via precision clock calibration.\n\n'
                   'Both devices must be on the same Wi-Fi network, or the host phone can create a mobile hotspot for guests to join.',
             ),
             const SizedBox(height: 14),
@@ -208,7 +208,7 @@ class AboutScreen extends StatelessWidget {
               title: 'Our Focus',
               body:
                   'Synchronization is built with a focus on performance, privacy, and simplicity. We do not run ads beyond what sustains the free app, we do not collect personal data, and we do not require you to create an account.\n\n'
-                  'The core technology — WebRTC peer-to-peer audio, precision clock-based sync scheduling, and drift correction — is designed to keep audio aligned within tens of milliseconds across all connected devices, even on real-world consumer networks.',
+                  'The core technology WebRTC peer-to-peer audio, precision clock-based sync scheduling, and drift correction is designed to keep audio aligned within tens of milliseconds across all connected devices, even on real-world consumer networks.',
             ),
             const SizedBox(height: 28),
 

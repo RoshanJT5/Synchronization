@@ -117,7 +117,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             _PolicySection(
               number: '3',
               title: 'Audio Recording and Playback',
-              body: 'The Synchronization Chrome Extension uses the browser\'s tabCapture API to access the audio output of the active tab — only when you click Start Streaming. This audio is:',
+              body: 'The Synchronization Chrome Extension uses the browser\'s tabCapture API to access the audio output of the active tab only when you click Start Streaming. This audio is:',
               bullets: const [
                 'Streamed in real time directly to your paired phone via WebRTC.',
                 'Never saved to disk, never uploaded to any server.',
