@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'package:synchronization/config/server_config.dart';
 import 'package:synchronization/services/location_service.dart';
 
 /// A session announced on the signaling server.
@@ -33,8 +34,7 @@ class DiscoveredSession {
 /// announcements. Provides a live list split into computer sessions and
 /// mobile-source sessions so the UI can render them in separate sections.
 class DiscoveryService extends ChangeNotifier {
-  static const String _signalingServer =
-      'https://synchronization-807q.onrender.com';
+  static String get _signalingServer => ServerConfig.signalingServer;
 
   io.Socket? _socket;
   List<DiscoveredSession> _sessions = [];

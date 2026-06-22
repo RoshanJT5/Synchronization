@@ -1,6 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-
-const SIGNALING_SERVER = 'https://synchronization-807q.onrender.com';
+import { SIGNALING_SERVER } from './serverConfig';
 const STATE_STORAGE_KEY = 'synchronization.extensionState';
 
 type ExtensionState = {

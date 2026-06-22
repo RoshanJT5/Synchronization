@@ -15,11 +15,13 @@
     "offscreen"
   ],
   "host_permissions": [
+    "http://34.68.33.91:3001/*",
+    "ws://34.68.33.91:3001/*",
     "https://synchronization-807q.onrender.com/*",
     "wss://synchronization-807q.onrender.com/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://synchronization-807q.onrender.com wss://synchronization-807q.onrender.com;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://34.68.33.91:3001 ws://34.68.33.91:3001 https://synchronization-807q.onrender.com wss://synchronization-807q.onrender.com;"
   },
   "action": {
     "default_popup": "index.html",

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
+import 'package:synchronization/config/server_config.dart';
 
 /// Handles two deep link formats:
 ///
@@ -45,7 +46,7 @@ class DeepLinkService {
         uri.scheme == 'synchronization' && uri.host == 'connect';
 
     final bool isAppLink = (uri.scheme == 'https' || uri.scheme == 'http') &&
-        (uri.host == 'synchronization-807q.onrender.com' ||
+        (uri.host == ServerConfig.signalingHost ||
             uri.host == 'synchronization.vercel.app') &&
         (uri.path.startsWith('/connect') || uri.path.startsWith('/c/'));
 
@@ -57,7 +58,7 @@ class DeepLinkService {
             : null;
     final sessionId = uri.queryParameters['id'] ?? pathSessionId;
     final serverUrl = uri.queryParameters['server'] ??
-        'https://synchronization-807q.onrender.com';
+        ServerConfig.signalingServer;
 
     if (sessionId != null && sessionId.isNotEmpty) {
       debugPrint('[DeepLink] Session: $sessionId  Server: $serverUrl');

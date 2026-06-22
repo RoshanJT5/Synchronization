@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { Volume2, VolumeX } from 'lucide-react';
-
-const CONNECT_PAGE_URL = 'https://synchronization-807q.onrender.com/c';
+import { CONNECT_PAGE_URL } from './serverConfig';
 
 type Status = 'IDLE' | 'READY' | 'CONNECTING' | 'STREAMING' | 'ERROR';
 

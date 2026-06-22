@@ -1,21 +1,52 @@
 import { Buffer } from 'buffer';
 import { io, Socket } from 'socket.io-client';
+import { SIGNALING_SERVER } from './serverConfig';
 
 (window as any).Buffer = Buffer;
 (window as any).global = window;
 (window as any).process = (window as any).process || { env: {} };
 
-const SIGNALING_SERVER = 'https://synchronization-807q.onrender.com';
+
 const ICE_SERVERS: RTCIceServer[] = [
+  // Always try Google STUN first (Fastest, uses 0MB)
   { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
+
+  // ExpressTURN STUN Backup
+  { urls: 'stun:free.expressturn.com:3478' },
+
+  // ExpressTURN TURN (Try this first)
   {
-    urls: 'turn:openrelay.metered.ca:443?transport=udp',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
+    urls: 'turn:free.expressturn.com:3478',
+    username: '000000002096352701',
+    credential: 'I4PrWLgp6znLfV6BXYK7xQviwTw=',
+  },
+
+  // Metered private TURN servers (Fast, reliable)
+  { urls: 'stun:stun.relay.metered.ca:80' },
+  {
+    urls: 'turn:global.relay.metered.ca:80',
+    username: '3bc60cb6f671013bf50ac68c',
+    credential: '6w0c+6c2jfIWt5v1',
   },
   {
-    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+    username: '3bc60cb6f671013bf50ac68c',
+    credential: '6w0c+6c2jfIWt5v1',
+  },
+  {
+    urls: 'turn:global.relay.metered.ca:443',
+    username: '3bc60cb6f671013bf50ac68c',
+    credential: '6w0c+6c2jfIWt5v1',
+  },
+  {
+    urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+    username: '3bc60cb6f671013bf50ac68c',
+    credential: '6w0c+6c2jfIWt5v1',
+  },
+
+  // Fallback: OpenRelay (free, overloaded but always available)
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=udp',
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },

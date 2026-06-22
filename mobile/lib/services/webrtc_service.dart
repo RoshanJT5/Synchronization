@@ -8,6 +8,7 @@ import 'package:synchronization/services/guest_session_controller.dart';
 import 'package:synchronization/services/host_session_controller.dart';
 import 'package:synchronization/utils/user_error_message.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:synchronization/config/server_config.dart';
 import 'package:synchronization/services/background_keep_alive_service.dart';
 import 'package:synchronization/services/location_service.dart';
 
@@ -16,8 +17,7 @@ enum AppConnectionState { idle, connecting, connected, reconnecting, error }
 enum ConnectionQuality { excellent, good, poor, unknown }
 
 class WebRTCService extends ChangeNotifier {
-  static const String _signalingServer =
-      'https://synchronization-807q.onrender.com';
+  static String get _signalingServer => ServerConfig.signalingServer;
 
   static const Map<String, dynamic> _iceConfig = {
     'iceServers': [
