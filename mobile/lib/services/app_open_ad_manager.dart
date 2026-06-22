@@ -52,6 +52,14 @@ class AppOpenAdManager {
 
   Future<void> showAdIfAvailable() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    // Block App Open ads until onboarding tutorial is dismissed (only on first-time launch)
+    final tutorialShown = prefs.getBool('tutorial_shown') ?? false;
+    if (!tutorialShown) {
+      debugPrint('AppOpenAd: Skipped because onboarding tutorial is not yet completed/shown.');
+      return;
+    }
+
     final lastShownStr = prefs.getString('last_app_open_ad_time');
     
     if (lastShownStr != null) {
