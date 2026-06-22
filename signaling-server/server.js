@@ -74,6 +74,8 @@ app.get('/c/:sessionId', (req, res) => {
 const io = new Server(server, {
   pingInterval: 10000,
   pingTimeout: 20000,
+  perMessageDeflate: true,
+  httpCompression: true,
   cors: { 
     origin: "*",
     methods: ["GET", "POST"]

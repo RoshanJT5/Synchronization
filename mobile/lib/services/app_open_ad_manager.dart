@@ -4,6 +4,9 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppOpenAdManager {
+  AppOpenAdManager._();
+  static final AppOpenAdManager instance = AppOpenAdManager._();
+
   AppOpenAd? _appOpenAd;
   bool _isShowingAd = false;
   DateTime? _appOpenLoadTime;

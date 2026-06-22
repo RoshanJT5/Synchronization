@@ -68,6 +68,7 @@ class WebRTCService extends ChangeNotifier {
         'credential': 'openrelayproject',
       },
     ],
+    'iceCandidatePoolSize': 1,
   };
 
 

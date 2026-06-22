@@ -97,7 +97,13 @@ async function startHost(sessionId: string, streamId: string) {
     });
 
     // Keep local browser audio audible while the captured stream is active.
-    audioContext = new AudioContext();
+    // Use the captured stream's native sample rate to avoid resampling jitter,
+    // and 'playback' latency hint for maximum audio stability.
+    const nativeSampleRate = capturedStream.getAudioTracks()[0]?.getSettings()?.sampleRate;
+    audioContext = new AudioContext({
+      sampleRate: nativeSampleRate || 48000,
+      latencyHint: 'playback',
+    });
     const source = audioContext.createMediaStreamSource(capturedStream);
 
     localGain = audioContext.createGain();
@@ -116,7 +122,7 @@ async function startHost(sessionId: string, streamId: string) {
     socket = io(SIGNALING_SERVER, {
       transports: ['websocket', 'polling'],
       reconnection: true,
-      timeout: 60000,
+      timeout: 10000,
     });
 
     socket.on('connect', () => {
@@ -181,7 +187,10 @@ async function startHost(sessionId: string, streamId: string) {
 async function createOffer(peerId: string) {
   if (peers.has(peerId) || !capturedStream) return;
 
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection({
+    iceServers: ICE_SERVERS,
+    iceCandidatePoolSize: 1,
+  });
   peers.set(peerId, pc);
   notifyPeerCount();
 

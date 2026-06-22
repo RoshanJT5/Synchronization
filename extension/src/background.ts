@@ -118,7 +118,7 @@ function prepareSession(sessionId: string) {
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
-    timeout: 60000,
+    timeout: 10000,
   });
 
   lobbySocket.on('connect', () => {

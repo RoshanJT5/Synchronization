@@ -19,6 +19,9 @@ import 'package:synchronization/services/webrtc_service.dart';
 import 'package:synchronization/theme/app_theme.dart';
 import 'package:synchronization/utils/user_error_message.dart';
 import 'package:synchronization/services/location_service.dart';
+import 'package:synchronization/services/app_open_ad_manager.dart';
+import 'package:synchronization/widgets/tutorial_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
 enum _ScreenMode { welcome, hostSetup, hostActive, guestJoin, guestActive }
@@ -118,6 +121,25 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) context.read<DiscoveryService>().startDiscovery();
       });
     }
+
+    await _checkTutorialAndAd();
+  }
+
+  Future<void> _checkTutorialAndAd() async {
+    final prefs = await SharedPreferences.getInstance();
+    final tutorialShown = prefs.getBool('tutorial_shown') ?? false;
+
+    if (!tutorialShown && mounted) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const TutorialDialog(),
+      );
+      await prefs.setBool('tutorial_shown', true);
+    }
+
+    // Now it is safe to load and show the app open ad
+    AppOpenAdManager.instance.loadAd();
   }
 
   @override
@@ -503,6 +525,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.help_outline, color: AppTheme.textDim),
+            title: const Text('How to use', style: TextStyle(color: Colors.white)),
+            trailing: const Icon(Icons.chevron_right, color: AppTheme.textDim, size: 18),
+            onTap: () {
+              Navigator.pop(context);
+              showDialog(
+                context: context,
+                builder: (context) => const TutorialDialog(),
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.info_outline, color: AppTheme.textDim),

@@ -44,13 +44,11 @@ class _DeepLinkWrapper extends StatefulWidget {
 
 class _DeepLinkWrapperState extends State<_DeepLinkWrapper> with WidgetsBindingObserver {
   final DeepLinkService _deepLinkService = DeepLinkService();
-  final AppOpenAdManager _appOpenAdManager = AppOpenAdManager();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _appOpenAdManager.loadAd();
 
     _deepLinkService.onDeepLink = (sessionId, serverUrl) {
       // Connect as soon as a deep link arrives, regardless of current state
@@ -64,7 +62,7 @@ class _DeepLinkWrapperState extends State<_DeepLinkWrapper> with WidgetsBindingO
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _appOpenAdManager.handleAppResume();
+      AppOpenAdManager.instance.handleAppResume();
     }
   }
 
