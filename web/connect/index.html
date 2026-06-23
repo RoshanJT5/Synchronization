@@ -226,7 +226,7 @@
       const params   = new URLSearchParams(window.location.search);
       const pathMatch = window.location.pathname.match(/\/c\/([^/?#]+)/);
       const id       = params.get('id') || (pathMatch ? decodeURIComponent(pathMatch[1]) : '');
-      const server   = params.get('server') || (window.location.origin.startsWith('file') ? 'http://34.68.33.91:3001' : window.location.origin);
+      const server   = params.get('server') || 'http://34.68.33.91:3001';
       const apkChoices = Array.from(document.querySelectorAll('.apk-choice'));
       const mainDownload = document.getElementById('btn-download');
 

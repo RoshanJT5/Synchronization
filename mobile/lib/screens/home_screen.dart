@@ -1462,7 +1462,7 @@ class _QrPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = 'https://synchronization.vercel.app/c/$sessionId';
+    final url = 'https://synchronization.labs5.workers.dev/c/$sessionId';
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(

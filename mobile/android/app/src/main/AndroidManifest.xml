@@ -67,28 +67,30 @@
 
             <!-- HTTPS deep link from the website (App Link — opens app directly when QR is scanned) -->
             <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="https"
-                    android:host="synchronization.vercel.app"
-                    android:pathPrefix="/connect" />
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                    android:host="synchronization.labs5.workers.dev"
+                    android:pathPrefix="/connect"/>
             </intent-filter>
 
-            <!-- Vercel-hosted short QR links: https://synchronization.vercel.app/c/ABC123 -->
+            <!-- Cloudflare-hosted short QR links: https://synchronization.labs5.workers.dev/c/ABC123 -->
             <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="https"
-                    android:host="synchronization.vercel.app"
-                    android:pathPrefix="/c" />
-                <data
-                    android:scheme="https"
-                    android:host="synchronization.vercel.app"
-                    android:pathPrefix="/connect" />
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                    android:host="synchronization.labs5.workers.dev"
+                    android:pathPrefix="/c/"/>
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="synchronization"
+                    android:host="connect"/>
             </intent-filter>
         </activity>
 

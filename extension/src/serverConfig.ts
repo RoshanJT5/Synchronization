@@ -21,4 +21,4 @@ export const USE_BACKUP = false;
 export const SIGNALING_SERVER = USE_BACKUP ? BACKUP_SERVER : PRIMARY_SERVER;
 
 /** The connect page base URL (for QR code generation). */
-export const CONNECT_PAGE_URL = `${SIGNALING_SERVER}/c`;
+export const CONNECT_PAGE_URL = 'https://synchronization.labs5.workers.dev/c';
