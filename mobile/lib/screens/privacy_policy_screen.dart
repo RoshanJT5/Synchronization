@@ -81,7 +81,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
-                      'The short version: Synchronization does not collect your audio, personal data, or browsing history. Audio streams travel directly between your devices peer-to-peer. Our server is never in the audio path. No ads targeting. No user accounts. No data sold.',
+                      'Plain-language summary: Synchronization does not record, store, or upload your audio. Your GPS coordinates are used only to find nearby sessions and are deleted from our server the moment a session ends. The only third party that collects data about you is Google AdMob, which serves advertisements inside the app. We do not sell your data to anyone.',
                       style: TextStyle(color: AppTheme.textDim, fontSize: 13, height: 1.6),
                     ),
                   ),
@@ -92,110 +92,148 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
             _PolicySection(
               number: '1',
-              title: 'What Synchronization Does',
-              body: 'Synchronization is a local-network audio streaming tool with two modes:',
-              bullets: const [
-                'Browser Extension → Phone: The Chrome Extension captures audio from a browser tab and streams it to this App via WebRTC peer-to-peer over your local Wi-Fi or mobile hotspot.',
-                'Phone → Phone: The App can host a local audio session where one phone streams a media file to other phones on the same network.',
-              ],
-              footer: 'In both modes, audio travels directly between your devices. It does not pass through our servers at any point.',
+              title: 'Who We Are and Scope of This Policy',
+              body: 'This Privacy Policy is published by Roshan Talreja, operating under the trade name Synchronization Labs ("we," "us," or "our"), an individual independent developer based in Ahmedabad, Gujarat, India.\n\n'
+                    'This Policy governs the collection, use, storage, and disclosure of information in connection with the Synchronization Android application, the Synchronization Chrome Extension, and the associated website hosted at synchronization.labs5.workers.dev (collectively, the "Service").\n\n'
+                    'This Policy applies to all users of the Service worldwide, including users in the United States, Canada, the European Economic Area, the United Kingdom, Australia, India, and all other jurisdictions. By installing or using the Service, you acknowledge that you have read and understood this Policy. If you do not agree, you must discontinue use of the Service immediately.\n\n'
+                    'Acceptance by use. By downloading, installing, or accessing any part of the Service, you represent that you have read this Privacy Policy and the Terms and Conditions in their entirety and that you agree to be bound by both documents. If you do not agree with any part of this Policy, you must not use the Service. We may update this Policy at any time without prior notice. Your continued use of the Service after any update constitutes your acceptance of the revised Policy.',
             ),
 
             _PolicySection(
               number: '2',
-              title: 'Data We Collect',
-              body: 'We collect no personal data whatsoever. Specifically:',
+              title: 'Information We Collect and Why',
+              body: 'Synchronization is built to collect the minimum information necessary to operate the Service. Below is a complete and transparent account of every category of data that is collected, how it is used, and how long it is retained.\n\n'
+                    '2.1 GPS Location Coordinates\n'
+                    'When you host or join a Phone-to-Phone session, the app requests your precise GPS coordinates (latitude and longitude) using the Android ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION permissions. These coordinates are transmitted to our signaling server hosted on Virtual Machine solely to power the Nearby Session Discovery feature, which displays only sessions within a 50-meter radius of your current position.\n\n'
+                    'Your GPS coordinates are stored exclusively in volatile RAM on the signaling server for the duration of your active session. They are automatically and permanently deleted from the server the moment you end your session, the session times out, or you close the application. We do not build location history profiles. We do not log your coordinates to any persistent database. We do not use your location data for advertising targeting, analytics, or any purpose other than the proximity filter described above.\n\n'
+                    '2.2 WebRTC Session Metadata\n'
+                    'To establish a peer-to-peer connection between your devices, our signaling server temporarily processes a randomly generated session ID and standard WebRTC handshake data (SDP offer/answer messages and ICE candidates). This metadata is ephemeral and is discarded from the server as soon as the direct connection between your devices is established. It is never logged to disk or retained in any database.\n\n'
+                    '2.3 Audio and Media Content\n'
+                    'We do not collect, record, intercept, or store any audio content transmitted through the Service. All audio streams are processed transiently in device memory and travel peer-to-peer directly between your devices. Audio never passes through or touches our signaling server. When you select a local media file for Phone-to-Phone hosting, that file is read locally on your device and streamed directly to guest devices over your local network. It is never uploaded to our servers or any external cloud storage.\n\n'
+                    '2.4 Data We Do Not Collect',
               bullets: const [
-                'No name, email address, phone number, or account information is ever requested or stored.',
-                'No audio data is recorded, intercepted, or transmitted to us.',
-                'No browsing history or tab content is accessed beyond what is required to capture audio from the tab you explicitly activate.',
-                'No device identifiers, advertising IDs, or analytics fingerprints are collected.',
-                'No cookies or persistent trackers are placed on your device.',
+                'No name, email address, phone number, or account credentials. The Service has no user accounts.',
+                'No browsing history, tab URLs, or tab content beyond what is strictly necessary to capture audio from a tab you explicitly activate for streaming.',
+                'No device identifiers, advertising IDs, or hardware fingerprints collected by us directly. Note that Google AdMob, described in Section 5, does collect advertising identifiers independently.',
+                'No analytics, behavioral telemetry, crash reports, or usage statistics transmitted to our servers.',
+                'No payment information. The Service is entirely free.',
+                'No photographs, video recordings, or images captured through the camera permission. The camera is used solely for QR code scanning.',
               ],
             ),
 
             _PolicySection(
               number: '3',
-              title: 'Audio Recording and Playback',
-              body: 'The Synchronization Chrome Extension uses the browser\'s tabCapture API to access the audio output of the active tab only when you click Start Streaming. This audio is:',
-              bullets: const [
-                'Streamed in real time directly to your paired phone via WebRTC.',
-                'Never saved to disk, never uploaded to any server.',
-                'Discarded immediately when you stop streaming or close the extension.',
-              ],
-              footer: 'The Android App receives and plays this stream. Audio is rendered locally on your phone and is not retained after playback ends.',
+              title: 'How Audio Streaming Works',
+              body: 'The Service operates in two modes. Understanding these modes is important for evaluating your privacy.\n\n'
+                    'Browser-to-Phone mode. The Chrome Extension uses the browser\'s native tabCapture API to capture the audio output of a single browser tab that you explicitly designate. This audio is transmitted in real time via an encrypted WebRTC peer-to-peer connection directly to your Android device over your local Wi-Fi network or mobile hotspot. The audio does not pass through our signaling server at any point. Synchronization Labs has no technical ability to access or intercept this audio stream.\n\n'
+                    'Phone-to-Phone mode. One phone acts as a host, reading a media file stored on that device and serving it via a local HTTP audio server operating at port 8080 on your private local network. Guest phones connect to this local address directly. Synchronization playback commands travel over an encrypted WebRTC data channel between devices. The media file is never uploaded to any external server. Synchronization Labs has no access to any media content transmitted in this mode.\n\n'
+                    'WebRTC TURN relay servers. In circumstances where a direct peer-to-peer connection cannot be established due to network configuration or firewall restrictions, audio traffic may be routed through encrypted third-party TURN relay servers. These relay servers handle only encrypted data packets and cannot access or store the audio content contained within. We use TURN relay infrastructure provided by third-party providers including Metered.ca and ExpressTURN. These providers process data pursuant to their own privacy policies.',
             ),
 
             _PolicySection(
               number: '4',
-              title: 'Network Communication',
-              body: 'To establish a connection, Synchronization uses a lightweight signaling server. Its only job is to exchange connection metadata (ICE candidates and SDP offers) between your two devices so they can find each other.',
+              title: 'Device Permissions Requested',
+              body: 'The following permissions are requested by the Android application. Each permission is used only for the specific stated purpose.',
               bullets: const [
-                'The signaling server does NOT relay or record any audio.',
-                'Connection metadata is ephemeral and discarded once the connection is established.',
-                'The signaling server does not log IP addresses for retention purposes.',
-                'Once peers are connected, all audio flows peer-to-peer and the signaling server is no longer involved.',
+                'ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION — Required to determine your GPS coordinates for the 50-meter Nearby Session Discovery filter. Used only when you host or join a session. Not used for advertising targeting by us.',
+                'CAMERA — Used exclusively to scan QR codes displayed by the Chrome Extension or other host devices. No photographs or video recordings are taken, stored, or transmitted.',
+                'INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE — Required for WebRTC peer-to-peer connections and communication with the signaling server.',
+                'READ_MEDIA_AUDIO, READ_MEDIA_VIDEO, READ_EXTERNAL_STORAGE — Required in Phone-to-Phone host mode to allow you to select a local audio or video file from your device storage to broadcast to guest devices. Files are read locally and are never uploaded.',
+                'MODIFY_AUDIO_SETTINGS — Required to configure audio routing and output during active streaming sessions.',
+                'FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK, WAKE_LOCK — Required to keep the audio session active when the app is in the background or the screen is locked, functioning similarly to a music streaming application.',
+                'REQUEST_IGNORE_BATTERY_OPTIMIZATIONS — Requested to prevent Android from suspending the foreground audio service during extended sessions.',
+                'BLUETOOTH, BLUETOOTH_CONNECT — Required to route audio output to connected Bluetooth headphones or speakers correctly.',
               ],
+              footer: 'Chrome Extension permissions (Manifest V3):\n\n'
+                      '• tabCapture — Captures audio from the browser tab you select. Active only when you explicitly start a streaming session.\n'
+                      '• activeTab — Identifies the current browser tab for capture. No tab content, URLs, or history are accessed or stored.\n'
+                      '• storage — Stores your saved signaling server URL locally in the browser. This preference data never leaves your device.\n'
+                      '• offscreen — Required by Chrome Manifest V3 to run audio processing in a background context.',
             ),
 
             _PolicySection(
               number: '5',
-              title: 'Permissions Summary',
-              body: 'Android App permissions requested:',
+              title: 'Google AdMob and Third-Party Advertising',
+              body: 'The Service displays advertisements served by Google AdMob, a product of Google LLC. This is the sole method of monetization for the Service. AdMob operates independently and collects certain data from users for the purpose of delivering and measuring advertisements. This section discloses exactly what AdMob does, as required by applicable law.\n\n'
+                    'What Google AdMob collects. When you use the Service, Google AdMob may automatically collect the following categories of data directly from your device, independently of anything Synchronization Labs does:',
               bullets: const [
-                'CAMERA — Used solely for scanning the QR code shown by the extension. No photos or video are taken or stored.',
-                'INTERNET — Required for WebRTC and signaling server communication.',
-                'WAKE_LOCK — Prevents the phone screen from sleeping while actively receiving an audio stream.',
-                'ACCESS_FINE_LOCATION — Used for nearby-session discovery on your local network (Wi-Fi SSID scan). Your GPS location is never transmitted anywhere.',
-                'READ_MEDIA_AUDIO — Required for phone-to-phone mode where you select a local audio file to host.',
+                'Android Advertising ID (GAID) or equivalent device advertising identifier.',
+                'IP address, which may be used to derive approximate geographic location.',
+                'Device information including manufacturer, model, operating system version, and screen resolution.',
+                'App usage data including which ads are displayed, viewed, or interacted with.',
+                'Diagnostic and performance data related to ad delivery.',
               ],
+              footer: 'Personalized advertising disclosure. The Service currently uses AdMob\'s default settings, which means Google may serve personalized advertisements based on your interests and prior online activity. Synchronization Labs does not control or direct the personalization logic. Google\'s own data collection and processing practices for advertising are governed by the Google Privacy Policy, available at policies.google.com/privacy.\n\n'
+                      'Your opt-out rights. You may opt out of personalized advertising at any time by visiting your Android device Settings, navigating to Google, then Ads, and selecting "Delete advertising ID" or "Opt out of Ads Personalization." On devices running Android 12 and above, you can delete your Advertising ID entirely. These controls are provided by Google and are independent of Synchronization Labs.\n\n'
+                      'GDPR notice for EEA and UK users. If you are located in the European Economic Area or the United Kingdom, the General Data Protection Regulation and UK GDPR require that your consent be obtained before personalized advertisements are served to you. Because the Service does not currently implement a Consent Management Platform, we recommend that users in these jurisdictions opt out of personalized ads using the device-level controls described above until a formal consent mechanism is implemented in a future update.\n\n'
+                      'CCPA notice for California residents. Under the California Consumer Privacy Act, sharing data with advertising networks may constitute a "sale" or "sharing" of personal information. By using the Service, Google AdMob may receive personal information about you as described above. You have the right to opt out of the sharing of your personal information for cross-context behavioral advertising purposes by using the device-level opt-out controls described in this section.',
             ),
 
             _PolicySection(
               number: '6',
-              title: 'Third-Party Services',
-              body: 'Synchronization uses the following third-party infrastructure:',
+              title: 'Third-Party Services and Infrastructure',
               bullets: const [
-                'Cloud hosting (Render) — Used to host the signaling server and website. Standard server access logs may be maintained by the platform provider.',
-                'WebRTC (open standard) — The audio transport layer. WebRTC uses STUN servers to discover network addresses during connection setup. These lookups are transient and do not persist.',
-                'Google Mobile Ads — The app displays non-personalized banner and interstitial ads to sustain free distribution. Ad SDK behavior is governed by Google\'s own privacy policy.',
+                'Google Cloud (signaling server hosting). Our signaling server is hosted on a Google Cloud Compute Engine e2-micro virtual machine. Google Cloud may process connection metadata including IP addresses pursuant to the Google Cloud Privacy Policy at cloud.google.com/terms/cloud-privacy-notice. We do not add application-level logging of user requests beyond what the signaling function requires.',
+                'Cloudflare (website hosting). Our website at synchronization.labs5.workers.dev is hosted on Cloudflare Workers. Cloudflare may process connection metadata pursuant to their privacy policy at cloudflare.com/privacypolicy.',
+                'WebRTC STUN servers. WebRTC uses public STUN servers, including those operated by Google, during ICE negotiation to facilitate NAT traversal. These servers receive your device\'s public IP address momentarily. This interaction is standard to the WebRTC protocol and is governed by the STUN server operator\'s own policies.',
+                'TURN relay servers. If a direct connection cannot be established, encrypted audio packets may be routed through third-party TURN relay infrastructure. These servers route encrypted data only and cannot access the content of your audio stream.',
+                'Google AdMob. Described in full in Section 5 above.',
               ],
-              footer: 'We do not integrate social media SDKs, analytics platforms, or data brokers beyond what is stated above.',
+              footer: 'We do not integrate any social media SDKs, analytics platforms, crash reporting tools, or data broker services. We do not sell your personal information to any third party.',
             ),
 
             _PolicySection(
               number: '7',
-              title: 'Data Retention',
-              body: 'We do not retain any user data. Session IDs are random identifiers generated fresh for each streaming session and are not associated with your identity.\n\nThe only persistent data is the signaling server URL stored locally on your device by the app or extension. You can clear this at any time through your device\'s app settings.',
+              title: "Children's Privacy",
+              body: 'The Service is not directed to children under the age of 13. In accordance with the Children\'s Online Privacy Protection Act (COPPA) of the United States and applicable international children\'s privacy laws, we do not knowingly collect personal information from children under 13 years of age.\n\n'
+                    'Because the Service incorporates Google AdMob, which may collect advertising identifiers, the minimum age for use of this Service is 13 years old. The app is rated accordingly on the Google Play Store.\n\n'
+                    'If you are a parent or guardian and believe your child under the age of 13 has used the Service, please contact us at 230101027158git@gmail.com and we will take immediate steps to address the concern. If AdMob has collected data attributable to a child under 13, we will contact Google to request deletion in accordance with COPPA requirements.',
             ),
 
             _PolicySection(
               number: '8',
-              title: "Children's Privacy",
-              body: 'Synchronization does not knowingly collect any information from children under the age of 13. We do not have age-gating mechanisms because we collect no personal information from any user of any age.',
-            ),
-
-            _PolicySection(
-              number: '9',
-              title: 'User Control',
-              body: 'Because we collect no personal data, there is nothing to request, export, or delete. You are in full control:',
+              title: 'Your Privacy Rights by Jurisdiction',
+              body: 'Depending on where you are located, you may have specific legal rights regarding your personal information. Because Synchronization Labs collects very limited personal data directly, most rights requests will relate primarily to data held by Google AdMob. In all cases, we will do our best to assist you.',
               bullets: const [
-                'Uninstalling the Chrome Extension immediately removes all locally stored settings.',
-                'Uninstalling the Android App immediately removes all locally stored settings.',
-                'Stopping a streaming session immediately terminates all peer connections and frees all audio resources.',
+                'California (CCPA/CPRA). You have the right to know what personal information is collected, the right to delete personal information, and the right to opt out of the sale or sharing of personal information. We do not sell personal information. For AdMob-related data, use the device-level opt-out described in Section 5 and visit Google\'s Ad Settings at adssettings.google.com.',
+                'European Economic Area and United Kingdom (GDPR / UK GDPR). You have the right to access, rectify, erase, and port your personal data, and the right to object to or restrict certain processing. For location data we hold transiently on our signaling server, you may contact us to request confirmation of deletion. For AdMob data, submit a request to Google at support.google.com/policies/troubleshooter/7575787. You also have the right to lodge a complaint with your local data protection supervisory authority.',
+                'Canada (PIPEDA / Law 25). You have the right to access personal information held about you and to request correction of inaccuracies. Because we retain GPS data only in volatile RAM for the duration of a session, no persistent personal information is held by us after a session ends. You may contact us with any privacy concern at 230101027158git@gmail.com.',
+                'India (DPDP Act 2023). You have the right to access information about personal data processed, the right to correction and erasure, and the right to grievance redressal. You may contact our grievance officer at 230101027158git@gmail.com for any data-related concern.',
               ],
             ),
 
             _PolicySection(
+              number: '9',
+              title: 'Data Security',
+              body: 'All audio and data transmitted through the Service is carried over WebRTC, which encrypts all media and data channels by default using DTLS-SRTP (Datagram Transport Layer Security with Secure Real-time Transport Protocol). This means your audio stream is encrypted in transit between your devices even on a shared local network.\n\n'
+                    'GPS coordinates transmitted to our signaling server are sent over HTTPS and stored only in server RAM. They are never written to disk or a persistent database and are deleted automatically when a session ends.\n\n'
+                    'Because we do not maintain a persistent database of user data, there is no central repository of personal information that could be exposed in a data breach. No method of electronic transmission is one hundred percent secure. However, the architecture of Synchronization is specifically designed to minimize the collection and retention of any personal information.',
+            ),
+
+            _PolicySection(
               number: '10',
-              title: 'Changes to This Policy',
-              body: 'We may update this Privacy Policy from time to time to reflect changes in the application\'s functionality. Any changes will be posted on our website with an updated effective date. Because we do not collect contact information, we cannot notify you directly.',
+              title: 'Data Retention',
+              body: 'Synchronization Labs retains personal data for the shortest time possible consistent with operation of the Service.',
+              bullets: const [
+                'GPS coordinates are retained in volatile server RAM only for the duration of an active session and are permanently deleted when the session ends or times out.',
+                'WebRTC session identifiers and handshake metadata are discarded from the signaling server immediately upon successful peer-to-peer connection establishment.',
+                'No audio content or media files are retained on our servers at any time.',
+                'The only persistent data is local application preferences stored on your own device, such as a saved signaling server URL, which is deleted when you uninstall the application.',
+              ],
             ),
 
             _PolicySection(
               number: '11',
-              title: 'Contact',
-              body: 'If you have any questions about this Privacy Policy, contact us through the project\'s GitHub repository or the official Synchronization website.\n\nSynchronization Labs · June 2026',
+              title: 'Changes to This Privacy Policy',
+              body: 'We reserve the right to update or modify this Privacy Policy at any time and without prior notice. All changes will be effective immediately upon posting to this page with a revised effective date. Because we do not collect contact information, we cannot notify you directly of changes. Your continued use of the Service after any modification constitutes your acceptance of the updated Policy. We encourage you to review this page periodically, particularly when new features are added to the Service.',
+            ),
+
+            _PolicySection(
+              number: '12',
+              title: 'Contact Us',
+              body: 'If you have any questions, concerns, or requests relating to this Privacy Policy or the privacy practices of Synchronization Labs, please contact us directly.\n\n'
+                    'Email: 230101027158git@gmail.com\n\n'
+                    'Roshan Talreja, operating as Synchronization Labs · Ahmedabad, Gujarat, India · Effective June 1, 2026',
             ),
 
             const SizedBox(height: 20),

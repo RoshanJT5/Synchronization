@@ -74,6 +74,8 @@ class WebRTCService extends ChangeNotifier {
 
   io.Socket? _socket;
   final Map<String, RTCPeerConnection> _peers = {};
+  final Map<String, List<RTCIceCandidate>> _pendingIceCandidatesByPeer = {};
+  final Set<String> _remoteDescriptionReadyPeers = {};
   final Map<String, List<RTCVideoRenderer>> _remoteAudioRenderersByPeer = {};
   final Map<String, List<MediaStreamTrack>> _remoteAudioTracksByPeer = {};
   final List<RTCVideoRenderer> _remoteAudioRenderers = [];
@@ -196,8 +198,7 @@ class WebRTCService extends ChangeNotifier {
       if (!completer.isCompleted) completer.complete();
 
       // Socket-level keepalive: emit a heartbeat every 30 seconds so the
-      // signalling server stays warm (prevents Render free tier from sleeping)
-      // and the session doesn't get pruned by the server's TTL logic.
+      // active session does not get pruned by the server's TTL logic.
       _socketHeartbeatTimer?.cancel();
       _socketHeartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
         _socket?.emit('session-heartbeat', {'sessionId': _activeSessionId});
@@ -317,6 +318,8 @@ class WebRTCService extends ChangeNotifier {
       await pc.setRemoteDescription(
         RTCSessionDescription(signal['sdp'] as String?, 'offer'),
       );
+      _remoteDescriptionReadyPeers.add(fromId);
+      await _flushPendingIceCandidates(fromId, pc);
       final answer = await pc.createAnswer({
         'offerToReceiveAudio': true,
         'offerToReceiveVideo': false,
@@ -331,18 +334,51 @@ class WebRTCService extends ChangeNotifier {
     }
 
     final pc = _peers[fromId];
-    if (pc == null) return;
+    if (pc == null) {
+      if (signal['candidate'] != null) {
+        final candidate = RTCIceCandidate(
+          signal['candidate'] as String?,
+          signal['sdpMid'] as String?,
+          (signal['sdpMLineIndex'] as num?)?.toInt(),
+        );
+        _pendingIceCandidatesByPeer
+            .putIfAbsent(fromId, () => [])
+            .add(candidate);
+      }
+      return;
+    }
 
     if (type == 'answer') {
       await pc.setRemoteDescription(
         RTCSessionDescription(signal['sdp'] as String?, 'answer'),
       );
+      _remoteDescriptionReadyPeers.add(fromId);
+      await _flushPendingIceCandidates(fromId, pc);
     } else if (signal['candidate'] != null) {
-      await pc.addCandidate(RTCIceCandidate(
+      final candidate = RTCIceCandidate(
         signal['candidate'] as String?,
         signal['sdpMid'] as String?,
         (signal['sdpMLineIndex'] as num?)?.toInt(),
-      ));
+      );
+      if (!_remoteDescriptionReadyPeers.contains(fromId)) {
+        _pendingIceCandidatesByPeer.putIfAbsent(fromId, () => []).add(candidate);
+        return;
+      }
+      await pc.addCandidate(candidate);
+    }
+  }
+
+  Future<void> _flushPendingIceCandidates(
+    String peerId,
+    RTCPeerConnection pc,
+  ) async {
+    final candidates = _pendingIceCandidatesByPeer.remove(peerId) ?? const [];
+    for (final candidate in candidates) {
+      try {
+        await pc.addCandidate(candidate);
+      } catch (e) {
+        debugPrint('[WebRTC] Ignored stale ICE candidate for $peerId: $e');
+      }
     }
   }
 
@@ -373,6 +409,8 @@ class WebRTCService extends ChangeNotifier {
         _attemptIceRestart(peerId, pc);
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
         _peers.remove(peerId);
+        _pendingIceCandidatesByPeer.remove(peerId);
+        _remoteDescriptionReadyPeers.remove(peerId);
         _disposePeerMedia(peerId);
         notifyListeners();
       }
@@ -467,6 +505,8 @@ class WebRTCService extends ChangeNotifier {
       pc.close();
     }
     _peers.clear();
+    _pendingIceCandidatesByPeer.clear();
+    _remoteDescriptionReadyPeers.clear();
     for (final renderer in _remoteAudioRenderers) {
       renderer.srcObject = null;
       renderer.dispose();
@@ -523,6 +563,8 @@ class WebRTCService extends ChangeNotifier {
     } catch (e) {
       debugPrint('[WebRTC] ICE restart failed for $peerId: $e');
       _peers.remove(peerId);
+      _pendingIceCandidatesByPeer.remove(peerId);
+      _remoteDescriptionReadyPeers.remove(peerId);
       _disposePeerMedia(peerId);
       if (!isHost) {
         guestController?.markHostDisconnected();

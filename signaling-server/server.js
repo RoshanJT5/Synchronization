@@ -74,8 +74,8 @@ app.get('/c/:sessionId', (req, res) => {
 const io = new Server(server, {
   pingInterval: 10000,
   pingTimeout: 20000,
-  perMessageDeflate: true,
-  httpCompression: true,
+  perMessageDeflate: false,
+  httpCompression: false,
   cors: { 
     origin: "*",
     methods: ["GET", "POST"]
@@ -89,6 +89,43 @@ const io = new Server(server, {
 // proximity-filtered list (50-metre radius).
 const activeSessions = new Map();
 const SESSION_TTL_MS = 90000;
+const SESSION_DISCOVERY_RADIUS_METRES = Number(
+  process.env.SESSION_DISCOVERY_RADIUS_METRES || 50,
+);
+const DEBUG_SIGNALING = process.env.DEBUG_SIGNALING === 'true';
+const MAX_SIGNAL_BYTES = 200_000;
+
+function normalizeSessionId(value) {
+  if (typeof value !== 'string') return null;
+  const sessionId = value.trim().toUpperCase();
+  return /^[A-Z0-9_-]{3,64}$/.test(sessionId) ? sessionId : null;
+}
+
+function normalizeCoordinate(value) {
+  if (value == null || value === '') return null;
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) ? coordinate : null;
+}
+
+function hasValidCoordinates(lat, lng) {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
+
+function isSafeSignalPayload(signal) {
+  if (!signal || typeof signal !== 'object') return false;
+  try {
+    return JSON.stringify(signal).length <= MAX_SIGNAL_BYTES;
+  } catch {
+    return false;
+  }
+}
 
 // ── Haversine distance (metres between two GPS coordinates) ──────────────────
 function haversineMetres(lat1, lng1, lat2, lng2) {
@@ -139,23 +176,32 @@ io.on('connection', (socket) => {
   // ── Discovery: extension/host announces it is streaming ─────────────────
   // Now accepts optional lat/lng so the server stores the session's location.
   socket.on('announce-session', ({ sessionId, label, type, lat, lng }) => {
+    sessionId = normalizeSessionId(sessionId);
     if (!sessionId) return;
+    const safeType = type === 'mobile-host' ? 'mobile-host' : 'computer';
+    const safeLat = normalizeCoordinate(lat);
+    const safeLng = normalizeCoordinate(lng);
+    const hasLocation = hasValidCoordinates(safeLat, safeLng);
     const existing = activeSessions.get(sessionId);
-    console.log(`Session announced: ${sessionId} (${label || 'Unnamed'}, type=${type || 'computer'}, lat=${lat ?? 'none'}, lng=${lng ?? 'none'})`);
+    if (DEBUG_SIGNALING) {
+      console.log(`Session announced: ${sessionId} (${label || 'Unnamed'}, type=${safeType}, lat=${hasLocation ? safeLat : 'none'}, lng=${hasLocation ? safeLng : 'none'})`);
+    }
     activeSessions.set(sessionId, {
       sessionId,
       label: label || 'Computer',
-      type: type || 'computer',
+      type: safeType,
       socketId: socket.id,
       announcedAt: existing?.announcedAt || Date.now(),
       lastSeen: Date.now(),
-      lat: lat ?? null,
-      lng: lng ?? null,
+      lat: hasLocation ? safeLat : null,
+      lng: hasLocation ? safeLng : null,
     });
     broadcastActiveSessions();
   });
 
   socket.on('session-heartbeat', ({ sessionId }) => {
+    sessionId = normalizeSessionId(sessionId);
+    if (!sessionId) return;
     const session = activeSessions.get(sessionId);
     if (!session) return;
 
@@ -165,6 +211,8 @@ io.on('connection', (socket) => {
 
   // ── Discovery: extension signals it stopped streaming ───────────────────
   socket.on('end-session', ({ sessionId }) => {
+    sessionId = normalizeSessionId(sessionId);
+    if (!sessionId) return;
     console.log(`Session ended: ${sessionId}`);
     activeSessions.delete(sessionId);
     broadcastActiveSessions();
@@ -174,20 +222,29 @@ io.on('connection', (socket) => {
   // The client sends { lat, lng } with the request.
   // The server runs Haversine and only returns sessions within 50 metres.
   socket.on('get-active-sessions', (data) => {
-    const reqLat = data?.lat ?? null;
-    const reqLng = data?.lng ?? null;
+    const reqLat = normalizeCoordinate(data?.lat);
+    const reqLng = normalizeCoordinate(data?.lng);
+    const requesterHasLocation = hasValidCoordinates(reqLat, reqLng);
 
     pruneExpiredSessions();
 
     const list = Array.from(activeSessions.values())
-      .filter(({ lat, lng }) => {
-        // Both sides must have GPS for the proximity filter to work.
-        // If either side is missing coordinates, exclude for safety.
-        if (lat == null || lng == null || reqLat == null || reqLng == null) {
+      .filter(({ type, lat, lng }) => {
+        const isComputerSession = (type || 'computer') === 'computer';
+        const sessionHasLocation = hasValidCoordinates(lat, lng);
+
+        // Browser extension sessions cannot provide GPS coordinates. They are
+        // still safe to show because joining requires the random session code.
+        if (isComputerSession && !sessionHasLocation) {
+          return true;
+        }
+
+        // Mobile-host sessions keep the strict nearby filter.
+        if (!requesterHasLocation || !sessionHasLocation) {
           return false;
         }
         const dist = haversineMetres(reqLat, reqLng, lat, lng);
-        return dist <= 50; // 50-metre radius
+        return dist <= SESSION_DISCOVERY_RADIUS_METRES;
       })
       .map(({ sessionId, label, type, announcedAt }) => ({
         sessionId,
@@ -196,12 +253,16 @@ io.on('connection', (socket) => {
         announcedAt,
       }));
 
-    console.log(`get-active-sessions from (${reqLat},${reqLng}) → ${list.length} session(s) within 50m`);
+    if (DEBUG_SIGNALING) {
+      console.log(`get-active-sessions from (${reqLat},${reqLng}) -> ${list.length} session(s)`);
+    }
     socket.emit('active-sessions-updated', { sessions: list });
   });
 
   // ── Session join (WebRTC signaling room) ─────────────────────────────────
   socket.on('join-session', (sessionId) => {
+    sessionId = normalizeSessionId(sessionId);
+    if (!sessionId) return;
     const existingPeers = Array.from(io.sockets.adapter.rooms.get(sessionId) || [])
       .filter((peerId) => peerId !== socket.id);
 
@@ -216,8 +277,12 @@ io.on('connection', (socket) => {
 
   // ── WebRTC signal relay ──────────────────────────────────────────────────
   socket.on('signal', ({ sessionId, signal, to }) => {
-    console.log(`Relaying signal from ${socket.id} to ${to || sessionId}`);
-    if (to) {
+    sessionId = normalizeSessionId(sessionId);
+    if (!sessionId || !isSafeSignalPayload(signal)) return;
+    if (DEBUG_SIGNALING) {
+      console.log(`Relaying signal from ${socket.id} to ${to || sessionId}`);
+    }
+    if (typeof to === 'string' && to.length <= 128) {
       io.to(to).emit('signal', { from: socket.id, signal });
     } else {
       socket.to(sessionId).emit('signal', { from: socket.id, signal });

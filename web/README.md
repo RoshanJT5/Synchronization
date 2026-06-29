@@ -23,7 +23,7 @@ By using Synchronization, you agree that the software is provided "as is" withou
 ---
 
 ## Deploy
-Upload the `web/` folder to Render or any static host.
+Deploy the `web/` folder to Cloudflare Pages/Workers or another static host.
 
 ## Downloads
 Put release artifacts here before deployment:
@@ -32,9 +32,9 @@ Put release artifacts here before deployment:
 
 ## QR / Deep Link Flow
 The extension QR points to:
-`https://synchronization-807q.onrender.com/connect?id=SESSION&server=https://synchronization-807q.onrender.com`
+`https://synchronization.labs5.workers.dev/c/SESSION`
 
 The website opens:
-`synchronization://connect?id=SESSION&server=https://synchronization-807q.onrender.com`
+`synchronization://connect?id=SESSION&server=http://34.68.33.91:3001`
 
 If the app is installed, it opens and connects. If it is not installed, the user stays on the website and can download the app.

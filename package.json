@@ -1,0 +1,12 @@
+{
+  "name": "synchronization-workspace",
+  "version": "1.0.0",
+  "description": "Synchronization — monorepo root. Contains the build-time configuration updater.",
+  "private": true,
+  "scripts": {
+    "configure": "node update-config.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

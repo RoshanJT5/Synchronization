@@ -16,6 +16,9 @@ mobile/build/
 mobile/android/app/build/
 mobile/android/.gradle/
 mobile/android/local.properties
+mobile/android/key.properties
+*.jks
+*.keystore
 mobile/android/java_pid*.hprof
 *.hprof
 # Exclude raw APK/AAB build outputs but NOT web/downloads/ (served by Vercel)

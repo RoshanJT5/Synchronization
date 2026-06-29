@@ -1,0 +1,17 @@
+{
+  "_comment": "──────────────────────────────────────────────────────────────────────────",
+  "_comment2": "  SYNCHRONIZATION — Central Configuration",
+  "_comment3": "  Edit values below, then run:  npm run configure",
+  "_comment4": "  All six target files will be updated automatically.",
+  "_comment5": "──────────────────────────────────────────────────────────────────────────",
+
+  "frontend_domain": "synchronization.labs5.workers.dev",
+
+  "_backend_comment": "After deploying the Cloudflare failover proxy (cloudflare-proxy/),",
+  "_backend_comment2": "change backend_url to the proxy Worker URL (e.g. https://sync-signal.labs5.workers.dev).",
+  "_backend_comment3": "Then run npm run configure and rebuild the app ONCE. After that, no more rebuilds ever.",
+  "backend_url": "https://sync-signal.labs5.workers.dev",
+
+  "_render_comment": "Your Render free-tier fallback URL — fill this in wrangler.toml only (not used by the app directly).",
+  "render_url_reminder": "https://synchronization-807q.onrender.com"
+}

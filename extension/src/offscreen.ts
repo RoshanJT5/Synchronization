@@ -136,8 +136,7 @@ async function startHost(sessionId: string, streamId: string) {
       notifyPeerCount();
 
       // Periodic heartbeat keeps the signalling server aware this session is
-      // alive AND generates inbound traffic that prevents Render free tier
-      // from sleeping after 15 minutes of "inactivity".
+      // alive so active streams are not pruned while phones stay connected.
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       heartbeatTimer = setInterval(() => {
         socket?.emit('session-heartbeat', { sessionId: activeSessionId });

@@ -15,13 +15,11 @@
     "offscreen"
   ],
   "host_permissions": [
-    "http://34.68.33.91:3001/*",
-    "ws://34.68.33.91:3001/*",
-    "https://synchronization-807q.onrender.com/*",
-    "wss://synchronization-807q.onrender.com/*"
+    "https://sync-signal.labs5.workers.dev/*",
+    "wss://sync-signal.labs5.workers.dev/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://34.68.33.91:3001 ws://34.68.33.91:3001 https://synchronization-807q.onrender.com wss://synchronization-807q.onrender.com;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://sync-signal.labs5.workers.dev wss://sync-signal.labs5.workers.dev;"
   },
   "action": {
     "default_popup": "index.html",

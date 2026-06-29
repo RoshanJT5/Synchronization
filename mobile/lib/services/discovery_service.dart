@@ -138,12 +138,16 @@ class DiscoveryService extends ChangeNotifier {
     _socket!.connect();
   }
 
-  /// Emits 'get-active-sessions' with the phone's GPS coordinates so the
-  /// server only returns sessions within 50 metres.
+  /// Emits 'get-active-sessions' with GPS when available.
+  ///
+  /// Browser-extension sessions do not have GPS coordinates, so we still ask
+  /// the server for computer sessions if location is temporarily unavailable.
+  /// Mobile-host sessions remain protected by the server-side proximity filter.
   Future<void> _requestActiveSessions() async {
     final pos = await LocationService.getPosition();
     if (pos == null) {
-      debugPrint('[Discovery] No GPS position — skipping session request');
+      debugPrint('[Discovery] No GPS position; requesting computer sessions only');
+      _socket?.emit('get-active-sessions', const <String, dynamic>{});
       return;
     }
     _socket?.emit('get-active-sessions', {

@@ -1,24 +1,14 @@
 /// Central server configuration for Synchronization.
 ///
-/// To switch servers, change [useBackup]:
-///   - [useBackup] = false → uses the primary VM (http://34.68.33.91:3001)
-///   - [useBackup] = true  → uses the Render backup (https://synchronization-807q.onrender.com)
-///
+/// The app connects to the Cloudflare signaling proxy, which automatically
+/// routes to the GCP VM (primary) or Render free tier (fallback).
 /// Nothing else in the codebase should hardcode a server URL.
 class ServerConfig {
-  /// Primary signaling server — GCP VM.
-  static const String primaryServer = 'http://34.68.33.91:3001';
-
-  /// Backup signaling server — Render cloud (used during VM maintenance).
-  static const String backupServer =
-      'https://synchronization-807q.onrender.com';
-
-  /// Set to [true] when the VM is down and Render should be used instead.
-  static const bool useBackup = false;
+  /// Cloudflare signaling proxy — smart router between VM and Render fallback.
+  static const String primaryServer = 'https://sync-signal.labs5.workers.dev';
 
   /// The active signaling server URL used by the entire app.
-  static String get signalingServer =>
-      useBackup ? backupServer : primaryServer;
+  static String get signalingServer => primaryServer;
 
   /// The active server host (without scheme/port) used for deep link validation.
   static String get signalingHost => Uri.parse(signalingServer).host;

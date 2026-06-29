@@ -1,0 +1,42 @@
+# Synchronization — Cloudflare Signaling Proxy
+# =============================================
+# Wrangler configuration for the smart failover proxy Worker.
+#
+# STEP 1: Fill in your Cloudflare account_id below.
+#         Find it at: https://dash.cloudflare.com → Right sidebar → Account ID
+#
+# STEP 2: Fill in your Render URL in [vars] below.
+#         (The VM URL is already correct — change it only if your VM IP changes)
+#
+# STEP 3: Deploy:
+#         npx wrangler deploy
+#
+# The Worker will be live at:
+#   https://sync-signal.labs5.workers.dev
+#
+# Then update config.json:
+#   "backend_url": "https://sync-signal.labs5.workers.dev"
+# And run:
+#   npm run configure
+# And rebuild the app once.
+# After that — zero rebuilds ever again when switching VM ↔ Render.
+
+name       = "sync-signal"
+main       = "worker.js"
+# account_id = "aae21aa244f0d757164432997daaf3f5"  
+compatibility_date = "2024-09-23"
+
+# ── Environment variables ─────────────────────────────────────────────────────
+# These are readable by the Worker via `env.VM_URL` and `env.RENDER_URL`.
+# You can also override them in the Cloudflare dashboard without redeploying.
+[vars]
+VM_URL     = "https://sync-signal.labs5.workers.dev"
+RENDER_URL = "https://synchronization-807q.onrender.com"
+
+# ── Optional: bind to the existing workers.dev subdomain ─────────────────────
+# If you want the proxy to live at a custom route on your existing domain
+# (e.g. synchronization.labs5.workers.dev/socket.io/*), uncomment and configure:
+#
+# [[routes]]
+# pattern = "synchronization.labs5.workers.dev/socket.io/*"
+# zone_name = "workers.dev"
