@@ -3,8 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Privacy Policy | Synchronization</title>
-    <meta name="description" content="Synchronization Privacy Policy. We do not collect or store your audio. Peer-to-peer, private by design." />
+    <title>Privacy Policy - Synchronization Audio Sync App</title>
+    <meta name="description" content="Privacy Policy for Synchronization, a private peer-to-peer audio sync app. We do not collect, store, or transmit your audio content." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://synchronizationpro.app/privacy.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Synchronization" />
+    <meta property="og:title" content="Privacy Policy - Synchronization Audio Sync App" />
+    <meta property="og:description" content="Privacy Policy for Synchronization, a private peer-to-peer audio sync app. We do not collect, store, or transmit your audio content." />
+    <meta property="og:url" content="https://synchronizationpro.app/privacy.html" />
+    <meta property="og:image" content="https://synchronizationpro.app/assets/hero.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Privacy Policy - Synchronization Audio Sync App" />
+    <meta name="twitter:description" content="Privacy Policy for Synchronization, a private peer-to-peer audio sync app. We do not collect, store, or transmit your audio content." />
+    <meta name="twitter:image" content="https://synchronizationpro.app/assets/hero.png" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="icon" type="image/png" href="favicon.png?v=1" />
     <style>
@@ -81,7 +93,7 @@
       }
       .bullet-list li:last-child { border-bottom: none; }
       .bullet-list li::before {
-        content: '✓';
+        content: '*';
         color: var(--accent);
         position: absolute;
         left: 0;
@@ -247,21 +259,21 @@
             The following permissions are requested by the Android application. Each permission is used only for the specific stated purpose.
           </p>
           <ul class="bullet-list">
-            <li><code style="color:var(--accent);font-family:monospace;">ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION</code> — Required to determine your GPS coordinates for the 50-meter Nearby Session Discovery filter. Used only when you host or join a session. Not used for advertising targeting by us.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">CAMERA</code> — Used exclusively to scan QR codes displayed by the Chrome Extension or other host devices. No photographs or video recordings are taken, stored, or transmitted.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE</code> — Required for WebRTC peer-to-peer connections and communication with the signaling server.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">READ_MEDIA_AUDIO, READ_MEDIA_VIDEO, READ_EXTERNAL_STORAGE</code> — Required in Phone-to-Phone host mode to allow you to select a local audio or video file from your device storage to broadcast to guest devices. Files are read locally and are never uploaded.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">MODIFY_AUDIO_SETTINGS</code> — Required to configure audio routing and output during active streaming sessions.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK, WAKE_LOCK</code> — Required to keep the audio session active when the app is in the background or the screen is locked, functioning similarly to a music streaming application.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code> — Requested to prevent Android from suspending the foreground audio service during extended sessions.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">BLUETOOTH, BLUETOOTH_CONNECT</code> — Required to route audio output to connected Bluetooth headphones or speakers correctly.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION</code> - Required to determine your GPS coordinates for the 50-meter Nearby Session Discovery filter. Used only when you host or join a session. Not used for advertising targeting by us.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">CAMERA</code> - Used exclusively to scan QR codes displayed by the Chrome Extension or other host devices. No photographs or video recordings are taken, stored, or transmitted.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE</code> - Required for WebRTC peer-to-peer connections and communication with the signaling server.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">READ_MEDIA_AUDIO, READ_MEDIA_VIDEO, READ_EXTERNAL_STORAGE</code> - Required in Phone-to-Phone host mode to allow you to select a local audio or video file from your device storage to broadcast to guest devices. Files are read locally and are never uploaded.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">MODIFY_AUDIO_SETTINGS</code> - Required to configure audio routing and output during active streaming sessions.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK, WAKE_LOCK</code> - Required to keep the audio session active when the app is in the background or the screen is locked, functioning similarly to a music streaming application.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code> - Requested to prevent Android from suspending the foreground audio service during extended sessions.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">BLUETOOTH, BLUETOOTH_CONNECT</code> - Required to route audio output to connected Bluetooth headphones or speakers correctly.</li>
           </ul>
           <p style="margin-top: 14px;"><strong style="color:var(--text);">Chrome Extension permissions (Manifest V3):</strong></p>
           <ul class="bullet-list">
-            <li><code style="color:var(--accent);font-family:monospace;">tabCapture</code> — Captures audio from the browser tab you select. Active only when you explicitly start a streaming session.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">activeTab</code> — Identifies the current browser tab for capture. No tab content, URLs, or history are accessed or stored.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">storage</code> — Stores your saved signaling server URL locally in the browser. This preference data never leaves your device.</li>
-            <li><code style="color:var(--accent);font-family:monospace;">offscreen</code> — Required by Chrome Manifest V3 to run audio processing in a background context.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">tabCapture</code> - Captures audio from the browser tab you select. Active only when you explicitly start a streaming session.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">activeTab</code> - Identifies the current browser tab for capture. No tab content, URLs, or history are accessed or stored.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">storage</code> - Stores your saved signaling server URL locally in the browser. This preference data never leaves your device.</li>
+            <li><code style="color:var(--accent);font-family:monospace;">offscreen</code> - Required by Chrome Manifest V3 to run audio processing in a background context.</li>
           </ul>
         </div>
 
@@ -300,7 +312,7 @@
           <h2><span class="section-num">6</span> Third-Party Services and Infrastructure</h2>
           <ul class="bullet-list">
             <li><strong style="color:var(--text);"> Google Cloud (signaling server hosting). </strong>Our signaling server is hosted on a Google Cloud Compute Engine e2-micro virtual machine. Google Cloud may process connection metadata including IP addresses pursuant to the Google Cloud Privacy Policy at cloud.google.com/terms/cloud-privacy-notice. We do not add application-level logging of user requests beyond what the signaling function requires.</li>
-            <li><strong style="color:var(--text);">Cloudflare (website hosting).</strong> Our website at synchronization.labs5.workers.dev is hosted on Cloudflare Workers. Cloudflare may process connection metadata pursuant to their privacy policy at cloudflare.com/privacypolicy.</li>
+            <li><strong style="color:var(--text);">Cloudflare (website hosting).</strong> Our website at synchronizationpro.app is hosted on Cloudflare Workers. Cloudflare may process connection metadata pursuant to their privacy policy at cloudflare.com/privacypolicy.</li>
             <li><strong style="color:var(--text);">WebRTC STUN servers.</strong> WebRTC uses public STUN servers, including those operated by Google, during ICE negotiation to facilitate NAT traversal. These servers receive your device's public IP address momentarily. This interaction is standard to the WebRTC protocol and is governed by the STUN server operator's own policies.</li>
             <li><strong style="color:var(--text);">TURN relay servers.</strong> If a direct connection cannot be established, encrypted audio packets may be routed through third-party TURN relay infrastructure. These servers route encrypted data only and cannot access the content of your audio stream.</li>
             <li><strong style="color:var(--text);">Google AdMob.</strong> Described in full in Section 5 above.</li>

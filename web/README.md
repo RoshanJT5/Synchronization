@@ -32,9 +32,9 @@ Put release artifacts here before deployment:
 
 ## QR / Deep Link Flow
 The extension QR points to:
-`https://synchronization.labs5.workers.dev/c/SESSION`
+`https://synchronizationpro.app/c/SESSION`
 
 The website opens:
-`synchronization://connect?id=SESSION&server=http://34.68.33.91:3001`
+`synchronization://connect?id=SESSION&server=https://sync.synchronizationpro.app`
 
 If the app is installed, it opens and connects. If it is not installed, the user stays on the website and can download the app.

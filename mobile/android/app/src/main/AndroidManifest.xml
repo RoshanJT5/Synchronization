@@ -71,7 +71,7 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https"
-                    android:host="synchronization.labs5.workers.dev"
+                    android:host="synchronizationpro.app"
                     android:pathPrefix="/connect"/>
             </intent-filter>
 
@@ -81,7 +81,7 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https"
-                    android:host="synchronization.labs5.workers.dev"
+                    android:host="synchronizationpro.app"
                     android:pathPrefix="/c/"/>
             </intent-filter>
 

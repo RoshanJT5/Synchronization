@@ -5,13 +5,12 @@
   "_comment4": "  All six target files will be updated automatically.",
   "_comment5": "──────────────────────────────────────────────────────────────────────────",
 
-  "frontend_domain": "synchronization.labs5.workers.dev",
+  "frontend_domain": "synchronizationpro.app",
 
-  "_backend_comment": "After deploying the Cloudflare failover proxy (cloudflare-proxy/),",
-  "_backend_comment2": "change backend_url to the proxy Worker URL (e.g. https://sync-signal.labs5.workers.dev).",
-  "_backend_comment3": "Then run npm run configure and rebuild the app ONCE. After that, no more rebuilds ever.",
-  "backend_url": "https://sync-signal.labs5.workers.dev",
+  "_backend_comment": "backend_url = the public-facing URL of the Cloudflare signaling proxy.",
+  "_backend_comment2": "The proxy internally routes to the VM or Render — do NOT put the raw VM IP here.",
+  "backend_url": "https://sync.synchronizationpro.app",
 
-  "_render_comment": "Your Render free-tier fallback URL — fill this in wrangler.toml only (not used by the app directly).",
+  "_render_comment": "Render free-tier fallback — set in cloudflare-proxy/wrangler.toml RENDER_URL.",
   "render_url_reminder": "https://synchronization-807q.onrender.com"
 }

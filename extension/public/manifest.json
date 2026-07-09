@@ -15,11 +15,11 @@
     "offscreen"
   ],
   "host_permissions": [
-    "https://sync-signal.labs5.workers.dev/*",
-    "wss://sync-signal.labs5.workers.dev/*"
+    "https://sync.synchronizationpro.app/*",
+    "wss://sync.synchronizationpro.app/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://sync-signal.labs5.workers.dev wss://sync-signal.labs5.workers.dev;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://sync.synchronizationpro.app wss://sync.synchronizationpro.app;"
   },
   "action": {
     "default_popup": "index.html",

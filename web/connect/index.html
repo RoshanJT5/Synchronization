@@ -3,7 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Opening Synchronization…</title>
+    <title>Opening Synchronization...</title>
+    <meta name="robots" content="noindex, follow" />
+    <link rel="canonical" href="https://synchronizationpro.app/connect/" />
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -20,7 +22,7 @@
         gap: 0;
       }
 
-      /* ── Logo ── */
+      /* -- Logo -- */
       .logo {
         width: 56px; height: 56px;
         background: linear-gradient(135deg, #a855f7, #7c3aed);
@@ -47,7 +49,7 @@
         line-height: 1.5;
       }
 
-      /* ── Card ── */
+      /* -- Card -- */
       .card {
         background: #0f0f12;
         border: 1px solid rgba(255,255,255,0.08);
@@ -60,7 +62,7 @@
         gap: 16px;
       }
 
-      /* ── Session badge ── */
+      /* -- Session badge -- */
       .session-row {
         display: flex;
         align-items: center;
@@ -73,7 +75,7 @@
       .session-label { font-size: 11px; color: #94a3b8; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
       .session-id { font-family: monospace; font-size: 15px; font-weight: 700; color: #a855f7; }
 
-      /* ── Spinner state ── */
+      /* -- Spinner state -- */
       .state-opening {
         display: flex;
         flex-direction: column;
@@ -91,7 +93,7 @@
       @keyframes spin { to { transform: rotate(360deg); } }
       .state-opening p { color: #94a3b8; font-size: 13px; }
 
-      /* ── Not installed state ── */
+      /* -- Not installed state -- */
       .state-notinstalled { display: none; flex-direction: column; gap: 12px; }
 
       .btn {
@@ -176,9 +178,9 @@
     </style>
   </head>
   <body>
-    <div class="logo">🔊</div>
+    <div class="logo">S</div>
     <h1>Synchronization</h1>
-    <p class="subtitle">Connecting your browser audio<br>to your phone…</p>
+    <p class="subtitle">Connecting your browser audio<br>to your phone...</p>
 
     <div class="card">
       <!-- Session badge (hidden if no session ID) -->
@@ -190,7 +192,7 @@
       <!-- State: trying to open app -->
       <div class="state-opening" id="state-opening">
         <div class="spinner"></div>
-        <p id="opening-msg">Opening app…</p>
+        <p id="opening-msg">Opening app...</p>
       </div>
 
       <!-- State: app not installed -->
@@ -226,7 +228,7 @@
       const params   = new URLSearchParams(window.location.search);
       const pathMatch = window.location.pathname.match(/\/c\/([^/?#]+)/);
       const id       = params.get('id') || (pathMatch ? decodeURIComponent(pathMatch[1]) : '');
-      const server   = params.get('server') || 'https://sync-signal.labs5.workers.dev';
+      const server   = params.get('server') || 'https://sync.synchronizationpro.app';
       const apkChoices = Array.from(document.querySelectorAll('.apk-choice'));
       const mainDownload = document.getElementById('btn-download');
 
@@ -297,19 +299,19 @@
 
       function tryOpen() {
         if (!id) {
-          // No session ID — just go to homepage
+          // No session ID - just go to homepage
           window.location.replace('/');
           return;
         }
 
-        document.getElementById('opening-msg').textContent = 'Opening app…';
+        document.getElementById('opening-msg').textContent = 'Opening app...';
         document.getElementById('state-opening').style.display    = 'flex';
         document.getElementById('state-notinstalled').style.display = 'none';
         document.getElementById('bottom-note').style.display       = 'none';
 
         // Attempt to open the app via custom scheme.
         // If the app is installed, Android will intercept this and open it.
-        // If not, nothing happens — we detect that via a visibility/blur trick.
+        // If not, nothing happens - we detect that via a visibility/blur trick.
         const deepLink = buildDeepLink();
         const start = Date.now();
 
@@ -355,7 +357,7 @@
         // Small delay so the page renders first
         setTimeout(tryOpen, 400);
       } else {
-        // No session — redirect to homepage
+        // No session - redirect to homepage
         setTimeout(() => window.location.replace('/'), 1000);
       }
     </script>

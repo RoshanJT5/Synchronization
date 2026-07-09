@@ -7,10 +7,10 @@
  */
 
 /** Cloudflare signaling proxy — smart router between VM and Render fallback. */
-export const PRIMARY_SERVER = 'https://sync-signal.labs5.workers.dev';
+export const PRIMARY_SERVER = 'https://sync.synchronizationpro.app';
 
 /** The active signaling server URL used by the entire extension. */
 export const SIGNALING_SERVER = PRIMARY_SERVER;
 
 /** The connect page base URL (for QR code generation). */
-export const CONNECT_PAGE_URL = 'https://synchronization.labs5.workers.dev/c';
+export const CONNECT_PAGE_URL = 'https://synchronizationpro.app/c';

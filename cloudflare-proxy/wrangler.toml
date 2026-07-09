@@ -30,7 +30,7 @@ compatibility_date = "2024-09-23"
 # These are readable by the Worker via `env.VM_URL` and `env.RENDER_URL`.
 # You can also override them in the Cloudflare dashboard without redeploying.
 [vars]
-VM_URL     = "https://sync-signal.labs5.workers.dev"
+VM_URL     = "https://sync.synchronizationpro.app"
 RENDER_URL = "https://synchronization-807q.onrender.com"
 
 # ── Optional: bind to the existing workers.dev subdomain ─────────────────────
