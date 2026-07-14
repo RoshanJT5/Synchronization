@@ -2,4 +2,30 @@ User-agent: *
 Allow: /
 Disallow: /connect/
 
+# Explicitly allow AI crawlers to scan the main marketing pages
+# while keeping connection URLs secure.
+User-agent: GPTBot
+Allow: /
+Disallow: /connect/
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /connect/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /connect/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /connect/
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /connect/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /connect/
+
 Sitemap: https://synchronizationpro.app/sitemap.xml
