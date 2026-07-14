@@ -146,35 +146,6 @@
       }
       .note a { color: #a855f7; text-decoration: none; }
 
-      .apk-list {
-        display: grid;
-        gap: 8px;
-      }
-      .apk-choice {
-        align-items: center;
-        background: #09090c;
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 12px;
-        color: #f8fafc;
-        display: flex;
-        justify-content: space-between;
-        padding: 10px 12px;
-        text-decoration: none;
-      }
-      .apk-choice.recommended {
-        border-color: #a855f7;
-      }
-      .apk-choice.disabled {
-        opacity: 0.45;
-        pointer-events: none;
-      }
-      .apk-choice strong {
-        font-size: 13px;
-      }
-      .apk-choice span {
-        color: #94a3b8;
-        font-size: 11px;
-      }
     </style>
   </head>
   <body>
@@ -197,20 +168,9 @@
 
       <!-- State: app not installed -->
       <div class="state-notinstalled" id="state-notinstalled">
-        <a id="btn-download" class="btn btn-primary" href="/downloads/synchronization-arm64.apk?v=20260606-arch" download="synchronization-arm64.apk">
-          Install Android App
+        <a id="btn-download" class="btn btn-primary" href="https://play.google.com/store/apps/details?id=com.synchronization.app" target="_blank" rel="noopener noreferrer">
+          Get it on Google Play
         </a>
-        <div class="apk-list" id="apk-list">
-          <a class="apk-choice" data-arch="arm64" href="/downloads/synchronization-arm64.apk?v=20260606-arch" download="synchronization-arm64.apk">
-            <strong>ARM64</strong><span>modern phones</span>
-          </a>
-          <a class="apk-choice" data-arch="arm32" href="/downloads/synchronization-arm32.apk?v=20260606-arch" download="synchronization-arm32.apk">
-            <strong>ARMv7</strong><span>older phones</span>
-          </a>
-          <a class="apk-choice" data-arch="x86_64" href="/downloads/synchronization-x86_64.apk?v=20260606-arch" download="synchronization-x86_64.apk">
-            <strong>x86_64</strong><span>emulators / rare devices</span>
-          </a>
-        </div>
         <div class="divider">ALREADY INSTALLED?</div>
         <button class="btn btn-secondary" id="btn-retry">Try Opening Again</button>
         <p class="note">
@@ -229,8 +189,6 @@
       const pathMatch = window.location.pathname.match(/\/c\/([^/?#]+)/);
       const id       = params.get('id') || (pathMatch ? decodeURIComponent(pathMatch[1]) : '');
       const server   = params.get('server') || 'https://sync.synchronizationpro.app';
-      const apkChoices = Array.from(document.querySelectorAll('.apk-choice'));
-      const mainDownload = document.getElementById('btn-download');
 
       // Show session badge
       if (id) {
@@ -253,49 +211,7 @@
         document.getElementById('bottom-note').style.display       = 'block';
       }
 
-      function detectPreferredArch() {
-        const ua = navigator.userAgent.toLowerCase();
-        if (ua.includes('x86_64') || ua.includes('x64') || ua.includes('x86')) return 'x86_64';
-        if (ua.includes('armv7') || ua.includes('armeabi') || ua.includes('android 4') || ua.includes('android 5')) return 'arm32';
-        return 'arm64';
-      }
 
-      function setMainDownload(choice) {
-        apkChoices.forEach((item) => item.classList.remove('recommended'));
-        choice.classList.add('recommended');
-        mainDownload.href = choice.href;
-        mainDownload.setAttribute('download', choice.getAttribute('download'));
-        mainDownload.textContent = `Install Android App (${choice.querySelector('strong').textContent})`;
-      }
-
-      async function setupDownloads() {
-        const preferred = detectPreferredArch();
-        await Promise.all(apkChoices.map(async (choice) => {
-          try {
-            const response = await fetch(choice.getAttribute('href'), { method: 'HEAD', cache: 'no-store' });
-            if (!response.ok) throw new Error('missing');
-          } catch {
-            choice.classList.add('disabled');
-            choice.removeAttribute('download');
-            choice.setAttribute('aria-disabled', 'true');
-          }
-        }));
-
-        const available = apkChoices.filter((choice) => !choice.classList.contains('disabled'));
-        const recommended =
-          available.find((choice) => choice.dataset.arch === preferred) ||
-          available.find((choice) => choice.dataset.arch === 'arm64') ||
-          available[0];
-
-        if (recommended) {
-          setMainDownload(recommended);
-        } else {
-          mainDownload.classList.add('disabled');
-          mainDownload.removeAttribute('download');
-          mainDownload.href = '/';
-          mainDownload.textContent = 'Android APKs not uploaded yet';
-        }
-      }
 
       function tryOpen() {
         if (!id) {
@@ -350,7 +266,6 @@
 
       // Retry button
       document.getElementById('btn-retry').addEventListener('click', tryOpen);
-      setupDownloads();
 
       // Auto-trigger on load
       if (id) {

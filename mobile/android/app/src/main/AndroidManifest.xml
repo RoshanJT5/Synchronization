@@ -101,7 +101,10 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
-        <!-- AdMob App ID (Test ID for development) -->
+        <!-- AdMob App ID (Production commented out, using Google Test ID for Play Store testing) -->
+        <!-- <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-6635939012655124~7428967832"/> -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3940256099942544~3347511713"/>

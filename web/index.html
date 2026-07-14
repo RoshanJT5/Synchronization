@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Synchronization - Sync Audio from Browser to Android | Wireless Audio Sync App</title>
     <meta name="description" content="Synchronization is a private wireless audio sync app that streams browser audio to Android with low-latency WebRTC. Sync audio, synchronize sound, and listen on your phone without cables." />
-    <meta name="keywords" content="Synchronization, synchro, syncapp, syncpro, synchronize audio, sync audio, audio sync, syncaudio, wireless audio, browser audio to phone, Android audio streaming, WebRTC audio" />
+    <meta name="keywords" content="Synchronization, synchro, syncapp, syncpro, syncaudio, audio sync, sync audio, syn-audio, audio-sync, synchronize audio, synced audio, wireless audio, wireless audio app, wireless audio streaming, browser audio to phone, browser audio streaming, tab audio stream, PC to phone audio, laptop to phone audio, desktop audio to phone, Android audio app, Android audio receiver, audio stream android, chrome extension audio, chrome tab audio, chrome audio sync, WebRTC audio, WebRTC streaming, p2p audio streaming, peer to peer audio, low latency audio, zero latency audio, real time audio sync, audio over wifi, wifi audio streaming, local audio streaming, multi-room audio, synchronized audio playback, audio synchronization, stream audio to android, audio mirror android, sound sync app, phone audio sync, wireless sound sync, sound over wifi, audio sharing app, synchronized playback, precision audio sync, audio streaming app android, no bluetooth audio, cable free audio, wireless headphone alternative, browser to android audio, chrome to android audio, send audio to phone, private audio streaming, tab capture audio, browser tab audio stream, stream browser sound, wireless audio pc to phone, audio sync without bluetooth, audio sync over local network, home audio sync, multi device audio sync, audio transmission app, wifi audio app, audio receiver android, audio sender chrome, synchronize sound, synchronize browser audio, audio link app, audio bridge app, audio relay app, stream audio wirelessly, audio cast android, no cable audio, audio sync free, free wireless audio" />
+    <meta name="author" content="Synchronization Labs" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <link rel="canonical" href="https://synchronizationpro.app/" />
     <meta property="og:type" content="website" />
@@ -27,10 +28,22 @@
         "name": "Synchronization",
         "alternateName": ["Synchro", "SyncApp", "SyncPro", "SyncAudio", "AudioSync"],
         "applicationCategory": "MultimediaApplication",
-        "operatingSystem": "Android, Chrome",
+        "operatingSystem": "Android 7.0+, Chrome",
         "url": "https://synchronizationpro.app/",
         "downloadUrl": "https://synchronizationpro.app/#download",
-        "description": "Synchronization is a private wireless audio sync app for streaming browser audio to Android with low-latency WebRTC.",
+        "description": "Synchronization is a private wireless audio sync app for streaming browser audio to Android with low-latency WebRTC peer-to-peer technology. No accounts, no cloud, no cables required.",
+        "featureList": [
+          "WebRTC peer-to-peer audio streaming",
+          "Zero perceptible latency audio sync",
+          "QR code instant pairing",
+          "No account or sign-up required",
+          "No cloud audio routing",
+          "Multi-device synchronized playback",
+          "Phone-to-phone audio sharing mode",
+          "Precision clock-based drift correction",
+          "Works over Wi-Fi and mobile hotspot"
+        ],
+        "screenshot": "https://synchronizationpro.app/assets/hero.png",
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -41,6 +54,87 @@
           "name": "Synchronization Labs",
           "url": "https://synchronizationpro.app/"
         }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Synchronization and how does it work?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Synchronization is a free wireless audio sync app that streams browser tab audio from your PC to your Android phone using WebRTC peer-to-peer technology. Install the Chrome Extension on your desktop, open a tab with audio, click Start Streaming, and a QR code appears. Scan it with the Android app and your phone starts playing the audio within two seconds. No cables, no accounts, no cloud server required."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Synchronization work without an internet connection?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Once the initial WebRTC handshake is complete, all audio streams directly over your local Wi-Fi network or mobile hotspot. No internet connection is required for audio playback. The only internet-dependent step is the brief signaling exchange when your devices first connect, which completes in under one second."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Synchronization free to use?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, Synchronization is free to download and use. No subscription, no in-app purchases, and no account required. The Android app is supported by non-intrusive advertisements."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Synchronization work on iPhone or iOS?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Not yet. Synchronization currently supports Android devices running Android 7.0 or later. An iOS version is planned for a future release and will be distributed through TestFlight or the App Store when available."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How much audio delay or latency is there?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Synchronization is designed for virtually zero perceptible latency. On a typical home Wi-Fi network, the audio delay is well under 100 milliseconds — fast enough that you will not notice a lip-sync difference when watching video. The app uses precision clock-based scheduling and drift correction to keep audio aligned across all connected devices continuously."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is my audio private? Does it go through your servers?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, your audio is private. Synchronization streams audio directly from your PC to your phone using WebRTC peer-to-peer technology. Your audio never passes through Synchronization Labs' servers at any point. The signaling server is only used briefly during initial connection setup to exchange connection metadata — it never touches your audio. In rare network configurations where a direct connection is not possible, encrypted TURN relay servers may be used, but these cannot access the audio content inside the encrypted stream."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What Android version do I need?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Synchronization requires Android 7.0 (Nougat) or later. Most Android phones released after 2016 meet this requirement. You will also need your phone and PC to be on the same Wi-Fi network or connected via a mobile hotspot."
+            }
+          },
+
+          {
+            "@type": "Question",
+            "name": "Can I connect multiple phones at the same time?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Multiple Android devices can connect to the same streaming session simultaneously. All connected phones will play the same audio in sync using Synchronization's precision clock-calibration system. This makes it ideal for creating a multi-room audio setup or sharing audio with multiple people at once."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why is the Chrome Extension a ZIP file and not on the Chrome Web Store?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Synchronization is currently distributed as a manually-loaded unpacked Chrome extension rather than through the Chrome Web Store. This lets us ship updates immediately without waiting for Google's store review process. To install it, download the ZIP, extract it, go to chrome://extensions in Chrome, enable Developer Mode, click Load unpacked, and select the extracted folder. It takes under two minutes."
+            }
+          }
+        ]
       }
     </script>
   </head>
@@ -67,70 +161,14 @@
           Powered by WebRTC P2P technology for ultra-low latency.
         </p>
         <div class="actions" id="download">
+          <a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=com.synchronization.app" target="_blank" rel="noopener noreferrer">
+            Get it on Google Play
+          </a>
           <a class="btn btn-secondary chrome-btn" href="downloads/synchronization-extension.zip?v=20260512-0130" download="synchronization-extension.zip">
             Get Chrome Extension
           </a>
         </div>
-        <section class="download-panel" aria-label="Android app downloads">
-          <div class="download-panel-header">
-            <div>
-              <span class="download-kicker">Android APK</span>
-              <h2>Choose the right app build</h2>
-              <p>
-                We recommend the most likely APK for this device, but every architecture is available for manual download.
-              </p>
-            </div>
-            <a
-              id="apk-download"
-              class="btn btn-primary"
-              href="downloads/synchronization-arm64.apk?v=20260606-arch"
-              download="synchronization-arm64.apk"
-            >
-              Detecting Android build...
-            </a>
-          </div>
-
-          <div class="apk-grid" id="apk-options">
-            <a
-              class="apk-option"
-              data-arch="arm64"
-              href="downloads/synchronization-arm64.apk?v=20260606-arch"
-              download="synchronization-arm64.apk"
-            >
-              <span class="apk-name">ARM64</span>
-              <span class="apk-desc">Most modern Android phones</span>
-              <span class="apk-state">Checking...</span>
-            </a>
-            <a
-              class="apk-option"
-              data-arch="arm32"
-              href="downloads/synchronization-arm32.apk?v=20260606-arch"
-              download="synchronization-arm32.apk"
-            >
-              <span class="apk-name">ARMv7 / 32-bit</span>
-              <span class="apk-desc">Older Android phones</span>
-              <span class="apk-state">Checking...</span>
-            </a>
-            <a
-              class="apk-option"
-              data-arch="x86_64"
-              href="downloads/synchronization-x86_64.apk?v=20260606-arch"
-              download="synchronization-x86_64.apk"
-            >
-              <span class="apk-name">x86_64</span>
-              <span class="apk-desc">Emulators, Chromebooks, rare Intel devices</span>
-              <span class="apk-state">Checking...</span>
-            </a>
-          </div>
-
-          <p id="apk-status" class="download-note"></p>
-          <p class="download-note">
-            Downloading on a PC for transfer? Pick the APK that matches the Android device, not the computer.
-          </p>
-          <div class="ios-note">
-            <strong>iOS:</strong> iPhone builds are not published yet. When an iOS release is available, it should be distributed through TestFlight or the App Store rather than Android APK architecture files.
-          </div>
-        </section>
+        
         <div class="hero-visual">
           <img src="assets/hero.png" alt="App Preview" />
         </div>
@@ -198,7 +236,7 @@ Just scan &amp; listen.</code></pre>
           <h3>Installation Guide</h3>
           <ol>
             <li><strong>Chrome Extension:</strong> Download the extension ZIP file above. Extract it. Go to <code>chrome://extensions</code>, enable "Developer mode", and click "Load unpacked" to select the extracted folder.</li>
-            <li><strong>Android App:</strong> Download the Android APK file above and install it on your Android device.</li>
+            <li><strong>Android App:</strong> Download the Android app from the Google Play Store and install it on your device.</li>
           </ol>
         </div>
 
@@ -215,6 +253,160 @@ Just scan &amp; listen.</code></pre>
         </div>
       </div>
     </section>
+
+    <!-- FAQ Section -->
+    <section class="docs-section" id="faq" aria-label="Frequently Asked Questions">
+      <div class="docs-container">
+        <h2>Frequently Asked Questions</h2>
+        <p style="color:var(--text-dim);margin-bottom:32px;font-size:15px;">Everything you need to know before downloading.</p>
+
+        <div class="faq-list">
+
+          <details class="faq-item">
+            <summary class="faq-q">What is Synchronization and how does it work?</summary>
+            <div class="faq-a">
+              <p>Synchronization is a free wireless audio sync app that streams browser tab audio from your PC to your Android phone using WebRTC peer-to-peer technology. Install the Chrome Extension on your desktop, open a tab with audio, click <strong>Start Streaming</strong>, and a QR code appears instantly. Scan it with the Android app and your phone starts playing the audio within two seconds — no cables, no accounts, no cloud server required.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">Does Synchronization work without an internet connection?</summary>
+            <div class="faq-a">
+              <p>Yes. Once the initial WebRTC handshake is complete, all audio streams directly over your local Wi-Fi network or mobile hotspot. No internet connection is required for audio playback. The only internet-dependent step is the brief signaling exchange when your devices first connect, which completes in under one second.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">Is Synchronization free to use?</summary>
+            <div class="faq-a">
+              <p>Yes — completely free to download and use. No subscription, no in-app purchases, and no account required. The Android app is supported by non-intrusive advertisements.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">Does it work on iPhone or iOS?</summary>
+            <div class="faq-a">
+              <p>Not yet. Synchronization currently supports Android 7.0 and later. An iOS version is planned and will be distributed through TestFlight or the App Store when available.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">How much audio delay is there? Is it truly low-latency?</summary>
+            <div class="faq-a">
+              <p>On a typical home Wi-Fi network, the audio delay is well under 100 milliseconds — fast enough that you won't notice a lip-sync difference when watching video. Synchronization uses precision clock-based scheduling and drift correction to keep audio aligned continuously across all connected devices.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">Is my audio private? Does it go through your servers?</summary>
+            <div class="faq-a">
+              <p>Yes, your audio is private. Audio streams directly from your PC to your phone via WebRTC and never passes through Synchronization Labs' servers. The signaling server only facilitates the initial connection handshake — it never touches your audio. In rare network edge cases, encrypted TURN relay servers may be used, but they cannot access the audio content inside the encrypted stream.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">What Android version do I need?</summary>
+            <div class="faq-a">
+              <p>Android 7.0 (Nougat) or later. Most phones released after 2016 meet this requirement. Your phone and PC must also be on the same Wi-Fi network or connected via a mobile hotspot.</p>
+            </div>
+          </details>
+
+
+
+          <details class="faq-item">
+            <summary class="faq-q">Can I connect multiple phones at the same time?</summary>
+            <div class="faq-a">
+              <p>Yes. Multiple Android devices can join the same streaming session simultaneously. All connected phones play the same audio in sync using Synchronization's clock-calibration system — ideal for multi-room audio or sharing with multiple listeners at once.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">Why is the Chrome Extension a ZIP file instead of on the Web Store?</summary>
+            <div class="faq-a">
+              <p>Distributing as a ZIP lets us ship updates immediately without waiting for Google's review queue. To install: download the ZIP, extract it, open <code>chrome://extensions</code> in Chrome, enable <strong>Developer mode</strong>, click <strong>Load unpacked</strong>, and select the extracted folder. The whole process takes under two minutes.</p>
+            </div>
+          </details>
+
+        </div>
+      </div>
+    </section>
+
+    <style>
+      .faq-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .faq-item {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+        transition: border-color 0.3s;
+      }
+      .faq-item[open] {
+        border-color: rgba(168, 85, 247, 0.45);
+      }
+      .faq-item:hover {
+        border-color: rgba(168, 85, 247, 0.3);
+      }
+      .faq-q {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        padding: 22px 28px;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text);
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+        transition: color 0.2s;
+      }
+      .faq-q::-webkit-details-marker { display: none; }
+      .faq-q::after {
+        content: '+';
+        font-size: 22px;
+        font-weight: 400;
+        color: var(--accent);
+        flex-shrink: 0;
+        transition: transform 0.25s ease;
+      }
+      .faq-item[open] .faq-q::after {
+        transform: rotate(45deg);
+      }
+      .faq-item[open] .faq-q {
+        color: var(--accent);
+      }
+      .faq-a {
+        padding: 0 28px 22px;
+        border-top: 1px solid var(--border);
+        animation: faqIn 0.2s ease;
+      }
+      .faq-a p {
+        color: var(--text-dim);
+        line-height: 1.75;
+        margin-top: 18px;
+        font-size: 15px;
+      }
+      .faq-a strong { color: var(--text); }
+      .faq-a code {
+        color: var(--accent);
+        font-family: monospace;
+        background: rgba(168,85,247,0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      @keyframes faqIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @media (max-width: 680px) {
+        .faq-q { padding: 18px 20px; font-size: 15px; }
+        .faq-a { padding: 0 20px 18px; }
+      }
+    </style>
 
     <footer>
       <span>&copy; 2026 Synchronization Labs</span>

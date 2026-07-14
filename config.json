@@ -2,7 +2,7 @@
   "_comment": "──────────────────────────────────────────────────────────────────────────",
   "_comment2": "  SYNCHRONIZATION — Central Configuration",
   "_comment3": "  Edit values below, then run:  npm run configure",
-  "_comment4": "  All six target files will be updated automatically.",
+  "_comment4": "  All five target files will be updated automatically.",
   "_comment5": "──────────────────────────────────────────────────────────────────────────",
 
   "frontend_domain": "synchronizationpro.app",

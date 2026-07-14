@@ -3,26 +3,281 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Download Synchronization Android App - Audio Sync APK</title>
-  <meta name="description" content="Download the Synchronization Android app to sync browser audio and wireless sound from Chrome to your phone." />
+  <title>Download Synchronization for Android - Wireless Audio Sync App</title>
+  <meta name="description" content="Download the Synchronization Android App to wirelessly stream browser audio from Chrome to your phone. No cables, no accounts, no cloud. Powered by WebRTC P2P technology." />
+  <meta name="keywords" content="synchronization android app, download audio sync app, android audio receiver, syn-audio android, audio-sync app download, wireless audio android app, stream browser audio to android, chrome to android audio, WebRTC audio android, audio sync app free download, android audio streaming app, sync audio android, browser audio android receiver, low latency audio android, audio over wifi android, wifi audio app android, audio sync app download, phone audio sync app, audio cast android, stream sound to phone, android sound receiver, app audio stream, audio receiver app, synchronization app, syncaudio android, wireless audio receiver android, pc to phone audio android, laptop audio to android, desktop audio android, audio relay android, no bluetooth audio android, cable free audio android, audio stream app android, audio sync without bluetooth android, local network audio android, multi room audio android, synchronized audio android, android audio bridge, free audio streaming app" />
+  <meta name="author" content="Synchronization Labs" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <link rel="canonical" href="https://synchronizationpro.app/app.html" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Synchronization" />
-  <meta property="og:title" content="Download Synchronization Android App - Audio Sync APK" />
-  <meta property="og:description" content="Download the Synchronization Android app to sync browser audio and wireless sound from Chrome to your phone." />
+  <meta property="og:title" content="Download Synchronization for Android - Wireless Audio Sync App" />
+  <meta property="og:description" content="Download the Synchronization Android App to wirelessly stream browser audio from Chrome to your phone. No cables, no accounts, no cloud." />
   <meta property="og:url" content="https://synchronizationpro.app/app.html" />
+  <meta property="og:image" content="https://synchronizationpro.app/assets/hero.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Download Synchronization for Android - Wireless Audio Sync App" />
+  <meta name="twitter:description" content="Download the Synchronization Android App to wirelessly stream browser audio from Chrome to your phone. No cables, no accounts, no cloud." />
+  <meta name="twitter:image" content="https://synchronizationpro.app/assets/hero.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/png" href="favicon.png?v=1" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "MobileApplication",
+      "name": "Synchronization",
+      "alternateName": ["Synchro", "SyncApp", "SyncAudio", "AudioSync", "syn-audio", "audio-sync"],
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Android 7.0+",
+      "url": "https://synchronizationpro.app/app.html",
+      "downloadUrl": "https://synchronizationpro.app/#download",
+      "description": "Synchronization is a free Android app that streams browser audio from Chrome to your phone wirelessly using WebRTC peer-to-peer technology. No accounts, no cables, no cloud routing required.",
+      "featureList": [
+        "WebRTC peer-to-peer audio streaming",
+        "Zero perceptible latency audio sync",
+        "QR code instant pairing — no IP configuration",
+        "No account or sign-up required",
+        "No cloud audio routing — fully private",
+        "Multi-device synchronized playback",
+        "Phone-to-phone audio sharing mode",
+        "Precision clock-based drift correction",
+        "Works over Wi-Fi and mobile hotspot"
+      ],
+      "screenshot": "https://synchronizationpro.app/assets/hero.png",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "requirements": "Android 7.0 or later. Wi-Fi or mobile hotspot connection. Synchronization Chrome Extension required on desktop.",
+      "creator": {
+        "@type": "Organization",
+        "name": "Synchronization Labs",
+        "url": "https://synchronizationpro.app/"
+      }
+    }
+  </script>
   <style>
-    body {font-family: Arial, sans-serif; padding:2rem; background:#f9f9f9;}
-    .container {max-width:600px; margin:auto; text-align:center;}
-    a {display:inline-block; margin:0.5rem 0; padding:0.6rem 1.2rem; background:#10b981; color:#fff; text-decoration:none; border-radius:4px;}
+    .legal-hero {
+      text-align: center;
+      padding: 100px 5vw 60px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .legal-hero h1 {
+      font-size: clamp(32px, 7vw, 60px);
+      letter-spacing: -2px;
+      margin-bottom: 20px;
+    }
+    .legal-hero p {
+      color: var(--text-dim);
+      font-size: 18px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .content-wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 5vw 80px;
+    }
+    .section-block {
+      margin-bottom: 28px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px 40px;
+      transition: border-color 0.3s;
+    }
+    .section-block:hover {
+      border-color: rgba(168, 85, 247, 0.3);
+    }
+    .section-block h2 {
+      color: var(--accent);
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+    .section-block p {
+      color: var(--text-dim);
+      line-height: 1.75;
+      margin-bottom: 14px;
+    }
+    .section-block p:last-child { margin-bottom: 0; }
+    .section-block ol {
+      color: var(--text-dim);
+      line-height: 1.7;
+      padding-left: 22px;
+    }
+    .section-block li {
+      margin-bottom: 12px;
+    }
+    .section-block li strong {
+      color: var(--text);
+    }
+    .section-block em {
+      color: var(--accent);
+      font-style: normal;
+    }
+    .req-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-top: 8px;
+    }
+    .req-item {
+      background: rgba(168, 85, 247, 0.07);
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      border-radius: 12px;
+      padding: 14px 18px;
+    }
+    .req-item strong {
+      display: block;
+      color: var(--text);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .req-item span {
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .download-cta {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(124, 58, 237, 0.06) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: 20px;
+      padding: 40px;
+      margin-bottom: 28px;
+      text-align: center;
+    }
+    .download-cta h2 {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    .download-cta p {
+      color: var(--text-dim);
+      margin-bottom: 24px;
+      font-size: 16px;
+    }
+    @media (max-width: 680px) {
+      .section-block, .download-cta { padding: 28px 24px; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Synchronization Android App</h1>
-    <p>Download the latest universal Android APK.</p>
-    <a href="./#download">Choose Android APK</a>
-  </div>
+  <header class="topbar">
+    <a class="brand" href="./">
+      <img src="assets/Logo2.png" alt="Synchronization Logo" class="brand-logo" />
+    </a>
+    <nav>
+      <a href="./#setup">Setup</a>
+      <a href="./#download">Download</a>
+      <a href="about.html">About</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="legal-hero">
+      <span class="eyebrow">Android App</span>
+      <h1>Download Synchronization for Android</h1>
+      <p>
+        Install the free Android app from Google Play to wirelessly receive browser audio from the Synchronization Chrome Extension.
+        No accounts, no cables, no cloud routing required.
+      </p>
+    </div>
+
+    <div class="content-wrap">
+
+      <div class="download-cta">
+        <h2>Get the Android App</h2>
+        <p>
+          Download Synchronization directly from the Google Play Store for automatic updates and the best experience.
+        </p>
+        <a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=com.synchronization.app" target="_blank" rel="noopener noreferrer">Get it on Google Play &rarr;</a>
+      </div>
+
+      <div class="section-block">
+        <h2>What Is the Synchronization Android App?</h2>
+        <p>
+          The Synchronization Android app is the receiver half of a two-part wireless audio system. When paired with the
+          Synchronization Chrome Extension running on your desktop, the Android app receives your browser tab audio in
+          real time over a direct Wi-Fi connection — no Bluetooth, no cables, and no cloud server in the middle.
+        </p>
+        <p>
+          Audio is streamed peer-to-peer using WebRTC technology — the same protocol used for video calls in modern
+          browsers. This means your audio travels the shortest possible path: directly from your PC to your phone over
+          your local network, with no detour through any internet relay.
+        </p>
+        <p>
+          Once connected, you can walk around your home and continue listening to whatever is playing in Chrome — a
+          movie, a podcast, a music tab, or any other audio source — with virtually zero perceptible delay.
+        </p>
+      </div>
+
+      <div class="section-block">
+        <h2>System Requirements</h2>
+        <div class="req-grid">
+          <div class="req-item">
+            <strong>Android Version</strong>
+            <span>Android 7.0 (Nougat) or later</span>
+          </div>
+          <div class="req-item">
+            <strong>Network</strong>
+            <span>Wi-Fi or mobile hotspot — same network as your PC</span>
+          </div>
+          <div class="req-item">
+            <strong>Architecture</strong>
+            <span>ARM64 (recommended), ARMv7, or x86_64</span>
+          </div>
+          <div class="req-item">
+            <strong>Storage</strong>
+            <span>Under 20 MB installed</span>
+          </div>
+          <div class="req-item">
+            <strong>Permissions</strong>
+            <span>Camera (QR code scan), Audio playback</span>
+          </div>
+          <div class="req-item">
+            <strong>Desktop Required</strong>
+            <span>Chrome browser with the Synchronization Extension installed</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <h2>How to Install the App</h2>
+        <ol>
+          <li>
+            <strong>Download from Google Play</strong> — Use the button above to visit the Google Play Store and install the Synchronization app on your Android device.
+          </li>
+          <li>
+            <strong>Launch the Synchronization app</strong> — Open the app from your home screen or app drawer.
+          </li>
+          <li>
+            <strong>Pair with the Chrome Extension</strong> — On your desktop, click the Synchronization Chrome
+            Extension and press <em>Start Streaming</em>. A QR code appears. In the Android app, tap
+            <em>Scan QR Code</em> and point your camera at the screen. Audio starts within two seconds.
+          </li>
+        </ol>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <span>&copy; 2026 Synchronization Labs</span>
+    <span>
+      <a href="about.html" style="color:var(--text-dim);margin-right:20px;">About</a>
+      <a href="privacy.html" style="color:var(--text-dim);margin-right:20px;">Privacy</a>
+      <a href="terms.html" style="color:var(--text-dim);">Terms</a>
+    </span>
+  </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>

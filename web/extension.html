@@ -3,26 +3,286 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Download Synchronization Chrome Extension - Browser Audio Sync</title>
-  <meta name="description" content="Download the Synchronization Chrome extension for browser audio sync with Android phones using private WebRTC streaming." />
+  <title>Install the Synchronization Chrome Extension - Browser Audio Sync</title>
+  <meta name="description" content="Install the Synchronization Chrome Extension to capture browser tab audio and stream it wirelessly to your Android phone via WebRTC. No accounts, no cloud, no firewall configuration required." />
+  <meta name="keywords" content="synchronization chrome extension, browser audio sync extension, chrome tab audio capture, syn-audio chrome extension, audio-sync chrome, stream browser audio extension, chrome extension audio stream, tab audio chrome, chrome audio sync extension, WebRTC chrome extension, browser audio to phone extension, audio sync chrome plugin, chrome tab capture extension, stream audio from chrome, chrome audio streaming, browser audio streaming extension, audio sender chrome extension, wireless audio chrome extension, chrome extension sound sync, audio sync browser extension, extension audio receiver, load unpacked chrome extension, chrome developer mode extension, chrome audio mirror, tab audio streaming chrome, chrome to android audio extension, browser audio relay extension, audio cast chrome extension, chrome extension wireless sound, audio broadcast chrome extension, private audio streaming chrome, P2P audio chrome extension, low latency chrome audio, real time audio chrome extension, synchronization labs extension, audio streaming browser plugin" />
+  <meta name="author" content="Synchronization Labs" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <link rel="canonical" href="https://synchronizationpro.app/extension.html" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Synchronization" />
-  <meta property="og:title" content="Download Synchronization Chrome Extension - Browser Audio Sync" />
-  <meta property="og:description" content="Download the Synchronization Chrome extension for browser audio sync with Android phones using private WebRTC streaming." />
+  <meta property="og:title" content="Install the Synchronization Chrome Extension - Browser Audio Sync" />
+  <meta property="og:description" content="Install the Synchronization Chrome Extension to capture browser tab audio and stream it wirelessly to your Android phone via WebRTC." />
   <meta property="og:url" content="https://synchronizationpro.app/extension.html" />
+  <meta property="og:image" content="https://synchronizationpro.app/assets/hero.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Install the Synchronization Chrome Extension - Browser Audio Sync" />
+  <meta name="twitter:description" content="Install the Synchronization Chrome Extension to capture browser tab audio and stream it wirelessly to your Android phone via WebRTC." />
+  <meta name="twitter:image" content="https://synchronizationpro.app/assets/hero.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/png" href="favicon.png?v=1" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Synchronization Chrome Extension",
+      "alternateName": ["Synchronization Extension", "SyncAudio Extension", "Browser Audio Sync Extension"],
+      "applicationCategory": "BrowserApplication",
+      "operatingSystem": "Chrome",
+      "url": "https://synchronizationpro.app/extension.html",
+      "downloadUrl": "https://synchronizationpro.app/#download",
+      "description": "The Synchronization Chrome Extension captures browser tab audio and streams it wirelessly to the Synchronization Android app via WebRTC peer-to-peer technology. No accounts, no cloud, no firewall configuration needed.",
+      "featureList": [
+        "Browser tab audio capture via Chrome tabCapture API",
+        "QR code session generation for instant pairing",
+        "WebRTC peer-to-peer audio streaming",
+        "No cloud routing — audio goes directly to your phone",
+        "Works on any Chrome tab with audio",
+        "No sign-up or account required"
+      ],
+      "screenshot": "https://synchronizationpro.app/assets/hero.png",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "requirements": "Google Chrome browser on desktop. Synchronization Android app required on receiver device.",
+      "creator": {
+        "@type": "Organization",
+        "name": "Synchronization Labs",
+        "url": "https://synchronizationpro.app/"
+      }
+    }
+  </script>
   <style>
-    body {font-family: Arial, sans-serif; padding: 2rem; background:#f9f9f9;}
-    .container {max-width: 600px; margin:auto; text-align:center;}
-    a {display:inline-block; margin-top:1rem; padding:0.8rem 1.5rem; background:#4f46e5; color:#fff; text-decoration:none; border-radius:4px;}
+    .legal-hero {
+      text-align: center;
+      padding: 100px 5vw 60px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .legal-hero h1 {
+      font-size: clamp(32px, 7vw, 60px);
+      letter-spacing: -2px;
+      margin-bottom: 20px;
+    }
+    .legal-hero p {
+      color: var(--text-dim);
+      font-size: 18px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .content-wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 5vw 80px;
+    }
+    .section-block {
+      margin-bottom: 28px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px 40px;
+      transition: border-color 0.3s;
+    }
+    .section-block:hover {
+      border-color: rgba(168, 85, 247, 0.3);
+    }
+    .section-block h2 {
+      color: var(--accent);
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+    .section-block p {
+      color: var(--text-dim);
+      line-height: 1.75;
+      margin-bottom: 14px;
+    }
+    .section-block p:last-child { margin-bottom: 0; }
+    .section-block ol {
+      color: var(--text-dim);
+      line-height: 1.7;
+      padding-left: 22px;
+    }
+    .section-block li {
+      margin-bottom: 12px;
+    }
+    .section-block li strong {
+      color: var(--text);
+    }
+    .section-block code {
+      color: var(--accent);
+      font-family: monospace;
+      background: rgba(168,85,247,0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .download-cta {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(124, 58, 237, 0.06) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: 20px;
+      padding: 40px;
+      margin-bottom: 28px;
+      text-align: center;
+    }
+    .download-cta h2 {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    .download-cta p {
+      color: var(--text-dim);
+      margin-bottom: 24px;
+      font-size: 16px;
+    }
+    .highlight-box {
+      background: rgba(168, 85, 247, 0.07);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-top: 20px;
+      color: var(--text-dim);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+    .highlight-box strong { color: var(--text); }
+    @media (max-width: 680px) {
+      .section-block, .download-cta { padding: 28px 24px; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Synchronization Chrome Extension</h1>
-    <p>Download the extension package and load it unpacked in Chrome (chrome://extensions -> Load unpacked).</p>
-    <a href="downloads/synchronization-extension.zip?v=20260509-2000" download>Download Extension (ZIP)</a>
-  </div>
+  <header class="topbar">
+    <a class="brand" href="./">
+      <img src="assets/Logo2.png" alt="Synchronization Logo" class="brand-logo" />
+    </a>
+    <nav>
+      <a href="./#setup">Setup</a>
+      <a href="./#download">Download</a>
+      <a href="about.html">About</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="legal-hero">
+      <span class="eyebrow">Chrome Extension</span>
+      <h1>Install the Synchronization Chrome Extension</h1>
+      <p>
+        The Chrome Extension is the audio source — it captures your browser tab audio and streams it wirelessly
+        to the Synchronization Android app on your phone.
+      </p>
+    </div>
+
+    <div class="content-wrap">
+
+      <div class="download-cta">
+        <h2>Download the Extension ZIP</h2>
+        <p>
+          The extension is distributed as a ZIP file you load manually into Chrome. It takes under two minutes
+          to set up.
+        </p>
+        <a class="btn btn-secondary" href="downloads/synchronization-extension.zip?v=20260512-0130" download="synchronization-extension.zip">
+          Download Extension (ZIP) &rarr;
+        </a>
+      </div>
+
+      <div class="section-block">
+        <h2>What Does the Chrome Extension Do?</h2>
+        <p>
+          The Synchronization Chrome Extension is the sender half of the wireless audio system. It uses Chrome's
+          built-in <code>tabCapture</code> API to capture the audio playing in whichever browser tab you select —
+          whether that is a video, a music player, a podcast, or any other audio source.
+        </p>
+        <p>
+          Once capture begins, the extension generates a unique QR code for your current session. You scan this QR code
+          with the Synchronization Android app to pair your devices instantly. The audio is then streamed directly from
+          your computer to your phone over WebRTC — peer-to-peer, with no cloud relay in the middle.
+        </p>
+        <p>
+          There is no sign-up, no API key, and no account required. Click the extension icon, press
+          <strong>Start Streaming</strong>, scan the QR code, and your phone starts playing the audio within two seconds.
+        </p>
+      </div>
+
+      <div class="section-block">
+        <h2>How to Install the Extension in Chrome</h2>
+        <ol>
+          <li>
+            <strong>Download the ZIP</strong> — Click the download button above and save the
+            <code>synchronization-extension.zip</code> file to your computer.
+          </li>
+          <li>
+            <strong>Extract the ZIP</strong> — Right-click the downloaded file and choose <strong>Extract All</strong>
+            (Windows) or double-click to open it (macOS). Extract to a permanent folder — do not delete the folder after
+            loading, Chrome needs it to stay there.
+          </li>
+          <li>
+            <strong>Open Chrome Extensions</strong> — In Google Chrome, type <code>chrome://extensions</code> in the
+            address bar and press Enter.
+          </li>
+          <li>
+            <strong>Enable Developer Mode</strong> — Toggle the <strong>Developer mode</strong> switch in the top-right
+            corner of the Extensions page to the on position.
+          </li>
+          <li>
+            <strong>Load unpacked</strong> — Click the <strong>Load unpacked</strong> button that appears after
+            enabling Developer mode. In the file picker, navigate to and select the extracted extension folder.
+          </li>
+          <li>
+            <strong>Pin the extension</strong> — Click the puzzle icon in the Chrome toolbar, find
+            Synchronization in the list, and click the pin icon so it always appears in your toolbar.
+          </li>
+        </ol>
+        <div class="highlight-box">
+          <strong>Important:</strong> Do not move or delete the extracted extension folder after loading it. Chrome
+          loads the extension directly from that folder every time. If you move it, the extension will stop working and
+          you will need to load it again.
+        </div>
+      </div>
+
+      <div class="section-block">
+        <h2>System Requirements</h2>
+        <p>
+          The extension requires <strong>Google Chrome</strong> running on a desktop or laptop computer — Windows,
+          macOS, or Linux. Chromium-based browsers such as Microsoft Edge or Brave may also work, though they are not
+          officially tested.
+        </p>
+        <p>
+          To receive the audio, you need the <strong>Synchronization Android app</strong> installed on an Android
+          device (version 7.0 or later) connected to the same Wi-Fi network or mobile hotspot as the computer running
+          the extension. No internet connection is required after the initial WebRTC handshake completes.
+        </p>
+      </div>
+
+      <div class="section-block">
+        <h2>Why Is It a ZIP and Not on the Chrome Web Store?</h2>
+        <p>
+          Synchronization is currently distributed as a manually-loaded unpacked extension rather than through the
+          Chrome Web Store. This allows us to ship updates immediately without waiting for Google's review queue, and
+          gives you the latest version directly from our official domain (<code>synchronizationpro.app</code>).
+        </p>
+        <p>
+          Manual loading is straightforward and takes less than two minutes. Once loaded, the extension updates when
+          you download and reload a new version — the process is identical to the initial install.
+        </p>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <span>&copy; 2026 Synchronization Labs</span>
+    <span>
+      <a href="about.html" style="color:var(--text-dim);margin-right:20px;">About</a>
+      <a href="privacy.html" style="color:var(--text-dim);margin-right:20px;">Privacy</a>
+      <a href="terms.html" style="color:var(--text-dim);">Terms</a>
+    </span>
+  </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>

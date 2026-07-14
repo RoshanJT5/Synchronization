@@ -43,7 +43,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void _loadInterstitialAd() {
     InterstitialAd.load(
       adUnitId: Platform.isAndroid 
-          ? 'ca-app-pub-3940256099942544/1033173712' 
+          // ? 'ca-app-pub-6635939012655124/5379968116' // production
+          ? 'ca-app-pub-3940256099942544/1033173712' // Android Test Interstitial
           : 'ca-app-pub-3940256099942544/4411468910',
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
@@ -122,23 +123,35 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
+    // Wait one frame so the permission dialog is fully gone before we try
+    // to push the tutorial dialog on top of the navigator stack.
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
+
     await _checkTutorialAndAd();
   }
 
+  /// Shows the first-time tutorial (if not yet seen), then loads the App Open ad.
+  /// The ad load is intentionally placed AFTER the tutorial await so the ad
+  /// never appears before the guide is dismissed.
   Future<void> _checkTutorialAndAd() async {
     final prefs = await SharedPreferences.getInstance();
     final tutorialShown = prefs.getBool('tutorial_shown') ?? false;
 
     if (!tutorialShown && mounted) {
+      // Block until the user finishes or skips every slide.
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => const TutorialDialog(),
       );
+      // Persist immediately so future launches skip the tutorial.
       await prefs.setBool('tutorial_shown', true);
     }
 
-    // Now it is safe to load and show the app open ad
+    // Only now — after the tutorial is fully gone — start loading the ad.
+    // AppOpenAdManager.showAdIfAvailable() also guards against showing before
+    // tutorial_shown is true, so this is a belt-and-suspenders approach.
     AppOpenAdManager.instance.loadAd();
   }
 
@@ -613,7 +626,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Padding(
             padding: EdgeInsets.only(top: 12),
-            child: BannerAdWidget(),
+            child: BannerAdWidget(isHost: true),
           ),
           const Spacer(),
           _PrimaryButton(
@@ -1967,7 +1980,9 @@ class _FullscreenVideoOverlayState extends State<_FullscreenVideoOverlay> {
 }
 
 class BannerAdWidget extends StatefulWidget {
-  const BannerAdWidget({super.key});
+  const BannerAdWidget({super.key, this.isHost = false});
+
+  final bool isHost;
 
   @override
   State<BannerAdWidget> createState() => _BannerAdWidgetState();
@@ -1984,9 +1999,16 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   }
 
   void _loadAd() {
+    // Determine the Ad Unit ID based on host status
     final adUnitId = Platform.isAndroid
-        ? 'ca-app-pub-3940256099942544/6300978111'
-        : 'ca-app-pub-3940256099942544/2934735716';
+        ? (widget.isHost
+            // ? 'ca-app-pub-6635939012655124/5780844244' // production
+            ? 'ca-app-pub-3940256099942544/6300978111' // Android Test Banner
+            // : 'ca-app-pub-6635939012655124/7411235080') // production
+            : 'ca-app-pub-3940256099942544/6300978111') // Android Test Banner
+        : (widget.isHost
+            ? 'ca-app-pub-3940256099942544/6300978111'
+            : 'ca-app-pub-3940256099942544/2934735716');
 
     _bannerAd = BannerAd(
       adUnitId: adUnitId,

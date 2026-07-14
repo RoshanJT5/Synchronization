@@ -60,7 +60,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Effective: June 2026  ·  Last updated: June 2026',
+              'Effective: June 2026  ·  Last updated: July 2026',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppTheme.textDim, fontSize: 12),
             ),
@@ -87,7 +87,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
               bullets: const [
                 '"Agreement" means these Terms of Use together with the Privacy Policy, which is incorporated herein by reference and forms part of this Agreement.',
                 '"Synchronization Labs," "we," "us," or "our" means Roshan Talreja, an individual developer operating under the trade name Synchronization Labs, based in Ahmedabad, Gujarat, India.',
-                '"Service" means the Synchronization Android application, the Synchronization Chrome Extension, the signaling server infrastructure, and the associated website at synchronization.labs5.workers.dev, collectively.',
+                '"Service" means the Synchronization Android application, the Synchronization Chrome Extension, the signaling server infrastructure, and the associated website at synchronizationpro.app, collectively.',
                 '"User," "you," or "your" means any individual who installs, accesses, or uses the Service in any capacity.',
                 '"Content" means any audio, media files, or data that you choose to stream, transmit, or broadcast through the Service.',
                 '"Session" means an active streaming connection established between two or more devices using the Service.',
@@ -245,7 +245,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
               number: '16',
               title: 'Governing Law and Dispute Resolution',
               body: 'This Agreement shall be governed by and construed in accordance with the laws of India, without regard to its conflict of law principles. The courts of Ahmedabad, Gujarat, India shall have jurisdiction over any dispute arising from this Agreement, subject to the mandatory consumer protection provisions described below.\n\n'
-                    'Before initiating any formal legal proceeding, you agree to contact us at 230101027158git@gmail.com and make a good-faith effort to resolve the dispute informally. Most concerns can be resolved quickly and amicably.\n\n'
+                    'Before initiating any formal legal proceeding, you agree to contact us at roshantalreja05@outlook.com and make a good-faith effort to resolve the dispute informally. Most concerns can be resolved quickly and amicably.\n\n'
                     'If you are a consumer resident in the European Union or United Kingdom, nothing in this Agreement limits your right to bring claims in the courts of your country of residence or your mandatory rights under applicable consumer protection law. If you are a consumer resident in Canada, you retain any non-waivable rights under applicable provincial consumer protection legislation.',
             ),
 
@@ -266,7 +266,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
               number: '18',
               title: 'Contact Us',
               body: 'If you have any questions, concerns, or requests regarding these Terms, please contact Synchronization Labs directly.\n\n'
-                    'Email: 230101027158git@gmail.com\n\n'
+                    'Email: roshantalreja05@outlook.com\n\n'
                     'Roshan Talreja, operating as Synchronization Labs · Ahmedabad, Gujarat, India · Effective June 1, 2026',
             ),
 

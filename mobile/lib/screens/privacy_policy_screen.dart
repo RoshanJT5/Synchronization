@@ -60,7 +60,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Effective: June 2026  ·  Last updated: June 2026',
+              'Effective: June 1, 2026  ·  Last updated: July 2026',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppTheme.textDim, fontSize: 12),
             ),
@@ -94,7 +94,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               number: '1',
               title: 'Who We Are and Scope of This Policy',
               body: 'This Privacy Policy is published by Roshan Talreja, operating under the trade name Synchronization Labs ("we," "us," or "our"), an individual independent developer based in Ahmedabad, Gujarat, India.\n\n'
-                    'This Policy governs the collection, use, storage, and disclosure of information in connection with the Synchronization Android application, the Synchronization Chrome Extension, and the associated website hosted at synchronization.labs5.workers.dev (collectively, the "Service").\n\n'
+                    'This Policy governs the collection, use, storage, and disclosure of information in connection with the Synchronization Android application, the Synchronization Chrome Extension, and the associated website hosted at synchronizationpro.app (collectively, the "Service").\n\n'
                     'This Policy applies to all users of the Service worldwide, including users in the United States, Canada, the European Economic Area, the United Kingdom, Australia, India, and all other jurisdictions. By installing or using the Service, you acknowledge that you have read and understood this Policy. If you do not agree, you must discontinue use of the Service immediately.\n\n'
                     'Acceptance by use. By downloading, installing, or accessing any part of the Service, you represent that you have read this Privacy Policy and the Terms and Conditions in their entirety and that you agree to be bound by both documents. If you do not agree with any part of this Policy, you must not use the Service. We may update this Policy at any time without prior notice. Your continued use of the Service after any update constitutes your acceptance of the revised Policy.',
             ),
@@ -126,7 +126,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               title: 'How Audio Streaming Works',
               body: 'The Service operates in two modes. Understanding these modes is important for evaluating your privacy.\n\n'
                     'Browser-to-Phone mode. The Chrome Extension uses the browser\'s native tabCapture API to capture the audio output of a single browser tab that you explicitly designate. This audio is transmitted in real time via an encrypted WebRTC peer-to-peer connection directly to your Android device over your local Wi-Fi network or mobile hotspot. The audio does not pass through our signaling server at any point. Synchronization Labs has no technical ability to access or intercept this audio stream.\n\n'
-                    'Phone-to-Phone mode. One phone acts as a host, reading a media file stored on that device and serving it via a local HTTP audio server operating at port 8080 on your private local network. Guest phones connect to this local address directly. Synchronization playback commands travel over an encrypted WebRTC data channel between devices. The media file is never uploaded to any external server. Synchronization Labs has no access to any media content transmitted in this mode.\n\n'
+                    'Phone-to-Phone mode. One phone acts as a host, reading a media file stored locally on that device. The audio is streamed directly to guest phones over your local network using encrypted WebRTC peer-to-peer connections and data channels. Playback synchronization commands are transmitted over an encrypted WebRTC data channel between devices. The media file is never uploaded to any external server. Synchronization Labs has no access to any media content transmitted in this mode.\n\n'
                     'WebRTC TURN relay servers. In circumstances where a direct peer-to-peer connection cannot be established due to network configuration or firewall restrictions, audio traffic may be routed through encrypted third-party TURN relay servers. These relay servers handle only encrypted data packets and cannot access or store the audio content contained within. We use TURN relay infrastructure provided by third-party providers including Metered.ca and ExpressTURN. These providers process data pursuant to their own privacy policies.',
             ),
 
@@ -165,7 +165,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               ],
               footer: 'Personalized advertising disclosure. The Service currently uses AdMob\'s default settings, which means Google may serve personalized advertisements based on your interests and prior online activity. Synchronization Labs does not control or direct the personalization logic. Google\'s own data collection and processing practices for advertising are governed by the Google Privacy Policy, available at policies.google.com/privacy.\n\n'
                       'Your opt-out rights. You may opt out of personalized advertising at any time by visiting your Android device Settings, navigating to Google, then Ads, and selecting "Delete advertising ID" or "Opt out of Ads Personalization." On devices running Android 12 and above, you can delete your Advertising ID entirely. These controls are provided by Google and are independent of Synchronization Labs.\n\n'
-                      'GDPR notice for EEA and UK users. If you are located in the European Economic Area or the United Kingdom, the General Data Protection Regulation and UK GDPR require that your consent be obtained before personalized advertisements are served to you. Because the Service does not currently implement a Consent Management Platform, we recommend that users in these jurisdictions opt out of personalized ads using the device-level controls described above until a formal consent mechanism is implemented in a future update.\n\n'
+                      'GDPR notice for EEA and UK users. If you are located in the European Economic Area or the United Kingdom, the General Data Protection Regulation and UK GDPR require prior explicit consent before personalized advertisements or advertising identifiers are collected. The Service does not currently implement a Consent Management Platform (CMP). Until a compliant CMP is integrated in a future update, personalized advertisements may be served to all users including those in the EEA and UK. If you are in the EEA or UK and do not consent to personalized advertising, you should use the device-level opt-out described above and consider not using the Service until the consent mechanism is implemented. We acknowledge this as a known compliance limitation and are working to resolve it.\n\n'
                       'CCPA notice for California residents. Under the California Consumer Privacy Act, sharing data with advertising networks may constitute a "sale" or "sharing" of personal information. By using the Service, Google AdMob may receive personal information about you as described above. You have the right to opt out of the sharing of your personal information for cross-context behavioral advertising purposes by using the device-level opt-out controls described in this section.',
             ),
 
@@ -174,7 +174,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               title: 'Third-Party Services and Infrastructure',
               bullets: const [
                 'Google Cloud (signaling server hosting). Our signaling server is hosted on a Google Cloud Compute Engine e2-micro virtual machine. Google Cloud may process connection metadata including IP addresses pursuant to the Google Cloud Privacy Policy at cloud.google.com/terms/cloud-privacy-notice. We do not add application-level logging of user requests beyond what the signaling function requires.',
-                'Cloudflare (website hosting). Our website at synchronization.labs5.workers.dev is hosted on Cloudflare Workers. Cloudflare may process connection metadata pursuant to their privacy policy at cloudflare.com/privacypolicy.',
+                'Cloudflare (website hosting). Our website at synchronizationpro.app is hosted on Cloudflare Workers. Cloudflare may process connection metadata pursuant to their privacy policy at cloudflare.com/privacypolicy.',
                 'WebRTC STUN servers. WebRTC uses public STUN servers, including those operated by Google, during ICE negotiation to facilitate NAT traversal. These servers receive your device\'s public IP address momentarily. This interaction is standard to the WebRTC protocol and is governed by the STUN server operator\'s own policies.',
                 'TURN relay servers. If a direct connection cannot be established, encrypted audio packets may be routed through third-party TURN relay infrastructure. These servers route encrypted data only and cannot access the content of your audio stream.',
                 'Google AdMob. Described in full in Section 5 above.',
@@ -187,7 +187,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               title: "Children's Privacy",
               body: 'The Service is not directed to children under the age of 13. In accordance with the Children\'s Online Privacy Protection Act (COPPA) of the United States and applicable international children\'s privacy laws, we do not knowingly collect personal information from children under 13 years of age.\n\n'
                     'Because the Service incorporates Google AdMob, which may collect advertising identifiers, the minimum age for use of this Service is 13 years old. The app is rated accordingly on the Google Play Store.\n\n'
-                    'If you are a parent or guardian and believe your child under the age of 13 has used the Service, please contact us at 230101027158git@gmail.com and we will take immediate steps to address the concern. If AdMob has collected data attributable to a child under 13, we will contact Google to request deletion in accordance with COPPA requirements.',
+                    'If you are a parent or guardian and believe your child under the age of 13 has used the Service, please contact us at roshantalreja05@outlook.com and we will take immediate steps to address the concern. If AdMob has collected data attributable to a child under 13, we will contact Google to request deletion in accordance with COPPA requirements.',
             ),
 
             _PolicySection(
@@ -197,8 +197,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
               bullets: const [
                 'California (CCPA/CPRA). You have the right to know what personal information is collected, the right to delete personal information, and the right to opt out of the sale or sharing of personal information. We do not sell personal information. For AdMob-related data, use the device-level opt-out described in Section 5 and visit Google\'s Ad Settings at adssettings.google.com.',
                 'European Economic Area and United Kingdom (GDPR / UK GDPR). You have the right to access, rectify, erase, and port your personal data, and the right to object to or restrict certain processing. For location data we hold transiently on our signaling server, you may contact us to request confirmation of deletion. For AdMob data, submit a request to Google at support.google.com/policies/troubleshooter/7575787. You also have the right to lodge a complaint with your local data protection supervisory authority.',
-                'Canada (PIPEDA / Law 25). You have the right to access personal information held about you and to request correction of inaccuracies. Because we retain GPS data only in volatile RAM for the duration of a session, no persistent personal information is held by us after a session ends. You may contact us with any privacy concern at 230101027158git@gmail.com.',
-                'India (DPDP Act 2023). You have the right to access information about personal data processed, the right to correction and erasure, and the right to grievance redressal. You may contact our grievance officer at 230101027158git@gmail.com for any data-related concern.',
+                'Canada (PIPEDA / Law 25). You have the right to access personal information held about you and to request correction of inaccuracies. Because we retain GPS data only in volatile RAM for the duration of a session, no persistent personal information is held by us after a session ends. You may contact us with any privacy concern at roshantalreja05@outlook.com.',
+                'India (DPDP Act 2023). You have the right to access information about personal data processed, the right to correction and erasure, and the right to grievance redressal. You may contact our grievance officer at roshantalreja05@outlook.com for any data-related concern.',
               ],
             ),
 
@@ -232,7 +232,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               number: '12',
               title: 'Contact Us',
               body: 'If you have any questions, concerns, or requests relating to this Privacy Policy or the privacy practices of Synchronization Labs, please contact us directly.\n\n'
-                    'Email: 230101027158git@gmail.com\n\n'
+                    'Email: roshantalreja05@outlook.com\n\n'
                     'Roshan Talreja, operating as Synchronization Labs · Ahmedabad, Gujarat, India · Effective June 1, 2026',
             ),
 

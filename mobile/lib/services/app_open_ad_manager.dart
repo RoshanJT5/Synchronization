@@ -14,7 +14,8 @@ class AppOpenAdManager {
 
   /// Test ad unit IDs from Google
   final String adUnitId = Platform.isAndroid
-      ? 'ca-app-pub-3940256099942544/9257395921'
+      // ? 'ca-app-pub-6635939012655124/4446160397' // production
+      ? 'ca-app-pub-3940256099942544/5575463023' // Android Test App Open
       : 'ca-app-pub-3940256099942544/5575463023';
 
   void loadAd() {

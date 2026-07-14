@@ -15,7 +15,9 @@
  *   3. mobile/android/app/src/main/AndroidManifest.xml  (frontend_domain deep-link hosts)
  *   4. extension/src/serverConfig.ts                 (backend_url + frontend_domain)
  *   5. extension/public/manifest.json                (backend_url in host_permissions & CSP)
- *   6. cloudflare-proxy/wrangler.toml                (VM_URL env var for the failover proxy)
+ *
+ * NOTE: cloudflare-proxy/wrangler.toml is NOT auto-patched.
+ *       VM_URL must be edited manually (it's the raw VM IP, not the proxy URL).
  */
 
 'use strict';
@@ -206,18 +208,11 @@ patchFile(
 );
 
 // ── 6. cloudflare-proxy/wrangler.toml ────────────────────────────────────────
-// Keeps the VM_URL env var in wrangler.toml in sync with backend_url so that
-// when you redeploy the proxy Worker it automatically points to the right VM.
-patchFile(
-  'cloudflare-proxy/wrangler.toml',
-  (src) => {
-    // Update VM_URL value line: VM_URL = "http://..."
-    return src.replace(
-      /(VM_URL\s*=\s*")[^"]*(")/,
-      `$1${backend_url}$2`
-    );
-  }
-);
+// NOTE: wrangler.toml is intentionally NOT auto-patched.
+// VM_URL must always point to the RAW GCP VM address (e.g. http://34.68.33.91:3001),
+// NOT the proxy URL (backend_url). If we overwrote VM_URL with backend_url,
+// the Worker would health-check itself → infinite loop → total failure.
+// Edit VM_URL manually in wrangler.toml when the VM IP changes, then redeploy.
 
 // ── Done ───────────────────────────────────────────────────────────────────────
 console.log('');
