@@ -162,12 +162,30 @@ export default {
     const vmHealthy  = await isVmUp(vmUrl);
     const backendUrl = vmHealthy ? vmUrl : renderUrl;
 
+    // Block robots/crawlers on the sync subdomain by responding with a plain text Robots.txt or blocking headers
+    const url = new URL(request.url);
+    if (url.pathname === "/robots.txt") {
+      return new Response("User-agent: *\nDisallow: /", {
+        status: 200,
+        headers: { "Content-Type": "text/plain" }
+      });
+    }
+
     // WebSocket upgrade (Socket.IO WS transport)
     if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
       return proxyWebSocket(request, backendUrl);
     }
 
     // Ordinary HTTP (Socket.IO polling transport + /health + etc.)
-    return proxyHttp(request, backendUrl);
+    const response = await proxyHttp(request, backendUrl);
+    
+    // Add X-Robots-Tag to prevent indexation of any api/signaling responses
+    const headers = new Headers(response.headers);
+    headers.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
+    
+    return new Response(response.body, {
+      status: response.status,
+      headers: headers
+    });
   },
 };
