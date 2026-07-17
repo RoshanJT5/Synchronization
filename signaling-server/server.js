@@ -298,9 +298,9 @@ io.on('connection', (socket) => {
         const dist = haversineMetres(reqLat, reqLng, lat, lng);
 
         // 3. Dynamic search threshold:
-        // Use a 5km radius to compensate for IP location database offset,
+        // Use a 30km radius to compensate for IP location database offset,
         // or a precise 50m radius if using GPS-to-GPS.
-        const allowedRadius = locationSource === 'cloudflare_geo' ? 5000 : SESSION_DISCOVERY_RADIUS_METRES;
+        const allowedRadius = locationSource === 'cloudflare_geo' ? 30000 : SESSION_DISCOVERY_RADIUS_METRES;
         return dist <= allowedRadius;
       })
       .map(({ sessionId, label, type, announcedAt }) => ({
