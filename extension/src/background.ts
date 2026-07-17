@@ -124,10 +124,14 @@ function prepareSession(sessionId: string) {
   lobbySocket.on('connect', () => {
     lobbySocket?.emit('join-session', sessionId);
     const announce = () => {
-      lobbySocket?.emit('announce-session', {
-        sessionId,
-        label: 'Browser Extension',
-        type: 'computer',
+      chrome.storage.local.get(['latitude', 'longitude'], (data) => {
+        lobbySocket?.emit('announce-session', {
+          sessionId,
+          label: 'Browser Extension',
+          type: 'computer',
+          lat: data.latitude,
+          lng: data.longitude,
+        });
       });
     };
     announce();

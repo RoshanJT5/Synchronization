@@ -12,25 +12,67 @@ function App() {
   const [error, setError] = useState('');
   const [sourceMuted, setSourceMuted] = useState(false);
   const [showQR, setShowQR] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [detectingLocation, setDetectingLocation] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  useEffect(() => {
-    chrome.runtime.sendMessage({ type: 'GET_STATE' }, (response) => {
-      const id = response?.sessionId || createSessionId();
-      setSessionId(id);
-      setStatus((response?.status || 'READY') as Status);
-      setReadyPeers(response?.readyPeers || 0);
-      setError(response?.error || '');
-      setSourceMuted(Boolean(response?.sourceMuted));
-      setShowQR(response?.status !== 'STREAMING');
-      generateQR(id);
-      if (!response?.sessionId || response?.status === 'IDLE') {
-        chrome.runtime.sendMessage({
-          type: 'PREPARE_EXTENSION_SESSION',
-          sessionId: id,
+  const createSessionId = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = new Uint8Array(6);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => chars[byte % chars.length]).join('');
+  };
+
+  const requestLocation = () => {
+    setDetectingLocation(true);
+    setLocationError(null);
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by this browser.');
+      setDetectingLocation(false);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        chrome.storage.local.set({ latitude, longitude }, () => {
+          setLocationError(null);
+          setDetectingLocation(false);
+          // Now fetch state and prepare session
+          chrome.runtime.sendMessage({ type: 'GET_STATE' }, (response) => {
+            const id = response?.sessionId || createSessionId();
+            setSessionId(id);
+            setStatus((response?.status || 'READY') as Status);
+            setReadyPeers(response?.readyPeers || 0);
+            setError(response?.error || '');
+            setSourceMuted(Boolean(response?.sourceMuted));
+            const shouldShowQR = response?.status !== 'STREAMING';
+            setShowQR(shouldShowQR);
+            // Generate QR immediately after session is loaded
+            generateQR(id);
+            if (!response?.sessionId || response?.status === 'IDLE') {
+              chrome.runtime.sendMessage({
+                type: 'PREPARE_EXTENSION_SESSION',
+                sessionId: id,
+              });
+            }
+          });
         });
-      }
-    });
+      },
+      (err) => {
+        console.error('Location error:', err);
+        setDetectingLocation(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationError('LOCATION_DENIED');
+        } else {
+          setLocationError('Location error: ' + err.message);
+        }
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
+  useEffect(() => {
+    requestLocation();
   }, []);
 
   useEffect(() => {
@@ -51,12 +93,7 @@ function App() {
     return () => chrome.runtime.onMessage.removeListener(listener);
   }, []);
 
-  const createSessionId = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const bytes = new Uint8Array(6);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes, (byte) => chars[byte % chars.length]).join('');
-  };
+
 
   const generateQR = (id: string) => {
     const url = `${CONNECT_PAGE_URL}/${encodeURIComponent(id)}`;
@@ -161,6 +198,81 @@ function App() {
     : isConnecting
       ? 'Starting...'
       : 'Ready to Stream';
+
+  if (detectingLocation) {
+    return (
+      <div className="w-[320px] min-h-[520px] bg-[#0a0a0c] text-white p-6 font-sans box-border flex flex-col justify-between">
+        <div className="flex items-center gap-3 mb-5">
+          <img
+            src="/app_icon.jpg"
+            alt=""
+            className="w-10 h-10 rounded-xl object-cover border border-white/10"
+          />
+          <div>
+            <h1 className="m-0 text-lg font-black tracking-tight">Synchronization</h1>
+            <p className="m-0 text-[11px] text-slate-500 font-bold uppercase tracking-[0.18em]">
+              WebRTC 2.0
+            </p>
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mb-4" />
+          <p className="text-slate-400 text-xs uppercase tracking-wider font-bold">Checking location...</p>
+        </div>
+        <div className="pt-4 border-t border-white/5 text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+          Initializing
+        </div>
+      </div>
+    );
+  }
+
+  if (locationError) {
+    return (
+      <div className="w-[320px] min-h-[520px] bg-[#0a0a0c] text-white p-6 font-sans box-border flex flex-col justify-between">
+        <div className="flex items-center gap-3 mb-5">
+          <img
+            src="/app_icon.jpg"
+            alt=""
+            className="w-10 h-10 rounded-xl object-cover border border-white/10"
+          />
+          <div>
+            <h1 className="m-0 text-lg font-black tracking-tight">Synchronization</h1>
+            <p className="m-0 text-[11px] text-slate-500 font-bold uppercase tracking-[0.18em]">
+              WebRTC 2.0
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-2">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-4">
+            <span className="text-2xl text-red-500">📍</span>
+          </div>
+          <h2 className="text-base font-black mb-2">Location Blocked</h2>
+          <p className="text-slate-400 text-xs mb-5">
+            {locationError === 'LOCATION_DENIED'
+              ? 'Synchronization needs location permission to secure audio streaming and limit access to nearby devices (under 50m).'
+              : locationError}
+          </p>
+          {locationError === 'LOCATION_DENIED' ? (
+            <p className="text-[10px] leading-relaxed text-slate-500 border border-slate-800 rounded-lg p-3 bg-slate-900/20 m-0">
+              Please click the <strong>Site Settings</strong> icon in your browser toolbar, change <strong>Location</strong> to <strong>Allow</strong>, and reopen the popup.
+            </p>
+          ) : (
+            <button
+              onClick={requestLocation}
+              className="w-full py-3 bg-white text-black font-black rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              Try Again
+            </button>
+          )}
+        </div>
+
+        <div className="pt-4 border-t border-white/5 text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+          Permission Blocked
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-[320px] min-h-[520px] bg-[#0a0a0c] text-white p-6 font-sans box-border flex flex-col">

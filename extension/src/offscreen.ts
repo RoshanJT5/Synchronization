@@ -127,23 +127,31 @@ async function startHost(sessionId: string, streamId: string) {
 
     socket.on('connect', () => {
       socket?.emit('join-session', activeSessionId);
-      socket?.emit('announce-session', {
-        sessionId: activeSessionId,
-        label: 'Browser Extension',
-        type: 'computer',
+      chrome.storage.local.get(['latitude', 'longitude'], (data) => {
+        socket?.emit('announce-session', {
+          sessionId: activeSessionId,
+          label: 'Browser Extension',
+          type: 'computer',
+          lat: data.latitude,
+          lng: data.longitude,
+        });
+        chrome.runtime.sendMessage({ type: 'EXTENSION_HOST_STARTED' });
+        notifyPeerCount();
       });
-      chrome.runtime.sendMessage({ type: 'EXTENSION_HOST_STARTED' });
-      notifyPeerCount();
 
       // Periodic heartbeat keeps the signalling server aware this session is
       // alive so active streams are not pruned while phones stay connected.
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       heartbeatTimer = setInterval(() => {
         socket?.emit('session-heartbeat', { sessionId: activeSessionId });
-        socket?.emit('announce-session', {
-          sessionId: activeSessionId,
-          label: 'Browser Extension',
-          type: 'computer',
+        chrome.storage.local.get(['latitude', 'longitude'], (data) => {
+          socket?.emit('announce-session', {
+            sessionId: activeSessionId,
+            label: 'Browser Extension',
+            type: 'computer',
+            lat: data.latitude,
+            lng: data.longitude,
+          });
         });
       }, 30_000); // every 30 seconds
     });

@@ -12,7 +12,8 @@
     "tabCapture",
     "activeTab",
     "storage",
-    "offscreen"
+    "offscreen",
+    "geolocation"
   ],
   "host_permissions": [
     "https://sync.synchronizationpro.app/*",

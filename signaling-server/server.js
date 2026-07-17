@@ -233,10 +233,10 @@ io.on('connection', (socket) => {
         const isComputerSession = (type || 'computer') === 'computer';
         const sessionHasLocation = hasValidCoordinates(lat, lng);
 
-        // Browser extension sessions cannot provide GPS coordinates. They are
-        // still safe to show because joining requires the random session code.
+        // Browser extension sessions must provide location coordinates.
+        // If they do not have a location, we hide them.
         if (isComputerSession && !sessionHasLocation) {
-          return true;
+          return false;
         }
 
         // Mobile-host sessions keep the strict nearby filter.
