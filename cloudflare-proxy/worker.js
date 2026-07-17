@@ -16,7 +16,7 @@
  *   npx wrangler deploy
  *
  * Environment variables — set in wrangler.toml [vars] or Cloudflare dashboard:
- *   VM_URL     → GCP VM signaling server  (e.g. http://34.68.33.91:3001)
+ *   VM_URL     → GCP VM signaling server  (e.g. http://34.68.33.91.nip.io — use nip.io, NOT raw IP:port)
  *   RENDER_URL → Render fallback server   (e.g. https://synchronization-807q.onrender.com)
  */
 
@@ -68,14 +68,22 @@ async function isVmUp(vmUrl) {
 
 // ── HTTP proxy ────────────────────────────────────────────────────────────────
 
-async function proxyHttp(request, backendUrl) {
+async function proxyHttp(request, backendUrl, lat, lng, clientIp) {
   const url       = new URL(request.url);
+
+  // Only inject geo params for Socket.IO traffic (not the /health probe itself)
+  const isHealthCheck = url.pathname === '/health';
+  if (!isHealthCheck) {
+    if (lat != null) url.searchParams.set('cf_lat', String(lat));
+    if (lng != null) url.searchParams.set('cf_lng', String(lng));
+    if (clientIp) url.searchParams.set('cf_ip', clientIp);
+  }
+
   const targetUrl = new URL(url.pathname + url.search, backendUrl);
 
   const headers = new Headers(request.headers);
   headers.delete('host');
   headers.set('X-Forwarded-Host', url.hostname);
-  const clientIp = request.headers.get('CF-Connecting-IP');
   if (clientIp) headers.set('X-Forwarded-For', clientIp);
 
   const noBody = ['GET', 'HEAD', 'OPTIONS'].includes(request.method.toUpperCase());
@@ -100,8 +108,12 @@ async function proxyHttp(request, backendUrl) {
 
 // ── WebSocket proxy ───────────────────────────────────────────────────────────
 
-async function proxyWebSocket(request, backendUrl) {
+async function proxyWebSocket(request, backendUrl, lat, lng, clientIp) {
   const url = new URL(request.url);
+  // lat/lng can legitimately be 0, so check != null instead of truthy
+  if (lat != null) url.searchParams.set('cf_lat', String(lat));
+  if (lng != null) url.searchParams.set('cf_lng', String(lng));
+  if (clientIp) url.searchParams.set('cf_ip', clientIp);
 
   // Convert http(s) to ws(s) for the backend
   const wsBase    = backendUrl.replace(/^http(s?):\/\//, (_, s) => `ws${s}://`);
@@ -162,12 +174,17 @@ export default {
     const vmHealthy  = await isVmUp(vmUrl);
     const backendUrl = vmHealthy ? vmUrl : renderUrl;
 
+    // Extract geo and IP info from the incoming request
+    const lat = request.cf?.latitude;
+    const lng = request.cf?.longitude;
+    const clientIp = request.headers.get('CF-Connecting-IP') || '';
+
     // WebSocket upgrade (Socket.IO WS transport)
     if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
-      return proxyWebSocket(request, backendUrl);
+      return proxyWebSocket(request, backendUrl, lat, lng, clientIp);
     }
 
     // Ordinary HTTP (Socket.IO polling transport + /health + etc.)
-    return proxyHttp(request, backendUrl);
+    return proxyHttp(request, backendUrl, lat, lng, clientIp);
   },
 };

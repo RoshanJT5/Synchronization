@@ -170,8 +170,27 @@ setInterval(() => {
 }, 15000);
 // ─────────────────────────────────────────────────────────────────────────────
 
+function cleanIp(ip) {
+  if (typeof ip !== 'string') return '';
+  return ip.split(',')[0].trim().replace(/^::ffff:/, '');
+}
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+
+  // Extract Cloudflare IP Geolocation and IP headers passed via query parameters
+  const queryIp = socket.handshake.query.cf_ip;
+  const forwardHeader = socket.handshake.headers['x-forwarded-for'];
+  const rawIp = queryIp || forwardHeader || socket.handshake.address;
+  socket.clientIp = cleanIp(rawIp);
+
+  const cfLatRaw = socket.handshake.query.cf_lat;
+  const cfLngRaw = socket.handshake.query.cf_lng;
+  const cfLat = cfLatRaw ? Number(cfLatRaw) : null;
+  const cfLng = cfLngRaw ? Number(cfLngRaw) : null;
+  socket.cfLocation = (cfLat !== null && cfLng !== null && Number.isFinite(cfLat) && Number.isFinite(cfLng))
+    ? { lat: cfLat, lng: cfLng }
+    : null;
 
   // ── Discovery: extension/host announces it is streaming ─────────────────
   // Now accepts optional lat/lng so the server stores the session's location.
@@ -179,13 +198,30 @@ io.on('connection', (socket) => {
     sessionId = normalizeSessionId(sessionId);
     if (!sessionId) return;
     const safeType = type === 'mobile-host' ? 'mobile-host' : 'computer';
+    
+    // Check GPS coordinates
     const safeLat = normalizeCoordinate(lat);
     const safeLng = normalizeCoordinate(lng);
-    const hasLocation = hasValidCoordinates(safeLat, safeLng);
-    const existing = activeSessions.get(sessionId);
-    if (DEBUG_SIGNALING) {
-      console.log(`Session announced: ${sessionId} (${label || 'Unnamed'}, type=${safeType}, lat=${hasLocation ? safeLat : 'none'}, lng=${hasLocation ? safeLng : 'none'})`);
+    const hasGpsLocation = hasValidCoordinates(safeLat, safeLng);
+
+    // Fallback to Cloudflare IP Geolocation for extension/computer if GPS is not supplied
+    let finalLat = safeLat;
+    let finalLng = safeLng;
+    let locationSource = 'gps';
+
+    if (!hasGpsLocation && safeType === 'computer' && socket.cfLocation) {
+      finalLat = socket.cfLocation.lat;
+      finalLng = socket.cfLocation.lng;
+      locationSource = 'cloudflare_geo';
     }
+
+    const finalHasLocation = hasValidCoordinates(finalLat, finalLng);
+    const existing = activeSessions.get(sessionId);
+
+    if (DEBUG_SIGNALING) {
+      console.log(`Session announced: ${sessionId} (${label || 'Unnamed'}, type=${safeType}, lat=${finalHasLocation ? finalLat : 'none'}, lng=${finalHasLocation ? finalLng : 'none'}, source=${locationSource})`);
+    }
+
     activeSessions.set(sessionId, {
       sessionId,
       label: label || 'Computer',
@@ -193,8 +229,10 @@ io.on('connection', (socket) => {
       socketId: socket.id,
       announcedAt: existing?.announcedAt || Date.now(),
       lastSeen: Date.now(),
-      lat: hasLocation ? safeLat : null,
-      lng: hasLocation ? safeLng : null,
+      lat: finalHasLocation ? finalLat : null,
+      lng: finalHasLocation ? finalLng : null,
+      clientIp: socket.clientIp || null,
+      locationSource: finalHasLocation ? locationSource : 'none',
     });
     broadcastActiveSessions();
   });
@@ -226,25 +264,44 @@ io.on('connection', (socket) => {
     const reqLng = normalizeCoordinate(data?.lng);
     const requesterHasLocation = hasValidCoordinates(reqLat, reqLng);
 
+    // Extract mobile client's IP. Prefer the Cloudflare-injected cf_ip query
+    // param (same source as used for the extension) to ensure consistent
+    // IP matching on both sides of the same-Wi-Fi check.
+    const mobileQueryIp = socket.handshake.query.cf_ip;
+    const mobileForwardHeader = socket.handshake.headers['x-forwarded-for'];
+    const mobileRawIp = mobileQueryIp || mobileForwardHeader || socket.handshake.address;
+    const mobileIp = cleanIp(mobileRawIp);
+
     pruneExpiredSessions();
 
     const list = Array.from(activeSessions.values())
-      .filter(({ type, lat, lng }) => {
+      .filter(({ type, lat, lng, clientIp, locationSource }) => {
         const isComputerSession = (type || 'computer') === 'computer';
         const sessionHasLocation = hasValidCoordinates(lat, lng);
 
-        // Browser extension sessions cannot provide GPS coordinates. They are
-        // still safe to show because joining requires the random session code.
+        // 1. Local/dev fallback: If it's a computer session and has NO location info,
+        // (meaning it did not come through Cloudflare proxy, e.g. localhost), show it by default.
         if (isComputerSession && !sessionHasLocation) {
           return true;
         }
 
-        // Mobile-host sessions keep the strict nearby filter.
+        // 2. Same-Wi-Fi check (IP matching): If public IPs are identical, they are nearby (0m distance)
+        if (clientIp && mobileIp && clientIp === mobileIp) {
+          return true;
+        }
+
+        // Location is required for both if we are calculating distance
         if (!requesterHasLocation || !sessionHasLocation) {
           return false;
         }
+
         const dist = haversineMetres(reqLat, reqLng, lat, lng);
-        return dist <= SESSION_DISCOVERY_RADIUS_METRES;
+
+        // 3. Dynamic search threshold:
+        // Use a 5km radius to compensate for IP location database offset,
+        // or a precise 50m radius if using GPS-to-GPS.
+        const allowedRadius = locationSource === 'cloudflare_geo' ? 5000 : SESSION_DISCOVERY_RADIUS_METRES;
+        return dist <= allowedRadius;
       })
       .map(({ sessionId, label, type, announcedAt }) => ({
         sessionId,
