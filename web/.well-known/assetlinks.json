@@ -1,11 +1,26 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.syncronization.app",
       "sha256_cert_fingerprints": [
         "REPLACE_WITH_YOUR_RELEASE_KEYSTORE_SHA256_FINGERPRINT"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.synchronization.app",
+      "sha256_cert_fingerprints": [
+        "EB:3C:CC:34:72:63:7F:A2:6E:13:0B:D8:43:75:44:D2:84:3E:C7:86:51:CE:43:2E:A9:DF:27:B2:56:0C:87:23"
       ]
     }
   }
