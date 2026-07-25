@@ -9,8 +9,8 @@ import 'package:synchronization/config/server_config.dart';
 ///    synchronization://connect?id=SESSION_ID&server=https://...
 ///
 /// 2. HTTPS App Link (preferred, Android intercepts QR scan directly):
-///    https://synchronization.labs5.workers.dev/connect?id=SESSION_ID&server=https://...
-///    https://synchronization.labs5.workers.dev/c/SESSION_ID
+///    https://synchronizationpro.app/connect?id=SESSION_ID&server=https://...
+///    https://synchronizationpro.app/c/SESSION_ID
 ///
 /// Both carry the same query parameters — the handler is identical.
 class DeepLinkService {
@@ -47,7 +47,7 @@ class DeepLinkService {
 
     final bool isAppLink = (uri.scheme == 'https' || uri.scheme == 'http') &&
         (uri.host == ServerConfig.signalingHost ||
-            uri.host == 'synchronization.labs5.workers.dev') &&
+            uri.host == 'synchronizationpro.app') &&
         (uri.path.startsWith('/connect') || uri.path.startsWith('/c/'));
 
     if (!isCustomScheme && !isAppLink) return;
