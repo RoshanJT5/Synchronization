@@ -197,3 +197,79 @@ async function setupApkDownloads() {
 }
 
 setupApkDownloads();
+
+
+// Hero Scroll Canvas Animation
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('hero-scroll-canvas');
+  const container = document.querySelector('.hero-scroll-container');
+  
+  if (canvas && container) {
+    const ctx = canvas.getContext('2d');
+    const frameCount = 454; // Based on 450 frames of video folder
+    const images = [];
+    const imagePaths = [];
+    
+    // Create image paths array
+    for (let i = 0; i < frameCount; i++) {
+      // frame_000.webp, frame_001.webp, etc.
+      let numStr = i.toString();
+      if (numStr.length === 1) numStr = '00' + numStr;
+      else if (numStr.length === 2) numStr = '0' + numStr;
+      imagePaths.push(`assets/hero-frames/frame_${numStr}.webp`);
+    }
+
+    // Preload images
+    for (let i = 0; i < frameCount; i++) {
+      const img = new Image();
+      img.src = imagePaths[i];
+      img.onload = () => {
+        // Initialize first frame once the first image is loaded
+        if (i === 0) {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+        }
+      };
+      images.push(img);
+    }
+
+    const updateCanvasProgress = () => {
+      const rect = container.getBoundingClientRect();
+      const stickyOffset = window.innerHeight * 0.15; // 15vh sticky top
+      const maxScroll = container.offsetHeight - window.innerHeight;
+      
+      let progress = (stickyOffset - rect.top) / maxScroll;
+      if (progress < 0) progress = 0;
+      if (progress > 1) progress = 1;
+      
+      const frameIndex = Math.floor(progress * (frameCount - 1));
+      const currentImage = images[frameIndex];
+      
+      // Ensure we don't draw an empty image before it loads
+      if (currentImage && currentImage.complete && currentImage.naturalHeight !== 0) {
+        // Only set canvas dimensions once, or if it changes (usually it doesn't)
+        if (canvas.width !== currentImage.width) {
+            canvas.width = currentImage.width;
+            canvas.height = currentImage.height;
+        }
+        ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
+      }
+    };
+
+    let isScrolling = false;
+    window.addEventListener('scroll', () => {
+      if (!isScrolling) {
+        window.requestAnimationFrame(() => {
+          updateCanvasProgress();
+          isScrolling = false;
+        });
+        isScrolling = true;
+      }
+    }, { passive: true });
+    
+    // Initial draw (in case user refreshes partway down the page)
+    updateCanvasProgress();
+  }
+});
+

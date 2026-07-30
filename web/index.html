@@ -290,7 +290,7 @@
       <a href="about.html">About</a>
       <a href="privacy.html">Privacy</a>
       <a href="terms.html">Terms</a>
-      <a href="javascript:void(0)" id="bg-switcher-trigger-btn" aria-label="Settings" title="Settings"
+      <a href="javascript:void(0)" id="bg-switcher-trigger-btn" class="bg-switcher-trigger" aria-label="Settings" title="Settings"
         style="display: flex; align-items: center; justify-content: center;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round">
@@ -323,8 +323,10 @@
         </a>
       </div>
 
-      <div class="hero-visual">
-        <img src="assets/hero.png" alt="App Preview" />
+      <div class="hero-scroll-container">
+        <div class="hero-visual">
+          <canvas id="hero-scroll-canvas"></canvas>
+        </div>
       </div>
     </section>
 

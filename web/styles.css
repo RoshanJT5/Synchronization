@@ -340,6 +340,12 @@ h1 {
   color: var(--text);
 }
 
+.hero-scroll-container {
+  position: relative;
+  height: 300vh; /* Allow enough scroll space for the video */
+  margin-top: 60px;
+}
+
 .hero-visual {
   width: 100%;
   max-width: 900px;
@@ -348,12 +354,17 @@ h1 {
   background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%);
   padding: 12px;
   box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+  position: sticky;
+  top: 15vh;
+  margin: 0 auto;
 }
 
-.hero-visual img {
+.hero-visual img,
+.hero-visual canvas {
   width: 100%;
   border-radius: 16px;
   display: block;
+  mix-blend-mode: screen;
 }
 
 .section-title {
@@ -903,4 +914,4 @@ body.no-spotlight::after {
   box-shadow: 
     0 14px 30px rgba(168, 85, 247, 0.5), 
     0 0 0 1px rgba(255, 255, 255, 0.2) inset;
-}
+}

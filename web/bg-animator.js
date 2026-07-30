@@ -32,7 +32,17 @@
   // New state variables for toggles
   let animDisabled = localStorage.getItem('bgAnimDisabled') === 'true';
   let allPagesAnim = localStorage.getItem('bgAllPagesAnim') === 'true';
-  let spotlightGlow = localStorage.getItem('bgSpotlightGlow') !== 'false'; // Defaults to true
+  
+  let spotlightGlow = true;
+  const storedSpotlight = localStorage.getItem('bgSpotlightGlow');
+  if (storedSpotlight === null) {
+    if (activeKey === 'purple_snow') {
+      spotlightGlow = false;
+    }
+  } else {
+    spotlightGlow = (storedSpotlight !== 'false');
+  }
+
   let isHomePage = window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('.app/');
 
   let lastTimestamp = 0;
