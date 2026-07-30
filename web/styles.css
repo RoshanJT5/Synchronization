@@ -102,7 +102,8 @@ a {
 
 nav {
   display: flex;
-  gap: 32px;
+  gap: 24px;
+  align-items: center;
 }
 
 nav a {
@@ -113,6 +114,23 @@ nav a {
 
 nav a:hover {
   color: var(--text);
+}
+
+nav .bg-switcher-trigger {
+  position: static;
+  opacity: 1 !important;
+  transform: none !important;
+  pointer-events: auto !important;
+  padding: 8px 16px;
+  font-size: 13px;
+  border-radius: 30px;
+  height: 38px;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+}
+
+nav .bg-switcher-trigger:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(168, 85, 247, 0.4);
 }
 
 .hero {
@@ -532,3 +550,357 @@ footer {
     width: 100%;
   }
 }
+
+/* ==========================================================================
+   Animated Background Canvas & Switcher Widget Styles
+   ========================================================================== */
+
+/* Root override for homepage background canvas visibility */
+html.home-page-root {
+  background: transparent;
+}
+
+/* Background Canvas */
+#bg-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -2;
+  pointer-events: none;
+  background-color: #030303;
+}
+
+/* Spotlight Glow smooth transition */
+body::before,
+body::after {
+  transition: opacity 0.4s ease;
+}
+
+/* Class to turn off spotlight */
+body.no-spotlight::before,
+body.no-spotlight::after {
+  opacity: 0;
+}
+
+/* Floating Switcher Panel */
+.bg-switcher {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  background: rgba(15, 15, 18, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 22px;
+  width: 330px;
+  color: var(--text);
+  box-shadow: 
+    0 20px 50px rgba(0, 0, 0, 0.6), 
+    0 0 0 1px rgba(168, 85, 247, 0.15);
+  font-family: inherit;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: bottom right;
+}
+
+.bg-switcher.minimized {
+  opacity: 0;
+  transform: translateY(40px) scale(0.9);
+  pointer-events: none;
+}
+
+/* Widget Header */
+.bg-sw-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.bg-sw-header h3 {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  background: linear-gradient(135deg, #fff 30%, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+#bg-sw-minimize {
+  background: transparent;
+  border: 0;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+#bg-sw-minimize:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.bg-sw-intro {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  margin-bottom: 16px;
+}
+
+/* Option List */
+.bg-sw-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 18px;
+}
+
+/* Scrollbar for option list */
+.bg-sw-list::-webkit-scrollbar {
+  width: 4px;
+}
+.bg-sw-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.bg-sw-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+.bg-sw-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.bg-sw-option {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bg-sw-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.bg-sw-option.active {
+  background: rgba(168, 85, 247, 0.08);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.15);
+}
+
+.bg-opt-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+}
+
+.bg-opt-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.3;
+}
+
+.bg-opt-badge {
+  align-self: flex-start;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--text-dim);
+}
+
+.bg-sw-option.active .bg-opt-badge {
+  background: rgba(168, 85, 247, 0.2);
+  color: var(--accent);
+}
+
+/* Settings Area */
+.bg-sw-settings {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bg-sw-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #fff;
+}
+
+.bg-sw-row span {
+  color: var(--text-dim);
+}
+
+.bg-sw-slider-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Speed Slider styling */
+#bg-fps-slider {
+  -webkit-appearance: none;
+  width: 90px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  outline: none;
+}
+#bg-fps-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+#bg-fps-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Switch Toggle Styling */
+.bg-sw-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+}
+
+.bg-sw-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.bg-sw-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.15);
+  transition: .3s;
+  border-radius: 18px;
+}
+
+.bg-sw-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+.bg-sw-switch input:checked + .bg-sw-slider {
+  background-color: var(--accent);
+}
+
+.bg-sw-switch input:checked + .bg-sw-slider:before {
+  transform: translateX(14px);
+}
+
+/* Info Grid */
+.bg-sw-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 11px;
+}
+
+.bg-info-cell span {
+  display: block;
+  color: var(--text-dim);
+  font-size: 9px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  letter-spacing: 0.5px;
+}
+
+.bg-info-cell strong {
+  color: #fff;
+}
+
+/* Pulse animation for preloading */
+.loading-pulse {
+  animation: pulse 1.2s infinite ease-in-out;
+  color: var(--accent) !important;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+/* Floating Switcher Trigger */
+.bg-switcher-trigger {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 50px;
+  padding: 12px 20px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 
+    0 10px 25px rgba(168, 85, 247, 0.4), 
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(20px) scale(0.9);
+  pointer-events: none;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bg-switcher-trigger.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.bg-switcher-trigger:hover {
+  background: #b566ff;
+  transform: translateY(-2px);
+  box-shadow: 
+    0 14px 30px rgba(168, 85, 247, 0.5), 
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+}
