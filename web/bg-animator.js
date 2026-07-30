@@ -437,9 +437,9 @@
   function init() {
     // Apply spotlight glow preference immediately
     if (!spotlightGlow) {
-      document.body.classList.add('no-spotlight');
+      document.documentElement.classList.add('no-spotlight');
     } else {
-      document.body.classList.remove('no-spotlight');
+      document.documentElement.classList.remove('no-spotlight');
     }
 
     // Canvas setup
@@ -714,9 +714,9 @@
           if (spotlightToggle) spotlightToggle.checked = spotlightGlow;
           
           if (spotlightGlow) {
-            document.body.classList.remove('no-spotlight');
+            document.documentElement.classList.remove('no-spotlight');
           } else {
-            document.body.classList.add('no-spotlight');
+            document.documentElement.classList.add('no-spotlight');
           }
         }
 
@@ -777,9 +777,9 @@
         spotlightGlow = e.target.checked;
         localStorage.setItem('bgSpotlightGlow', spotlightGlow);
         if (spotlightGlow) {
-          document.body.classList.remove('no-spotlight');
+          document.documentElement.classList.remove('no-spotlight');
         } else {
-          document.body.classList.add('no-spotlight');
+          document.documentElement.classList.add('no-spotlight');
         }
       });
     }

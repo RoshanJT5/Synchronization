@@ -185,6 +185,22 @@
         transform: rotate(90deg);
       }
     </style>
+
+  <script>
+    (function() {
+      var storedSpotlight = localStorage.getItem('bgSpotlightGlow');
+      var activeKey = localStorage.getItem('bgActiveKey') || 'procedural_bokeh';
+      var spotlightGlow = true;
+      if (storedSpotlight === null) {
+        if (activeKey === 'purple_snow') spotlightGlow = false;
+      } else {
+        spotlightGlow = (storedSpotlight !== 'false');
+      }
+      if (!spotlightGlow) {
+        document.documentElement.classList.add('no-spotlight');
+      }
+    })();
+  </script>
 </head>
   <body>
     <!-- -- Navigation -- -->

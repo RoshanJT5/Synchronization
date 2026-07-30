@@ -590,9 +590,11 @@ body::after {
 }
 
 /* Class to turn off spotlight */
+html.no-spotlight body::before,
+html.no-spotlight body::after,
 body.no-spotlight::before,
 body.no-spotlight::after {
-  opacity: 0;
+  opacity: 0 !important;
 }
 
 /* Floating Switcher Panel */
