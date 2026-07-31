@@ -270,6 +270,53 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initial draw (in case user refreshes partway down the page)
     updateCanvasProgress();
+
+    // Setup Video Fallback logic
+    const video = document.getElementById('hero-scroll-video');
+    const savedScrollAnim = localStorage.getItem('bgScrollAnimDisabled');
+    
+    const applyScrollAnimState = (isScrollEnabled) => {
+      if (isScrollEnabled) {
+        canvas.style.display = 'block';
+        if (video) video.style.display = 'none';
+        container.classList.remove('no-scroll-anim');
+      } else {
+        canvas.style.display = 'none';
+        if (video) video.style.display = 'block';
+        container.classList.add('no-scroll-anim');
+      }
+    };
+
+    // Apply initial state
+    applyScrollAnimState(savedScrollAnim !== 'true');
+
+    // Listen for toggle changes from bg-animator.js
+    document.addEventListener('scrollAnimToggled', (e) => {
+      applyScrollAnimState(e.detail.enabled);
+    });
   }
 });
 
+
+
+// Hamburger Menu Logic
+document.addEventListener('DOMContentLoaded', () => {
+  const hamburger = document.querySelector('.hamburger');
+  const nav = document.querySelector('.topbar nav');
+  const navLinks = document.querySelectorAll('.topbar nav a');
+
+  if (hamburger && nav) {
+    hamburger.addEventListener('click', () => {
+      hamburger.classList.toggle('active');
+      nav.classList.toggle('nav-open');
+    });
+
+    // Close menu when a link is clicked
+    navLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        hamburger.classList.remove('active');
+        nav.classList.remove('nav-open');
+      });
+    });
+  }
+});

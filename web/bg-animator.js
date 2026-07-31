@@ -660,16 +660,24 @@
         </div>
 
         <div class="bg-sw-row">
-          <span>Spotlight Glow</span>
-          <label class="bg-sw-switch">
-            <input type="checkbox" id="bg-spotlight-toggle" ${spotlightGlow ? 'checked' : ''}>
-            <span class="bg-sw-slider"></span>
-          </label>
-        </div>
-
-        <div class="bg-sw-row">
-          <span>Disable Animation</span>
-          <label class="bg-sw-switch">
+            <span>Spotlight Glow</span>
+            <label class="bg-sw-switch">
+              <input type="checkbox" id="bg-spotlight-toggle" ${spotlightGlow ? 'checked' : ''}>
+              <span class="bg-sw-slider"></span>
+            </label>
+          </div>
+  
+          <div class="bg-sw-row">
+            <span>Scrolling Animation</span>
+            <label class="bg-sw-switch">
+              <input type="checkbox" id="bg-scroll-anim-toggle" checked>
+              <span class="bg-sw-slider"></span>
+            </label>
+          </div>
+  
+          <div class="bg-sw-row">
+            <span>Disable Animation</span>
+            <label class="bg-sw-switch">
             <input type="checkbox" id="bg-disable-toggle" ${animDisabled ? 'checked' : ''}>
             <span class="bg-sw-slider"></span>
           </label>
@@ -692,6 +700,14 @@
 
   // Attach Event Listeners to widget controls
   function setupUIListeners(switcher, trigger) {
+    function updateSliderFill(slider) {
+      const min = parseFloat(slider.min) || 0;
+      const max = parseFloat(slider.max) || 100;
+      const val = parseFloat(slider.value);
+      const percentage = ((val - min) / (max - min)) * 100;
+      slider.style.background = 'linear-gradient(to right, var(--accent) ' + percentage + '%, rgba(255, 255, 255, 0.15) ' + percentage + '%)';
+    }
+
     // 1. Toggle Active background
     const options = switcher.querySelectorAll('.bg-sw-option');
     options.forEach(opt => {
@@ -722,6 +738,7 @@
 
         // Refresh density display text immediately when active background switches
         const densityVal = switcher.querySelector('#bg-density-val');
+    if(densitySlider) updateSliderFill(densitySlider);
         if (densityVal) {
           if (activeKey === 'procedural_bokeh') {
             densityVal.textContent = Math.floor(BUBBLE_COUNT * densityScale);
@@ -739,7 +756,9 @@
     // 2a. Adjust Playback Speed (Frames Per Second or Speed Multiplier)
     const fpsSlider = switcher.querySelector('#bg-fps-slider');
     const fpsVal = switcher.querySelector('#bg-fps-val');
+    if(fpsSlider) updateSliderFill(fpsSlider);
     fpsSlider.addEventListener('input', (e) => {
+      updateSliderFill(e.target);
       playbackSpeed = parseFloat(e.target.value);
       fpsVal.textContent = Math.round(playbackSpeed);
       localStorage.setItem('bgPlaybackSpeed', playbackSpeed);
@@ -748,7 +767,9 @@
     // 2b. Adjust Density / Amount (Shows real counts: 10 to 100 for bubbles)
     const densitySlider = switcher.querySelector('#bg-density-slider');
     const densityVal = switcher.querySelector('#bg-density-val');
+    if(densitySlider) updateSliderFill(densitySlider);
     densitySlider.addEventListener('input', (e) => {
+      updateSliderFill(e.target);
       densityScale = parseFloat(e.target.value);
       if (activeKey === 'procedural_bokeh') {
         densityVal.textContent = Math.floor(BUBBLE_COUNT * densityScale);
@@ -765,7 +786,9 @@
     // 2c. Adjust Glitter / Shimmer rate
     const glitterSlider = switcher.querySelector('#bg-glitter-slider');
     const glitterVal = switcher.querySelector('#bg-glitter-val');
+    if(glitterSlider) updateSliderFill(glitterSlider);
     glitterSlider.addEventListener('input', (e) => {
+      updateSliderFill(e.target);
       glitterModifier = parseFloat(e.target.value);
       glitterVal.textContent = glitterModifier.toFixed(1) + 'x';
     });
@@ -788,6 +811,25 @@
     const disableToggle = switcher.querySelector('#bg-disable-toggle');
     const globalToggle = switcher.querySelector('#bg-global-toggle');
     const globalToggleLabel = switcher.querySelector('#bg-global-toggle-label');
+    const scrollAnimToggle = switcher.querySelector('#bg-scroll-anim-toggle');
+
+    // Restore scroll anim state from localStorage
+    const savedScrollAnim = localStorage.getItem('bgScrollAnimDisabled');
+    if (savedScrollAnim === 'true' && scrollAnimToggle) {
+      scrollAnimToggle.checked = false;
+    }
+
+    if (scrollAnimToggle) {
+      scrollAnimToggle.addEventListener('change', (e) => {
+        const isScrollEnabled = e.target.checked;
+        localStorage.setItem('bgScrollAnimDisabled', !isScrollEnabled);
+        
+        // Dispatch custom event to script.js to handle the logic
+        document.dispatchEvent(new CustomEvent('scrollAnimToggled', {
+          detail: { enabled: isScrollEnabled }
+        }));
+      });
+    }
 
     if (disableToggle) {
       disableToggle.addEventListener('change', (e) => {
