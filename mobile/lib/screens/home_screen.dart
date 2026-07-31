@@ -23,6 +23,7 @@ import 'package:synchronization/services/app_open_ad_manager.dart';
 import 'package:synchronization/widgets/tutorial_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum _ScreenMode { welcome, hostSetup, hostActive, guestJoin, guestActive }
 
@@ -42,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _loadInterstitialAd() {
     InterstitialAd.load(
-      adUnitId: Platform.isAndroid 
+      adUnitId: Platform.isAndroid
           // ? 'ca-app-pub-6635939012655124/5379968116' // production
           ? 'ca-app-pub-3940256099942544/1033173712' // Android Test Interstitial
           : 'ca-app-pub-3940256099942544/4411468910',
@@ -68,7 +69,8 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    if (_interstitialAd == null || _interstitialLoadTime == null || 
+    if (_interstitialAd == null ||
+        _interstitialLoadTime == null ||
         DateTime.now().difference(_interstitialLoadTime!).inMinutes > 50) {
       _interstitialAd?.dispose();
       _interstitialAd = null;
@@ -91,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _interstitialAd!.show();
   }
+
   final FileService _fileService = FileService();
   final TextEditingController _codeController = TextEditingController();
 
@@ -294,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _hostPlaybackMode = HostPlaybackMode.audioOnly;
       _codeController.clear();
     });
-    
+
     // Show Interstitial Ad upon leaving, then restart discovery
     _showInterstitialAd(() {
       if (!mounted) return;
@@ -356,7 +359,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.location_off, color: AppTheme.accent, size: 72),
+                  const Icon(Icons.location_off,
+                      color: AppTheme.accent, size: 72),
                   const SizedBox(height: 28),
                   const Text(
                     'Location Required',
@@ -371,7 +375,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Text(
                     'Synchronization uses your GPS location to show only sessions happening in the same room as you.\n\nWithout location permission, the app cannot filter sessions and will not work.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: AppTheme.textDim, fontSize: 14, height: 1.6),
+                    style: TextStyle(
+                        color: AppTheme.textDim, fontSize: 14, height: 1.6),
                   ),
                   const SizedBox(height: 36),
                   SizedBox(
@@ -410,41 +415,54 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return Scaffold(
-      drawer: _buildDrawer(context),
-      body: Stack(
-        children: [
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [AppTheme.surface, AppTheme.bg],
+    return PopScope<Object?>(
+      canPop: _mode == _ScreenMode.welcome && !_isFullscreen && !_isScanning,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_isScanning) {
+          setState(() => _isScanning = false);
+        } else if (_isFullscreen) {
+          _exitFullscreen();
+        } else {
+          _leaveSession();
+        }
+      },
+      child: Scaffold(
+        drawer: _buildDrawer(context),
+        body: Stack(
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppTheme.surface, AppTheme.bg],
+                ),
+              ),
+              child: SizedBox.expand(),
+            ),
+            SafeArea(
+              child: Consumer<WebRTCService>(
+                builder: (context, webrtc, _) => AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: switch (_mode) {
+                    _ScreenMode.welcome => _buildWelcome(),
+                    _ScreenMode.hostSetup => _buildHostSetup(webrtc),
+                    _ScreenMode.hostActive => _buildHostActive(webrtc),
+                    _ScreenMode.guestJoin => _buildGuestJoin(webrtc),
+                    _ScreenMode.guestActive => _buildGuestActive(webrtc),
+                  },
+                ),
               ),
             ),
-            child: SizedBox.expand(),
-          ),
-          SafeArea(
-            child: Consumer<WebRTCService>(
-              builder: (context, webrtc, _) => AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                child: switch (_mode) {
-                  _ScreenMode.welcome => _buildWelcome(),
-                  _ScreenMode.hostSetup => _buildHostSetup(webrtc),
-                  _ScreenMode.hostActive => _buildHostActive(webrtc),
-                  _ScreenMode.guestJoin => _buildGuestJoin(webrtc),
-                  _ScreenMode.guestActive => _buildGuestActive(webrtc),
-                },
+            if (_isScanning) _buildScannerOverlay(),
+            if (_isFullscreen && _hostController != null)
+              _FullscreenVideoOverlay(
+                controller: _hostController!,
+                onExit: _exitFullscreen,
               ),
-            ),
-          ),
-          if (_isScanning) _buildScannerOverlay(),
-          if (_isFullscreen && _hostController != null)
-            _FullscreenVideoOverlay(
-              controller: _hostController!,
-              onExit: _exitFullscreen,
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -524,7 +542,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Icon(Icons.graphic_eq, color: AppTheme.accent, size: 35),
+                    const Icon(Icons.graphic_eq,
+                        color: AppTheme.accent, size: 35),
                     const SizedBox(width: 12),
                     const Text(
                       'Synchronization',
@@ -541,8 +560,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.help_outline, color: AppTheme.textDim),
-            title: const Text('How to use', style: TextStyle(color: Colors.white)),
-            trailing: const Icon(Icons.chevron_right, color: AppTheme.textDim, size: 18),
+            title:
+                const Text('How to use', style: TextStyle(color: Colors.white)),
+            trailing: const Icon(Icons.chevron_right,
+                color: AppTheme.textDim, size: 18),
             onTap: () {
               Navigator.pop(context);
               showDialog(
@@ -553,8 +574,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.info_outline, color: AppTheme.textDim),
-            title: const Text('About Us', style: TextStyle(color: Colors.white)),
-            trailing: const Icon(Icons.chevron_right, color: AppTheme.textDim, size: 18),
+            title:
+                const Text('About Us', style: TextStyle(color: Colors.white)),
+            trailing: const Icon(Icons.chevron_right,
+                color: AppTheme.textDim, size: 18),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
@@ -564,27 +587,53 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.description_outlined, color: AppTheme.textDim),
-            title: const Text('Terms & Conditions', style: TextStyle(color: Colors.white)),
-            trailing: const Icon(Icons.chevron_right, color: AppTheme.textDim, size: 18),
+            leading:
+                const Icon(Icons.description_outlined, color: AppTheme.textDim),
+            title: const Text('Terms & Conditions',
+                style: TextStyle(color: Colors.white)),
+            trailing: const Icon(Icons.chevron_right,
+                color: AppTheme.textDim, size: 18),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const TermsAndConditionsScreen()),
+                MaterialPageRoute(
+                    builder: (_) => const TermsAndConditionsScreen()),
               );
             },
           ),
           ListTile(
-            leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.textDim),
-            title: const Text('Privacy Policy', style: TextStyle(color: Colors.white)),
-            trailing: const Icon(Icons.chevron_right, color: AppTheme.textDim, size: 18),
+            leading:
+                const Icon(Icons.privacy_tip_outlined, color: AppTheme.textDim),
+            title: const Text('Privacy Policy',
+                style: TextStyle(color: Colors.white)),
+            trailing: const Icon(Icons.chevron_right,
+                color: AppTheme.textDim, size: 18),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
               );
+            },
+          ),
+          const Divider(color: AppTheme.border),
+          ListTile(
+            leading:
+                const Icon(Icons.extension_outlined, color: AppTheme.accent),
+            title: const Text('Get our Extension',
+                style: TextStyle(color: Colors.white)),
+            subtitle: const Text('synchronizationpro.app',
+                style: TextStyle(color: AppTheme.textDim, fontSize: 12)),
+            trailing: const Icon(Icons.open_in_new,
+                color: AppTheme.textDim, size: 18),
+            onTap: () async {
+              Navigator.pop(context);
+              final url =
+                  Uri.parse('https://synchronizationpro.app/extension.html');
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              }
             },
           ),
         ],
