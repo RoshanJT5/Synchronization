@@ -815,13 +815,18 @@
 
     // Restore scroll anim state from localStorage
     const savedScrollAnim = localStorage.getItem('bgScrollAnimDisabled');
-    if (savedScrollAnim === 'true' && scrollAnimToggle) {
+    
+    // If null, it means first visit -> disable it. If 'true', it was explicitly disabled.
+    if ((savedScrollAnim === null || savedScrollAnim === 'true') && scrollAnimToggle) {
       scrollAnimToggle.checked = false;
+    } else if (scrollAnimToggle) {
+      scrollAnimToggle.checked = true;
     }
 
     if (scrollAnimToggle) {
       scrollAnimToggle.addEventListener('change', (e) => {
         const isScrollEnabled = e.target.checked;
+        // if checked, it's NOT disabled
         localStorage.setItem('bgScrollAnimDisabled', !isScrollEnabled);
         
         // Dispatch custom event to script.js to handle the logic

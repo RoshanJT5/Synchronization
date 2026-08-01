@@ -315,7 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Apply initial state
-    applyScrollAnimState(savedScrollAnim !== 'true');
+    // By default (null), it is NOT 'false', so scroll anim is disabled (video shows)
+    applyScrollAnimState(savedScrollAnim === 'false');
 
     // Listen for toggle changes from bg-animator.js
     document.addEventListener('scrollAnimToggled', (e) => {
