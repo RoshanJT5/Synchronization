@@ -219,20 +219,47 @@ document.addEventListener('DOMContentLoaded', () => {
       imagePaths.push(`assets/hero-frames/frame_${numStr}.webp`);
     }
 
-    // Preload images
-    for (let i = 0; i < frameCount; i++) {
-      const img = new Image();
-      img.src = imagePaths[i];
-      img.onload = () => {
-        // Initialize first frame once the first image is loaded
-        if (i === 0) {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-        }
+      // Prepare images array
+      for (let i = 0; i < frameCount; i++) {
+        images.push(null);
+      }
+
+      // Lazy Loading Logic
+      const initialLoadCount = 30; // Load first 30 frames immediately
+
+      const loadImage = (i) => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.src = imagePaths[i];
+          img.onload = () => {
+            images[i] = img;
+            if (i === 0) {
+              canvas.width = img.width;
+              canvas.height = img.height;
+              ctx.drawImage(img, 0, 0);
+            }
+            resolve();
+          };
+          // Fallback if image fails
+          img.onerror = resolve; 
+        });
       };
-      images.push(img);
-    }
+
+      // 1. Load initial frames
+      const initialPromises = [];
+      for (let i = 0; i < initialLoadCount && i < frameCount; i++) {
+        initialPromises.push(loadImage(i));
+      }
+
+      // 2. Load remaining frames in background after initial are done
+      Promise.all(initialPromises).then(() => {
+        const loadRemaining = async () => {
+          for (let i = initialLoadCount; i < frameCount; i++) {
+            await loadImage(i);
+          }
+        };
+        loadRemaining();
+      });
 
     const updateCanvasProgress = () => {
       const rect = container.getBoundingClientRect();
@@ -293,30 +320,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Listen for toggle changes from bg-animator.js
     document.addEventListener('scrollAnimToggled', (e) => {
       applyScrollAnimState(e.detail.enabled);
-    });
-  }
-});
-
-
-
-// Hamburger Menu Logic
-document.addEventListener('DOMContentLoaded', () => {
-  const hamburger = document.querySelector('.hamburger');
-  const nav = document.querySelector('.topbar nav');
-  const navLinks = document.querySelectorAll('.topbar nav a');
-
-  if (hamburger && nav) {
-    hamburger.addEventListener('click', () => {
-      hamburger.classList.toggle('active');
-      nav.classList.toggle('nav-open');
-    });
-
-    // Close menu when a link is clicked
-    navLinks.forEach(link => {
-      link.addEventListener('click', () => {
-        hamburger.classList.remove('active');
-        nav.classList.remove('nav-open');
-      });
     });
   }
 });

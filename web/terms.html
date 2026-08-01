@@ -170,7 +170,13 @@
       </button>
       <nav>
         <a href="./#setup">Setup</a>
-        <a href="app.html">Download</a>
+        <div class="nav-dropdown">
+          <a href="javascript:void(0)" class="dropdown-trigger">Download</a>
+          <div class="dropdown-content">
+            <a href="app.html">Android App</a>
+            <a href="extension.html">Browser Extension</a>
+          </div>
+        </div>
         <a href="about.html">About</a>
         <a href="privacy.html">Privacy</a>
         <a href="terms.html">Terms</a>
@@ -479,5 +485,6 @@
       </span>
     </footer>
   <script src="bg-animator.js"></script>
+  <script src="nav.js"></script>
 </body>
 </html>

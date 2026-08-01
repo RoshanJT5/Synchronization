@@ -172,6 +172,85 @@ nav a:hover {
   color: var(--text);
 }
 
+/* Nav Dropdown */
+.nav-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-trigger {
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dropdown-trigger:hover,
+.nav-dropdown:hover .dropdown-trigger {
+  color: var(--text);
+}
+
+.dropdown-content {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: rgba(15, 15, 18, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-width: 180px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  z-index: 10001;
+}
+
+/* Dropdown arrow on top */
+.dropdown-content::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 10px;
+  height: 10px;
+  background: rgba(15, 15, 18, 0.85);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+
+.nav-dropdown:hover .dropdown-content,
+.nav-dropdown.active .dropdown-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(15px);
+}
+
+.dropdown-content a {
+  padding: 10px 14px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  width: 100%;
+  display: block;
+}
+
+.dropdown-content a:hover {
+  background: rgba(168, 85, 247, 0.15);
+  color: var(--accent);
+}
+
+
 nav .bg-switcher-trigger {
   position: static;
   opacity: 1 !important;
@@ -624,6 +703,37 @@ footer {
     width: 100%;
     text-align: left;
     padding: 10px 0;
+  }
+
+  /* Mobile Dropdown Overrides */
+  .nav-dropdown {
+    width: 100%;
+  }
+  .dropdown-trigger {
+    width: 100%;
+    padding: 10px 0;
+    justify-content: space-between;
+  }
+  .dropdown-content {
+    position: static;
+    transform: none;
+    background: rgba(255, 255, 255, 0.03);
+    border: none;
+    box-shadow: none;
+    padding: 0 0 0 16px;
+    margin-top: 5px;
+    display: none;
+    opacity: 1;
+    visibility: visible;
+  }
+  .dropdown-content::before {
+    display: none;
+  }
+  /* On mobile, use a click class or hover to show */
+  .nav-dropdown:hover .dropdown-content,
+  .nav-dropdown.active .dropdown-content {
+    display: flex;
+    transform: none;
   }
 }
 

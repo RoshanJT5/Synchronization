@@ -4,6 +4,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  
+  <!-- Preload critical hero assets for performance -->
+  <link rel="preload" as="video" href="assets/hero-animation.webm" type="video/webm">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_000.webp">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_001.webp">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_002.webp">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_003.webp">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_004.webp">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_005.webp">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_006.webp">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_007.webp">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_008.webp">
+  <link rel="preload" as="image" href="assets/hero-frames/frame_009.webp">
+
   <title>Synchronization - Sync Audio from Browser to Android | Wireless Audio Sync App</title>
   <meta name="description"
     content="Synchronization is a private wireless audio sync app that streams browser audio to Android with low-latency WebRTC. Sync audio, synchronize sound, and listen on your phone without cables." />
@@ -308,7 +322,13 @@
       </button>
       <nav>
       <a href="#setup">Setup</a>
-      <a href="app.html">Download</a>
+        <div class="nav-dropdown">
+          <a href="javascript:void(0)" class="dropdown-trigger">Download</a>
+          <div class="dropdown-content">
+            <a href="app.html">Android App</a>
+            <a href="extension.html">Browser Extension</a>
+          </div>
+        </div>
       <a href="about.html">About</a>
       <a href="privacy.html">Privacy</a>
       <a href="terms.html">Terms</a>
@@ -344,7 +364,10 @@
       <div class="hero-scroll-container">
         <div class="hero-visual">
           <canvas id="hero-scroll-canvas"></canvas>
-          <video id="hero-scroll-video" src="assets/Hero Animation VIdeo.mp4" autoplay loop muted playsinline style="display: none; width: 100%; height: auto; border-radius: 12px; object-fit: cover;"></video>
+          <video id="hero-scroll-video" autoplay loop muted playsinline style="display: none; width: 100%; height: auto; border-radius: 12px; object-fit: cover;">
+            <source src="assets/hero-animation.webm" type="video/webm">
+            <source src="assets/Hero Animation VIdeo.mp4" type="video/mp4">
+          </video>
         </div>
       </div>
     </section>
@@ -664,6 +687,7 @@ Just scan &amp; listen.</code></pre>
 
   <script src="script.js"></script>
   <script src="bg-animator.js"></script>
+  <script src="nav.js"></script>
 </body>
 
 </html>
