@@ -668,12 +668,12 @@
           </div>
   
           <div class="bg-sw-row">
-            <span>Scrolling Animation</span>
-            <label class="bg-sw-switch">
-              <input type="checkbox" id="bg-scroll-anim-toggle" checked>
-              <span class="bg-sw-slider"></span>
-            </label>
-          </div>
+          <span>Scrolling Animation</span>
+          <label class="bg-sw-switch">
+            <input type="checkbox" id="bg-scroll-anim-toggle">
+            <span class="bg-sw-slider"></span>
+          </label>
+        </div>
   
           <div class="bg-sw-row">
             <span>Disable Animation</span>
@@ -814,20 +814,15 @@
     const scrollAnimToggle = switcher.querySelector('#bg-scroll-anim-toggle');
 
     // Restore scroll anim state from localStorage
-    const savedScrollAnim = localStorage.getItem('bgScrollAnimDisabled');
-    
-    // If null, it means first visit -> disable it. If 'true', it was explicitly disabled.
-    if ((savedScrollAnim === null || savedScrollAnim === 'true') && scrollAnimToggle) {
-      scrollAnimToggle.checked = false;
-    } else if (scrollAnimToggle) {
+    const savedScrollAnim = localStorage.getItem('bgScrollAnimEnabled');
+    if (savedScrollAnim === 'true' && scrollAnimToggle) {
       scrollAnimToggle.checked = true;
     }
 
     if (scrollAnimToggle) {
       scrollAnimToggle.addEventListener('change', (e) => {
         const isScrollEnabled = e.target.checked;
-        // if checked, it's NOT disabled
-        localStorage.setItem('bgScrollAnimDisabled', !isScrollEnabled);
+        localStorage.setItem('bgScrollAnimEnabled', isScrollEnabled);
         
         // Dispatch custom event to script.js to handle the logic
         document.dispatchEvent(new CustomEvent('scrollAnimToggled', {

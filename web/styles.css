@@ -729,6 +729,9 @@ footer {
   .dropdown-content::before {
     display: none;
   }
+  .dropdown-content a:hover{
+    padding-left: 15px;
+  }
   /* On mobile, use a click class or hover to show */
   .nav-dropdown:hover .dropdown-content,
   .nav-dropdown.active .dropdown-content {
@@ -1121,6 +1124,16 @@ body.no-spotlight::after {
 @media (max-width: 480px) {
   .bg-switcher {
     max-width: calc(100vw - 48px);
+    right: 24px;
+    bottom: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .bg-switcher {
+    max-width: calc(100vw - 48px);
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
     right: 24px;
     bottom: 24px;
   }

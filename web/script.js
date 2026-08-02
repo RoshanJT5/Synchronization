@@ -206,60 +206,60 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (canvas && container) {
     const ctx = canvas.getContext('2d');
-    const frameCount = 454; // Based on 450 frames of video folder
-    const images = [];
-    const imagePaths = [];
-    
-    // Create image paths array
-    for (let i = 0; i < frameCount; i++) {
-      // frame_000.webp, frame_001.webp, etc.
-      let numStr = i.toString();
-      if (numStr.length === 1) numStr = '00' + numStr;
-      else if (numStr.length === 2) numStr = '0' + numStr;
-      imagePaths.push(`assets/hero-frames/frame_${numStr}.webp`);
+    const frameCount = 148;
+    const spritesheets = [];
+    const sheetCount = 5;
+    const framesPerSheet = 30;
+    const columns = 5;
+    const frameWidth = 960;
+    const frameHeight = 540;
+
+    // We only need to load 5 spritesheets
+    for (let i = 0; i < sheetCount; i++) {
+      spritesheets.push(null);
     }
 
-      // Prepare images array
-      for (let i = 0; i < frameCount; i++) {
-        images.push(null);
-      }
+    // Lazy Loading Logic
+    const initialLoadCount = 1; // Load just the first spritesheet immediately (contains first 30 frames)
 
-      // Lazy Loading Logic
-      const initialLoadCount = 30; // Load first 30 frames immediately
-
-      const loadImage = (i) => {
-        return new Promise((resolve) => {
-          const img = new Image();
-          img.src = imagePaths[i];
-          img.onload = () => {
-            images[i] = img;
-            if (i === 0) {
-              canvas.width = img.width;
-              canvas.height = img.height;
-              ctx.drawImage(img, 0, 0);
-            }
-            resolve();
-          };
-          // Fallback if image fails
-          img.onerror = resolve; 
-        });
-      };
-
-      // 1. Load initial frames
-      const initialPromises = [];
-      for (let i = 0; i < initialLoadCount && i < frameCount; i++) {
-        initialPromises.push(loadImage(i));
-      }
-
-      // 2. Load remaining frames in background after initial are done
-      Promise.all(initialPromises).then(() => {
-        const loadRemaining = async () => {
-          for (let i = initialLoadCount; i < frameCount; i++) {
-            await loadImage(i);
+    const loadImage = (i) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.src = `assets/spritesheets/sheet_${i}.webp`;
+        img.onload = () => {
+          spritesheets[i] = img;
+          if (i === 0) {
+            canvas.width = frameWidth;
+            canvas.height = frameHeight;
+            // Draw first frame
+            ctx.drawImage(
+              img, 
+              0, 0, frameWidth, frameHeight, // source
+              0, 0, frameWidth, frameHeight  // destination
+            );
           }
+          resolve();
         };
-        loadRemaining();
+        // Fallback if image fails
+        img.onerror = resolve; 
       });
+    };
+
+    // 1. Load initial sheet
+    const initialPromises = [];
+    for (let i = 0; i < initialLoadCount && i < sheetCount; i++) {
+      initialPromises.push(loadImage(i));
+    }
+
+    // 2. Load remaining sheets in background
+    Promise.all(initialPromises).then(() => {
+      const loadRemaining = async () => {
+        for (let i = initialLoadCount; i < sheetCount; i++) {
+          await loadImage(i);
+        }
+      };
+      loadRemaining();
+    });
 
     const updateCanvasProgress = () => {
       const rect = container.getBoundingClientRect();
@@ -271,16 +271,27 @@ document.addEventListener('DOMContentLoaded', () => {
       if (progress > 1) progress = 1;
       
       const frameIndex = Math.floor(progress * (frameCount - 1));
-      const currentImage = images[frameIndex];
       
-      // Ensure we don't draw an empty image before it loads
-      if (currentImage && currentImage.complete && currentImage.naturalHeight !== 0) {
-        // Only set canvas dimensions once, or if it changes (usually it doesn't)
-        if (canvas.width !== currentImage.width) {
-            canvas.width = currentImage.width;
-            canvas.height = currentImage.height;
+      const sheetIndex = Math.floor(frameIndex / framesPerSheet);
+      const currentSheet = spritesheets[sheetIndex];
+      
+      // Ensure we don't draw if the sheet isn't loaded yet
+      if (currentSheet && currentSheet.complete && currentSheet.naturalHeight !== 0) {
+        if (canvas.width !== frameWidth) {
+            canvas.width = frameWidth;
+            canvas.height = frameHeight;
         }
-        ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
+        
+        const localIndex = frameIndex % framesPerSheet;
+        const col = localIndex % columns;
+        const row = Math.floor(localIndex / columns);
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(
+            currentSheet, 
+            col * frameWidth, row * frameHeight, frameWidth, frameHeight, // source x,y,w,h
+            0, 0, canvas.width, canvas.height // destination x,y,w,h
+        );
       }
     };
 
@@ -300,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Setup Video Fallback logic
     const video = document.getElementById('hero-scroll-video');
-    const savedScrollAnim = localStorage.getItem('bgScrollAnimDisabled');
+    const savedScrollAnim = localStorage.getItem('bgScrollAnimEnabled');
     
     const applyScrollAnimState = (isScrollEnabled) => {
       if (isScrollEnabled) {
@@ -315,8 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Apply initial state
-    // By default (null), it is NOT 'false', so scroll anim is disabled (video shows)
-    applyScrollAnimState(savedScrollAnim === 'false');
+    applyScrollAnimState(savedScrollAnim === 'true');
 
     // Listen for toggle changes from bg-animator.js
     document.addEventListener('scrollAnimToggled', (e) => {
