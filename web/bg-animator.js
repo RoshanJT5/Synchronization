@@ -20,6 +20,11 @@
       name: 'Purple Snow',
       desc: 'Procedural real-time glittering purple snow falling down (Infinite)',
       aspect: 'Responsive'
+    },
+    'purple_mystify': {
+      name: 'Purple Mystify',
+      desc: 'Classic bouncing vector ribbons in vibrant neon purple (Infinite)',
+      aspect: 'Responsive'
     }
   };
 
@@ -86,9 +91,72 @@
     { r: 255, g: 255, b: 255 }
   ];
 
-  // DOM Elements
-  let canvas = null;
-  let ctx = null;
+  // Performance Cache for Glow Sprites and Ambient Backgrounds
+  const GLOW_SPRITES = {};
+  function getGlowSprite(r, g, b, size = 16) {
+    const key = `${r}_${g}_${b}_${size}`;
+    if (GLOW_SPRITES[key]) return GLOW_SPRITES[key];
+
+    const c = document.createElement('canvas');
+    c.width = size * 2;
+    c.height = size * 2;
+    const cx = c.getContext('2d');
+
+    const grd = cx.createRadialGradient(size, size, 0, size, size, size);
+    grd.addColorStop(0, `rgba(${r},${g},${b},0.95)`);
+    grd.addColorStop(0.4, `rgba(${r},${g},${b},0.45)`);
+    grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+
+    cx.fillStyle = grd;
+    cx.beginPath();
+    cx.arc(size, size, size, 0, Math.PI * 2);
+    cx.fill();
+
+    GLOW_SPRITES[key] = c;
+    return c;
+  }
+
+  let cachedAmbGlow = null;
+  let cachedAmbWidth = 0;
+  let cachedAmbHeight = 0;
+
+  function getAmbientGlow(w, h, key) {
+    if (cachedAmbGlow && cachedAmbWidth === w && cachedAmbHeight === h && cachedAmbGlow.key === key) {
+      return cachedAmbGlow.canvas;
+    }
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const cx = c.getContext('2d');
+
+    if (key === 'purple_flies') {
+      const haze = cx.createLinearGradient(0, 0, 0, h * 0.55);
+      haze.addColorStop(0, "rgba(90, 10, 130, 0.22)");
+      haze.addColorStop(0.4, "rgba(40, 0, 60, 0.08)");
+      haze.addColorStop(1, "rgba(0, 0, 0, 0)");
+      cx.fillStyle = haze;
+      cx.fillRect(0, 0, w, h);
+    } else if (key === 'purple_mystify') {
+      const amb = cx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.65);
+      amb.addColorStop(0, "rgba(50, 10, 80, 0.28)");
+      amb.addColorStop(0.5, "rgba(25, 0, 45, 0.12)");
+      amb.addColorStop(1, "rgba(0, 0, 0, 0)");
+      cx.fillStyle = amb;
+      cx.fillRect(0, 0, w, h);
+    } else {
+      const amb = cx.createRadialGradient(w * 0.5, h * 0.45, 0, w * 0.5, h * 0.45, Math.max(w, h) * 0.7);
+      amb.addColorStop(0, 'rgba(40, 0, 60, 0.22)');
+      amb.addColorStop(0.5, 'rgba(20, 0, 35, 0.1)');
+      amb.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      cx.fillStyle = amb;
+      cx.fillRect(0, 0, w, h);
+    }
+
+    cachedAmbGlow = { canvas: c, key: key };
+    cachedAmbWidth = w;
+    cachedAmbHeight = h;
+    return c;
+  }
 
   // Bubble Class (User modified parameters are fully preserved)
   class Bubble {
@@ -248,17 +316,13 @@
 
       const { r, g: gg, b } = this.c;
 
-      // Draw particle halo for foreground particles (adds premium depth)
+      // Draw particle halo using cached glow sprite (0 gradient allocation per frame)
       if (this.depth > 0.6) {
-        const glowRad = this.size * 3.5;
-        const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, glowRad);
-        g.addColorStop(0, `rgba(${r},${gg},${b},${a * 0.35})`);
-        g.addColorStop(0.5, `rgba(${r},${gg},${b},${a * 0.1})`);
-        g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, glowRad, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
+        const sprite = getGlowSprite(r, gg, b, 16);
+        const drawSize = this.size * 3.5;
+        ctx.globalAlpha = a * 0.35;
+        ctx.drawImage(sprite, this.x - drawSize, this.y - drawSize, drawSize * 2, drawSize * 2);
+        ctx.globalAlpha = 1.0;
       }
 
       // Draw particle core
@@ -320,11 +384,11 @@
       this.currentAlpha = 0;
     }
 
-    update() {
+    update(dtFactor = 1.0) {
       const w = window.innerWidth;
       const h = window.innerHeight;
       // Scale speed relative to default 25.0 f/s to keep base speed correct at startup
-      const speedRatio = playbackSpeed / 25.0;
+      const speedRatio = (playbackSpeed / 25.0) * dtFactor;
 
       this.x += (this.vx + Math.sin(this.life * this.swayFreq + this.twinklePhase) * this.swayAmp) * speedRatio;
       this.y += this.vy * speedRatio;
@@ -355,17 +419,13 @@
       if (a < 0.02) return;
 
       const { r, g, b } = this.color;
+      const sprite = getGlowSprite(r, g, b, 16);
+      const drawSize = this.size * 2.2;
 
-      // Soft glowing radial gradient core
-      const grd = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 2.2);
-      grd.addColorStop(0, `rgba(${r},${g},${b},${a * 0.95})`);
-      grd.addColorStop(0.4, `rgba(${r},${g},${b},${a * 0.45})`);
-      grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
-
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size * 2.2, 0, Math.PI * 2);
-      ctx.fillStyle = grd;
-      ctx.fill();
+      // Draw cached glow sprite texture (0 gradient allocation per frame)
+      ctx.globalAlpha = a;
+      ctx.drawImage(sprite, this.x - drawSize, this.y - drawSize, drawSize * 2, drawSize * 2);
+      ctx.globalAlpha = 1.0;
 
       // Bright center spark for larger particles
       if (this.baseSize > 2.2) {
@@ -374,6 +434,170 @@
         ctx.fillStyle = `rgba(255,240,255,${a * 0.9})`;
         ctx.fill();
       }
+    }
+  }
+
+  // Mystify State
+  let mystifyShapes = [];
+
+  // --- PURPLE MYSTIFY ANIMATION ---
+  const MYSTIFY_PALETTES = [
+    { r: 168, g: 85, b: 247 },  // #a855f7 - Neon Violet
+    { r: 217, g: 70, b: 239 },  // #d946ef - Electric Pink-Magenta
+    { r: 147, g: 51, b: 234 },  // #9333ea - Deep Purple
+    { r: 192, g: 132, b: 252 }, // #c084fc - Bright Lavender
+    { r: 236, g: 72, b: 153 }   // #ec4899 - Neon Rose
+  ];
+
+  class MystifyShape {
+    constructor(colorIndex = 0) {
+      this.numPoints = 4;
+      this.colorIndex = colorIndex;
+      this.points = [];
+      this.history = [];
+      this.reset(true);
+    }
+
+    reset(initOnScreen = false) {
+      const w = window.innerWidth || 1200;
+      const h = window.innerHeight || 800;
+      this.points = [];
+      this.history = [];
+
+      this.color = MYSTIFY_PALETTES[this.colorIndex % MYSTIFY_PALETTES.length];
+      this.colorIndex = Math.floor(Math.random() * MYSTIFY_PALETTES.length);
+
+      this.life = 0;
+      this.maxLife = 300 + Math.random() * 400; // lifespans in frames
+      this.fadeIn = 60;
+      this.fadeOut = 60;
+      this.currentAlpha = 0;
+
+      this.z = 0.5 + Math.random() * 2.0; 
+      this.vz = (Math.random() - 0.5) * 0.015;
+
+      for (let j = 0; j < this.numPoints; j++) {
+        this.points.push({
+          x: Math.random() * (w - 100) + 50,
+          y: Math.random() * (h - 100) + 50,
+          vx: (Math.random() - 0.5) * 4.5,
+          vy: (Math.random() - 0.5) * 4.5
+        });
+      }
+
+      if (initOnScreen) {
+        this.life = Math.random() * (this.maxLife - this.fadeIn - this.fadeOut) + this.fadeIn;
+      }
+    }
+
+    update(dtFactor = 1.0) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const speedRatio = (playbackSpeed / 10.0) * dtFactor;
+      const maxHistory = Math.floor(22 * densityScale);
+
+      this.life += speedRatio;
+      this.z += this.vz * speedRatio;
+
+      if (this.z < 0.2) { this.z = 0.2; this.vz *= -1; }
+      if (this.z > 3.0) { this.z = 3.0; this.vz *= -1; }
+
+      let lifeAlpha = 1.0;
+      if (this.life < this.fadeIn) {
+        lifeAlpha = this.life / this.fadeIn;
+      } else if (this.life > this.maxLife - this.fadeOut) {
+        lifeAlpha = Math.max(0, (this.maxLife - this.life) / this.fadeOut);
+      }
+      this.currentAlpha = lifeAlpha;
+
+      if (this.life >= this.maxLife) {
+        this.reset(false);
+      }
+
+      // Save history snapshot with z-depth
+      const currentPts = this.points.map(p => ({ x: p.x, y: p.y, z: this.z }));
+      this.history.unshift(currentPts);
+      while (this.history.length > maxHistory) {
+        this.history.pop();
+      }
+
+      // Move vertices and bounce off screen borders
+      for (let p of this.points) {
+        p.x += p.vx * speedRatio;
+        p.y += p.vy * speedRatio;
+
+        if (p.x <= 0) { p.x = 0; p.vx *= -1; }
+        if (p.x >= w) { p.x = w; p.vx *= -1; }
+        if (p.y <= 0) { p.y = 0; p.vy *= -1; }
+        if (p.y >= h) { p.y = h; p.vy *= -1; }
+      }
+    }
+
+    draw() {
+      if (this.history.length < 2) return;
+      if (this.currentAlpha <= 0.01) return;
+      
+      const { r, g, b } = this.color;
+      const total = this.history.length;
+      const focalLength = 300;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+
+      for (let i = 0; i < total; i++) {
+        const pts = this.history[i];
+        if (!pts || pts.length < 2) continue;
+
+        const depth = pts[0].z || 1.0;
+        const scale = focalLength / (focalLength + (depth - 1) * 200);
+
+        const factor = 1 - (i / total);
+        const alpha = factor * factor * 0.65 * Math.min(glitterModifier, 2.0) * this.currentAlpha;
+        if (alpha <= 0.01) continue;
+
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        ctx.lineWidth = (i === 0 ? 2.4 : 1.2) * scale;
+
+        const proj = (px, py) => ({
+            x: (px - w/2) * scale + w/2,
+            y: (py - h/2) * scale + h/2
+        });
+
+        ctx.beginPath();
+        let startP = proj(pts[0].x, pts[0].y);
+        ctx.moveTo(startP.x, startP.y);
+
+        for (let j = 0; j < pts.length; j++) {
+          const pNext = pts[(j + 1) % pts.length];
+          const p1 = proj(pts[j].x, pts[j].y);
+          const p2 = proj(pNext.x, pNext.y);
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+          ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
+        }
+
+        ctx.closePath();
+        ctx.stroke();
+
+        // Bright leading-edge glow
+        if (i === 0) {
+          ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 * alpha})`;
+          ctx.lineWidth = 1.0 * scale;
+          ctx.stroke();
+        }
+      }
+
+      ctx.restore();
+    }
+  }
+
+  function initMystify() {
+    mystifyShapes = [];
+    const targetCount = Math.max(1, Math.floor(4 * densityScale));
+    for (let i = 0; i < targetCount; i++) {
+      mystifyShapes.push(new MystifyShape(i));
     }
   }
 
@@ -429,6 +653,14 @@
       }
       if (fliesParticles.length > targetCount) {
         fliesParticles.length = targetCount;
+      }
+    } else if (activeKey === 'purple_mystify') {
+      const targetCount = Math.max(1, Math.floor(4 * densityScale));
+      while (mystifyShapes.length < targetCount) {
+        mystifyShapes.push(new MystifyShape(mystifyShapes.length));
+      }
+      if (mystifyShapes.length > targetCount) {
+        mystifyShapes.length = targetCount;
       }
     }
   }
@@ -488,6 +720,12 @@
         if (p.x > layoutW + 30) p.x = Math.random() * layoutW;
         if (p.y > layoutH + 40) p.y = Math.random() * layoutH;
       });
+      mystifyShapes.forEach(s => {
+        s.points.forEach(p => {
+          if (p.x > layoutW) p.x = layoutW;
+          if (p.y > layoutH) p.y = layoutH;
+        });
+      });
     }
   }
 
@@ -499,6 +737,8 @@
       initSnow();
     } else if (activeKey === 'purple_flies') {
       initFlies();
+    } else if (activeKey === 'purple_mystify') {
+      initMystify();
     }
   }
 
@@ -527,56 +767,45 @@
     if (animDisabled) return; // Skip rendering if animation is disabled
     if (!isHomePage && !allPagesAnim) return; // Skip rendering on non-home pages if global animation is off
 
-    // Calculate delta time
-    const dt = (timestamp - lastTimestamp) / 1000;
+    // Calculate delta time with 60fps normalization baseline
+    let dt = (timestamp - lastTimestamp) / 1000;
     lastTimestamp = timestamp;
+    if (isNaN(dt) || dt <= 0 || dt > 0.1) dt = 1 / 60;
+    const dtFactor = dt * 60;
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
 
     // 1. Draw solid dark background
     ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx.fillRect(0, 0, w, h);
 
-    // 2. Render specific procedural items
-    if (activeKey === 'procedural_bokeh' || activeKey === 'purple_snow') {
-      // Ambient glow (shared for bokeh and snow)
-      const layoutW = window.innerWidth;
-      const layoutH = window.innerHeight;
-      const amb = ctx.createRadialGradient(layoutW * 0.5, layoutH * 0.45, 0, layoutW * 0.5, layoutH * 0.45, Math.max(layoutW, layoutH) * 0.7);
-      amb.addColorStop(0, 'rgba(40, 0, 60, 0.22)');
-      amb.addColorStop(0.5, 'rgba(20, 0, 35, 0.1)');
-      amb.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = amb;
-      ctx.fillRect(0, 0, layoutW, layoutH);
+    // 2. Draw cached ambient background pattern (0 gradient allocation per frame)
+    const ambCanvas = getAmbientGlow(w, h, activeKey);
+    ctx.drawImage(ambCanvas, 0, 0);
 
-      if (activeKey === 'procedural_bokeh') {
-        for (const b of bubbles) {
-          b.update();
-          b.draw();
-        }
-      } else {
-        for (const s of snowParticles) {
-          s.update();
-          s.draw();
-        }
+    // 3. Render specific procedural items
+    if (activeKey === 'procedural_bokeh') {
+      for (const b of bubbles) {
+        b.update(dtFactor);
+        b.draw();
+      }
+    } else if (activeKey === 'purple_snow') {
+      for (const s of snowParticles) {
+        s.update(dtFactor);
+        s.draw();
       }
     } else if (activeKey === 'purple_flies') {
-      // Haze background
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const haze = ctx.createLinearGradient(0, 0, 0, h * 0.55);
-      haze.addColorStop(0, "rgba(90, 10, 130, 0.22)");
-      haze.addColorStop(0.4, "rgba(40, 0, 60, 0.08)");
-      haze.addColorStop(1, "rgba(0, 0, 0, 0)");
-      ctx.fillStyle = haze;
-      ctx.fillRect(0, 0, w, h);
-
-      // Particles
       for (const p of fliesParticles) {
-        p.update();
+        p.update(dtFactor);
         p.draw();
       }
-
-      // Vignette
       drawFliesVignette();
+    } else if (activeKey === 'purple_mystify') {
+      for (const s of mystifyShapes) {
+        s.update(dtFactor);
+        s.draw();
+      }
     }
   }
 
@@ -602,6 +831,8 @@
       densityDisplayVal = Math.floor(SNOW_COUNT * densityScale);
     } else if (activeKey === 'purple_flies') {
       densityDisplayVal = Math.floor(FLIES_COUNT * densityScale);
+    } else if (activeKey === 'purple_mystify') {
+      densityDisplayVal = Math.floor(22 * densityScale);
     } else {
       densityDisplayVal = densityScale.toFixed(1) + 'x';
     }
